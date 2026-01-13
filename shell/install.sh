@@ -3,7 +3,20 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="${NUDGE_CONFIG_DIR:-$HOME/.config/nudge}"
+
+# Detect platform and get config directory
+get_config_dir() {
+    case "$(uname -s)" in
+        Darwin)
+            echo "$HOME/Library/Application Support/nudge"
+            ;;
+        *)
+            echo "${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+            ;;
+    esac
+}
+
+CONFIG_DIR="${NUDGE_CONFIG_DIR:-$(get_config_dir)}"
 
 # Detect shell type
 detect_shell() {

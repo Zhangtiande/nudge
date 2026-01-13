@@ -2,7 +2,19 @@
 # Nudge Uninstallation Script
 set -e
 
-CONFIG_DIR="${NUDGE_CONFIG_DIR:-$HOME/.config/nudge}"
+# Detect platform and get config directory
+get_config_dir() {
+    case "$(uname -s)" in
+        Darwin)
+            echo "$HOME/Library/Application Support/nudge"
+            ;;
+        *)
+            echo "${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+            ;;
+    esac
+}
+
+CONFIG_DIR="${NUDGE_CONFIG_DIR:-$(get_config_dir)}"
 
 # Remove source line from RC file
 remove_source_line() {

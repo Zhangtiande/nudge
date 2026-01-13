@@ -1,0 +1,5 @@
+ls -la
+cd /var/log
+tail -f syslog
+grep error *.log
+cat /etc/hosts

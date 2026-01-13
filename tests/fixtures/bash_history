@@ -1,0 +1,15 @@
+ls -la
+cd /home/user/project
+git status
+npm install
+cargo build
+git commit -m "feat: add new feature"
+docker ps
+kubectl get pods
+echo "hello world"
+curl https://api.example.com
+git push origin main
+cat README.md
+vim config.yaml
+export API_KEY=sk-1234567890abcdefghij
+mysql -u root --password=secret

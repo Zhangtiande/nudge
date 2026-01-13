@@ -2,9 +2,22 @@
 # Nudge - Zsh Integration
 # Source this file from your .zshrc
 
+# Detect platform and set config directory
+_nudge_get_config_dir() {
+    case "$(uname -s)" in
+        Darwin)
+            print "$HOME/Library/Application Support/nudge"
+            ;;
+        *)
+            print "${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+            ;;
+    esac
+}
+
 # Configuration
 NUDGE_HOTKEY="${NUDGE_HOTKEY:-^E}"
-NUDGE_SOCKET="${NUDGE_SOCKET:-$HOME/.config/nudge/nudge.sock}"
+NUDGE_CONFIG_DIR="${NUDGE_CONFIG_DIR:-$(_nudge_get_config_dir)}"
+NUDGE_SOCKET="${NUDGE_SOCKET:-$NUDGE_CONFIG_DIR/nudge.sock}"
 NUDGE_LOCK="/tmp/nudge.lock"
 
 # Capture last exit code
