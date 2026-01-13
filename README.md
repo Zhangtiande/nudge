@@ -2,24 +2,30 @@
 
 > A gentle nudge for your shell - LLM-powered CLI auto-completion
 
+[English](./README.md) | [中文](./README_zh.md)
+
+---
+
 Nudge uses Large Language Models to predict and complete command-line inputs based on your shell history, current directory context, and Git repository state.
 
-## Features
+## ✨ Features
 
-- 🤖 **AI-Powered Completions**: Uses LLM to understand context and suggest relevant commands
-- 📝 **History-Aware**: Learns from your shell history to provide personalized suggestions
-- 📁 **Context-Aware**: Considers current directory files and Git status
-- 🔒 **Privacy-First**: Automatically sanitizes sensitive data (API keys, passwords) before sending to LLM
-- ⚠️ **Safety Warnings**: Flags potentially dangerous commands (rm -rf, mkfs, etc.)
-- 🐚 **Multi-Shell Support**: Works with Bash and Zsh
-- ⚡ **Fast**: <200ms response time with local LLMs
+| Feature | Description |
+|---------|-------------|
+| 🤖 **AI-Powered Completions** | Uses LLM to understand context and suggest relevant commands |
+| 📝 **History-Aware** | Learns from your shell history to provide personalized suggestions |
+| 📁 **Context-Aware** | Considers current directory files and Git status |
+| 🔒 **Privacy-First** | Automatically sanitizes sensitive data (API keys, passwords) before sending to LLM |
+| ⚠️ **Safety Warnings** | Flags potentially dangerous commands (rm -rf, mkfs, etc.) |
+| 🐚 **Multi-Shell Support** | Works with Bash and Zsh |
+| ⚡ **Fast** | <200ms response time with local LLMs |
 
-## Prerequisites
+## 📋 Prerequisites
 
 - **Rust** (for building from source)
 - **Ollama** (for local LLM inference) or OpenAI API access
 
-## Installation
+## 📦 Installation
 
 ### From Source
 
@@ -52,7 +58,7 @@ After installation, add to your shell RC file:
 [ -f "$HOME/.config/nudge/integration.zsh" ] && source "$HOME/.config/nudge/integration.zsh"
 ```
 
-## Usage
+## 🚀 Usage
 
 1. **Start the Daemon** (automatic with lazy-loading, or manually):
    ```bash
@@ -71,7 +77,7 @@ After installation, add to your shell RC file:
    nudge daemon stop
    ```
 
-## Configuration
+## ⚙️ Configuration
 
 Configuration file: `~/.config/nudge/config.yaml`
 
@@ -101,7 +107,7 @@ privacy:
   block_dangerous: true
 ```
 
-## How It Works
+## 🏗️ Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -119,6 +125,8 @@ privacy:
 └─────────────────────────────┴───────────────────────────────────────┘
 ```
 
+**How it works:**
+
 1. Shell hook captures input buffer on hotkey press
 2. Client sends request to daemon via Unix socket
 3. Daemon gathers context (history, CWD files, Git status)
@@ -127,7 +135,7 @@ privacy:
 6. Safety check flags dangerous commands
 7. Client outputs suggestion to shell
 
-## LLM Providers
+## 🔌 LLM Providers
 
 ### Local (Ollama)
 
@@ -165,7 +173,7 @@ model:
   api_key_env: "DASHSCOPE_API_KEY"
 ```
 
-## Development
+## 🛠️ Development
 
 ```bash
 # Run tests
@@ -181,10 +189,10 @@ cargo clippy
 cargo fmt
 ```
 
-## License
+## 📄 License
 
 MIT
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please open an issue or pull request.

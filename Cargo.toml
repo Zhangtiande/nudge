@@ -25,7 +25,7 @@ interprocess = { version = "2.2", features = ["tokio"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Config path resolution
-directories = "5.0"
+directories = "6.0"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
