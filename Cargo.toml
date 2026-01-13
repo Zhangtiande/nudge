@@ -1,0 +1,67 @@
+[package]
+name = "nudge"
+version = "0.1.0"
+edition = "2021"
+description = "LLM-powered CLI auto-completion - a gentle nudge for your shell"
+license = "MIT"
+repository = "https://github.com/user/nudge"
+keywords = ["cli", "completion", "llm", "shell", "ai"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# CLI parsing
+clap = { version = "4.5", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1.36", features = ["full", "signal"] }
+
+# Terminal manipulation
+crossterm = "0.28"
+
+# IPC
+interprocess = { version = "2.2", features = ["tokio"] }
+
+# HTTP client for LLM API
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Config path resolution
+directories = "5.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Regex for sanitization
+regex = "1.10"
+lazy_static = "1.5"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID for request IDs
+uuid = { version = "1.7", features = ["v4"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Unix process control
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal", "process"] }
+
+# Async trait
+async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3.10"
+tokio-test = "0.4"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
