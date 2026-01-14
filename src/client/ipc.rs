@@ -18,6 +18,40 @@ const CONNECT_TIMEOUT_MS: u64 = 1000;
 /// Read timeout
 const READ_TIMEOUT_MS: u64 = 10000;
 
+/// Check if daemon process is actually running (not just socket file exists)
+fn is_daemon_alive() -> bool {
+    let pid_path = Config::pid_path();
+    
+    if !pid_path.exists() {
+        return false;
+    }
+    
+    if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
+        if let Ok(pid) = pid_str.trim().parse::<i32>() {
+            #[cfg(unix)]
+            {
+                // Signal 0 checks if process exists without sending actual signal
+                use nix::sys::signal::{kill, Signal};
+                use nix::unistd::Pid;
+                return kill(Pid::from_raw(pid), Signal::SIGCONT).is_ok();
+            }
+            #[cfg(not(unix))]
+            {
+                return true;
+            }
+        }
+    }
+    
+    false
+}
+
+/// Clean up stale socket and pid files
+fn cleanup_stale_files() {
+    let _ = std::fs::remove_file(Config::socket_path());
+    let _ = std::fs::remove_file(Config::pid_path());
+    debug!("Cleaned up stale socket/pid files");
+}
+
 /// Send completion request to daemon
 pub async fn send_request(request: &CompletionRequest) -> Result<CompletionResponse> {
     let socket_path = Config::socket_path();
@@ -29,6 +63,21 @@ pub async fn send_request(request: &CompletionRequest) -> Result<CompletionRespo
             ErrorInfo::new(
                 ErrorCode::LlmUnavailable,
                 "Daemon is not running. Start it with: nudge daemon --fork",
+                true,
+            ),
+            0,
+        ));
+    }
+
+    // CRITICAL: Check if daemon process is actually alive before attempting connection
+    // This prevents blocking on a stale socket file (which causes uninterruptible sleep)
+    if !is_daemon_alive() {
+        cleanup_stale_files();
+        return Ok(CompletionResponse::error(
+            String::new(),
+            ErrorInfo::new(
+                ErrorCode::LlmUnavailable,
+                "Daemon is not running (stale socket cleaned). Start it with: nudge daemon --fork",
                 true,
             ),
             0,
