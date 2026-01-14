@@ -137,6 +137,10 @@ privacy:
   block_dangerous: true
   custom_blocked: []
 
+log:
+  level: "info"           # trace, debug, info, warn, error
+  file_enabled: false     # Enable file logging (daily rotation)
+
 # system_prompt: "Custom system prompt here..."
 EOF
 }

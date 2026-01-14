@@ -20,6 +20,7 @@ Nudge looks for configuration in the following order:
 | Config | `~/Library/Application Support/nudge/config.yaml` | `~/.config/nudge/config.yaml` |
 | Socket | `~/Library/Application Support/nudge/nudge.sock` | `~/.config/nudge/nudge.sock` |
 | PID | `~/Library/Application Support/nudge/nudge.pid` | `~/.config/nudge/nudge.pid` |
+| Logs | `~/Library/Application Support/nudge/logs/` | `~/.local/share/nudge/logs/` |
 
 ## Configuration Schema
 
@@ -63,6 +64,11 @@ privacy:
   custom_patterns: []                     # Custom regex patterns for sanitization
   block_dangerous: true                   # Enable dangerous command warnings
   custom_blocked: []                      # Custom dangerous command patterns
+
+# Logging settings
+log:
+  level: "info"                           # Log level: trace/debug/info/warn/error
+  file_enabled: false                     # Enable file logging (daily rotation)
 
 # System prompt (optional)
 system_prompt: null                       # Override default system prompt
@@ -164,6 +170,21 @@ Priority values range from 1-100. Higher values mean the data is kept longer dur
 - Disk formatting (`mkfs`, `dd if=`)
 - Fork bombs (`:(){:|:&};:`)
 
+### Logging Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `log.level` | string | `info` | Log level: trace, debug, info, warn, error |
+| `log.file_enabled` | boolean | `false` | Enable file logging with daily rotation |
+
+**Log File Location:**
+
+When `log.file_enabled` is `true`, logs are written to:
+- **macOS**: `~/Library/Application Support/nudge/logs/nudge.log.YYYY-MM-DD`
+- **Linux**: `~/.local/share/nudge/logs/nudge.log.YYYY-MM-DD`
+
+Logs are rotated daily. Both console (stderr) and file output are enabled when file logging is on.
+
 ### System Prompt
 
 You can override the default system prompt:
@@ -226,7 +247,7 @@ privacy:
 | Variable | Description |
 |----------|-------------|
 | `SMARTSHELL_CONFIG` | Override config file path |
-| `RUST_LOG` | Set logging level (e.g., `nudge=debug`) |
+| `RUST_LOG` | Override log level from config (e.g., `nudge=debug`, `nudge::daemon=trace`) |
 
 ## Validation
 

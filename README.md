@@ -105,6 +105,11 @@ plugins:
 privacy:
   sanitize_enabled: true
   block_dangerous: true
+
+# Logging
+log:
+  level: "info"
+  file_enabled: false  # Enable for daily-rotated file logs
 ```
 
 ## 🏗️ Architecture

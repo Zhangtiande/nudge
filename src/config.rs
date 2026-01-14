@@ -13,6 +13,7 @@ pub struct Config {
     pub plugins: PluginsConfig,
     pub trigger: TriggerConfig,
     pub privacy: PrivacyConfig,
+    pub log: LogConfig,
     pub system_prompt: Option<String>,
 }
 
@@ -24,6 +25,7 @@ impl Default for Config {
             plugins: PluginsConfig::default(),
             trigger: TriggerConfig::default(),
             privacy: PrivacyConfig::default(),
+            log: LogConfig::default(),
             system_prompt: None,
         }
     }
@@ -211,6 +213,25 @@ impl Default for PrivacyConfig {
     }
 }
 
+/// Logging configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LogConfig {
+    /// Log level: trace, debug, info, warn, error
+    pub level: String,
+    /// Enable file logging
+    pub file_enabled: bool,
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            level: "info".to_string(),
+            file_enabled: false,
+        }
+    }
+}
+
 impl Config {
     /// Load configuration from file or use defaults
     pub fn load() -> Result<Self> {
@@ -260,6 +281,13 @@ impl Config {
         ProjectDirs::from("", "", "nudge")
             .map(|dirs| dirs.config_dir().join("nudge.pid"))
             .unwrap_or_else(|| PathBuf::from("/tmp/nudge.pid"))
+    }
+
+    /// Get the log directory path (XDG data dir)
+    pub fn log_dir() -> PathBuf {
+        ProjectDirs::from("", "", "nudge")
+            .map(|dirs| dirs.data_dir().join("logs"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/nudge/logs"))
     }
 
     /// Validate configuration values

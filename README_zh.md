@@ -105,6 +105,11 @@ plugins:
 privacy:
   sanitize_enabled: true   # 启用敏感数据清理
   block_dangerous: true    # 标记危险命令
+
+# 日志设置
+log:
+  level: "info"            # 日志级别: trace/debug/info/warn/error
+  file_enabled: false      # 启用文件日志（按天轮转）
 ```
 
 ## 🏗️ 架构设计
