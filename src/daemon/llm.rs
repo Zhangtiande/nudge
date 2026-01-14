@@ -67,6 +67,8 @@ pub async fn complete(
     let user_prompt = build_user_prompt(buffer, context);
 
     debug!("Sending request to LLM: {}", config.model.endpoint);
+    debug!("System prompt: {}", system_prompt);
+    debug!("User prompt: {}", user_prompt);
 
     let request = ChatCompletionRequest {
         model: config.model.model_name.clone(),

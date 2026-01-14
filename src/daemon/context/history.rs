@@ -14,14 +14,16 @@ pub fn read_history(session_id: &str, window_size: usize) -> Result<Vec<String>>
         return Ok(Vec::new());
     }
 
-    // Gracefully handle permission errors - return empty history instead of failing
-    let contents = match fs::read_to_string(&history_path) {
-        Ok(c) => c,
+    // Gracefully handle read errors - use lossy UTF-8 conversion for non-UTF-8 content
+    let bytes = match fs::read(&history_path) {
+        Ok(b) => b,
         Err(e) => {
             debug!("Cannot read history file {}: {} (continuing without history)", history_path.display(), e);
             return Ok(Vec::new());
         }
     };
+    // Use lossy conversion to handle non-UTF-8 bytes (common in zsh history)
+    let contents = String::from_utf8_lossy(&bytes).into_owned();
 
     let shell_type = detect_shell_type(session_id);
     let entries = parse_history(&contents, shell_type);
