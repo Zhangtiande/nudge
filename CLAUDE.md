@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Nudge** is an LLM-powered CLI auto-completion tool written in Rust. It provides intelligent command suggestions for Bash and Zsh shells by leveraging LLMs (Ollama, OpenAI, or any OpenAI-compatible API).
+**Nudge** is an LLM-powered CLI auto-completion tool written in Rust. It provides intelligent command suggestions for Bash, Zsh, PowerShell, and CMD shells by leveraging LLMs (Ollama, OpenAI, or any OpenAI-compatible API).
 
 Key features:
 - AI-powered command completion based on shell history, current directory, and Git state
 - Privacy-first design with automatic sanitization of sensitive data (API keys, passwords)
 - Safety warnings for dangerous commands (rm -rf, fork bombs, etc.)
-- Daemon-based architecture for low-latency IPC via Unix Domain Sockets
+- Daemon-based architecture for low-latency IPC via Unix Domain Sockets (Unix) or Named Pipes (Windows)
+- Cross-platform support: Linux, macOS, and Windows
 
 ## Build & Test Commands
 
@@ -42,9 +43,14 @@ cargo clippy
 ## Architecture
 
 ```
-Shell (Bash/Zsh) → nudge complete (CLI) → Unix Socket IPC → nudge daemon (server)
-                                                              ↓
-                              ┌───────────────────────────────┘
+Shell (Bash/Zsh/PowerShell/CMD) → nudge complete (CLI) → IPC → nudge daemon (server)
+                                                          │
+                                    ┌─────────────────────┴─────────────────────┐
+                                    │   Unix: Unix Domain Socket                │
+                                    │   Windows: Named Pipe (\\.\pipe\nudge_*)  │
+                                    └─────────────────────┬─────────────────────┘
+                                                          ↓
+                              ┌───────────────────────────┘
                               ↓
                     ┌─────────┴─────────┬───────────────────────┐
                     ↓                   ↓                       ↓
@@ -80,3 +86,16 @@ Shell (Bash/Zsh) → nudge complete (CLI) → Unix Socket IPC → nudge daemon (
 - **Git plugin timeout**: Strict 50ms timeout on all git operations
 - **Token estimation**: Word-based with 1.3x multiplier for context truncation
 - **Context priorities**: history(80) > cwd_listing(60) > plugins(40)
+
+### Platform-Specific Details
+
+#### Unix (Linux/macOS)
+- **IPC**: Unix Domain Socket at `~/.config/nudge/nudge.sock`
+- **Process control**: Uses `nix` crate with POSIX signals (SIGTERM, SIGCONT)
+- **Shell integration**: Bash (`integration.bash`) and Zsh (`integration.zsh`)
+
+#### Windows
+- **IPC**: Named Pipe at `\\.\pipe\nudge_{username}`
+- **Process control**: Uses `windows-sys` crate with `OpenProcess`/`TerminateProcess`
+- **Shell integration**: PowerShell (`integration.ps1`) and CMD (`integration.cmd`)
+- **Installation**: Run `shell/install.ps1` to add to PowerShell profile

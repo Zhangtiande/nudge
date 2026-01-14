@@ -81,7 +81,8 @@ pub async fn stop() -> Result<()> {
     let socket_path = Config::socket_path();
 
     if !pid_path.exists() {
-        // Clean up any stale socket file
+        // Clean up any stale socket file (Unix only, Windows Named Pipes don't leave files)
+        #[cfg(unix)]
         if socket_path.exists() {
             let _ = fs::remove_file(&socket_path);
             println!("Cleaned up stale socket file");
@@ -91,38 +92,78 @@ pub async fn stop() -> Result<()> {
     }
 
     let pid_str = fs::read_to_string(&pid_path)?;
-    let pid: i32 = pid_str.trim().parse()?;
+    let pid: u32 = pid_str.trim().parse()?;
 
-    // Check if process is actually running before sending signal
-    #[cfg(unix)]
-    {
-        use nix::sys::signal::{kill, Signal};
-        use nix::unistd::Pid;
-
-        // First check if process exists (signal 0)
-        let process_exists = kill(Pid::from_raw(pid), Signal::SIGCONT).is_ok();
-        
-        if process_exists {
-            // Process exists, send SIGTERM
-            if let Err(e) = kill(Pid::from_raw(pid), Signal::SIGTERM) {
-                warn!("Failed to send SIGTERM: {}", e);
-            }
+    // Check if process is actually running before attempting to stop
+    let process_exists = is_process_alive(pid);
+    
+    if process_exists {
+        if terminate_process(pid) {
             println!("Nudge daemon stopped (pid: {})", pid);
         } else {
-            println!("Daemon process not found (stale pid file), cleaning up...");
+            warn!("Failed to terminate daemon process");
         }
-    }
-
-    #[cfg(not(unix))]
-    {
-        println!("Nudge daemon stopped");
+    } else {
+        println!("Daemon process not found (stale pid file), cleaning up...");
     }
 
     // Always clean up files
     let _ = fs::remove_file(&pid_path);
+    #[cfg(unix)]
     let _ = fs::remove_file(&socket_path);
 
     Ok(())
+}
+
+/// Check if a process with given PID is alive (Unix implementation)
+#[cfg(unix)]
+fn is_process_alive(pid: u32) -> bool {
+    use nix::sys::signal::{kill, Signal};
+    use nix::unistd::Pid;
+    kill(Pid::from_raw(pid as i32), Signal::SIGCONT).is_ok()
+}
+
+/// Check if a process with given PID is alive (Windows implementation)
+#[cfg(windows)]
+fn is_process_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle != 0 {
+            CloseHandle(handle);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+/// Terminate a process by PID (Unix implementation)
+#[cfg(unix)]
+fn terminate_process(pid: u32) -> bool {
+    use nix::sys::signal::{kill, Signal};
+    use nix::unistd::Pid;
+    kill(Pid::from_raw(pid as i32), Signal::SIGTERM).is_ok()
+}
+
+/// Terminate a process by PID (Windows implementation)
+#[cfg(windows)]
+fn terminate_process(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    
+    unsafe {
+        let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
+        if handle != 0 {
+            let result = TerminateProcess(handle, 0) != 0;
+            CloseHandle(handle);
+            result
+        } else {
+            false
+        }
+    }
 }
 
 /// Check daemon status
@@ -137,12 +178,14 @@ pub async fn status() -> Result<()> {
 }
 
 /// Check if daemon is running, and clean up stale files if not
-fn is_running_with_cleanup() -> (bool, i32) {
+fn is_running_with_cleanup() -> (bool, u32) {
     let pid_path = Config::pid_path();
+    #[cfg(unix)]
     let socket_path = Config::socket_path();
 
     if !pid_path.exists() {
-        // No PID file, clean up stale socket if exists
+        // No PID file, clean up stale socket if exists (Unix only)
+        #[cfg(unix)]
         if socket_path.exists() {
             let _ = fs::remove_file(&socket_path);
         }
@@ -151,18 +194,8 @@ fn is_running_with_cleanup() -> (bool, i32) {
 
     // Check if PID is still alive
     if let Ok(pid_str) = fs::read_to_string(&pid_path) {
-        if let Ok(pid) = pid_str.trim().parse::<i32>() {
-            #[cfg(unix)]
-            {
-                use nix::sys::signal::{kill, Signal};
-                use nix::unistd::Pid;
-                // Signal 0 checks if process exists
-                if kill(Pid::from_raw(pid), Signal::SIGCONT).is_ok() {
-                    return (true, pid);
-                }
-            }
-            #[cfg(not(unix))]
-            {
+        if let Ok(pid) = pid_str.trim().parse::<u32>() {
+            if is_process_alive(pid) {
                 return (true, pid);
             }
         }
@@ -170,6 +203,7 @@ fn is_running_with_cleanup() -> (bool, i32) {
 
     // Process not running, clean up stale files
     let _ = fs::remove_file(&pid_path);
+    #[cfg(unix)]
     let _ = fs::remove_file(&socket_path);
     (false, 0)
 }

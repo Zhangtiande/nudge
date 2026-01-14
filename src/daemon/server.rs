@@ -3,12 +3,17 @@ use std::time::Instant;
 use anyhow::Result;
 use interprocess::local_socket::{
     tokio::{prelude::*, Stream},
-    GenericFilePath, ListenerOptions,
+    ListenerOptions,
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::signal;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+
+#[cfg(unix)]
+use interprocess::local_socket::GenericFilePath;
+#[cfg(windows)]
+use interprocess::local_socket::GenericNamespaced;
 
 use crate::config::Config;
 use crate::protocol::{CompletionRequest, CompletionResponse, ErrorCode, ErrorInfo, Suggestion};
@@ -51,14 +56,19 @@ mod error_messages {
 pub async fn run(config: Config) -> Result<()> {
     let socket_path = Config::socket_path();
 
-    // Remove existing socket file if present
+    // Remove existing socket file if present (Unix only, Windows Named Pipes don't leave files)
+    #[cfg(unix)]
     if socket_path.exists() {
         std::fs::remove_file(&socket_path)?;
     }
 
     // Create listener
     let socket_path_str = socket_path.to_string_lossy().to_string();
+    
+    #[cfg(unix)]
     let name = socket_path_str.as_str().to_fs_name::<GenericFilePath>()?;
+    #[cfg(windows)]
+    let name = socket_path_str.as_str().to_ns_name::<GenericNamespaced>()?;
     
     let listener = ListenerOptions::new()
         .name(name)
@@ -98,7 +108,8 @@ pub async fn run(config: Config) -> Result<()> {
         }
     }
 
-    // Cleanup
+    // Cleanup (Unix only, Windows Named Pipes don't leave files)
+    #[cfg(unix)]
     let _ = std::fs::remove_file(&socket_path);
     info!("Daemon shutdown complete");
 

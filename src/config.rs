@@ -270,10 +270,20 @@ impl Config {
     }
 
     /// Get the socket path for IPC
+    /// On Unix: ~/.config/nudge/nudge.sock (Unix Domain Socket)
+    /// On Windows: \\.\pipe\nudge_{username} (Named Pipe)
+    #[cfg(unix)]
     pub fn socket_path() -> PathBuf {
         ProjectDirs::from("", "", "nudge")
             .map(|dirs| dirs.config_dir().join("nudge.sock"))
             .unwrap_or_else(|| PathBuf::from("/tmp/nudge.sock"))
+    }
+
+    /// Get the socket path for IPC (Windows Named Pipe)
+    #[cfg(windows)]
+    pub fn socket_path() -> PathBuf {
+        let username = std::env::var("USERNAME").unwrap_or_else(|_| "default".into());
+        PathBuf::from(format!(r"\\.\pipe\nudge_{}", username))
     }
 
     /// Get the PID file path
