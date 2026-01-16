@@ -40,7 +40,9 @@ pub struct ModelConfig {
     pub endpoint: String,
     /// Model name/identifier
     pub model_name: String,
-    /// Environment variable containing API key
+    /// API key (directly configured, takes precedence over api_key_env)
+    pub api_key: Option<String>,
+    /// Environment variable containing API key (fallback if api_key is not set)
     pub api_key_env: Option<String>,
     /// Request timeout in milliseconds
     pub timeout_ms: u64,
@@ -51,6 +53,7 @@ impl Default for ModelConfig {
         Self {
             endpoint: "http://localhost:11434/v1".to_string(),
             model_name: "codellama:7b".to_string(),
+            api_key: None,
             api_key_env: None,
             timeout_ms: 5000,
         }

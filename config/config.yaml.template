@@ -22,7 +22,12 @@ model:
   # For OpenAI: "gpt-4", "gpt-3.5-turbo", etc.
   model_name: "codellama:7b"
 
-  # Environment variable name containing API key (optional)
+  # API key (direct configuration, takes precedence over api_key_env)
+  # You can directly specify your API key here for quick setup
+  # Note: Using api_key_env is recommended for better security
+  # api_key: "sk-your-api-key-here"
+
+  # Environment variable name containing API key (fallback if api_key is not set)
   # Uncomment and set this if your LLM requires authentication
   # For OpenAI: api_key_env: "OPENAI_API_KEY"
   # For other providers: api_key_env: "YOUR_API_KEY_ENV_VAR"

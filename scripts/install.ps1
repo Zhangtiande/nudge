@@ -411,7 +411,8 @@ function Main {
     Write-Host "  model:" -ForegroundColor White
     Write-Host "    endpoint: `"http://localhost:11434/v1`"  # Change if using different LLM" -ForegroundColor Gray
     Write-Host "    model_name: `"codellama:7b`"              # Change to your preferred model" -ForegroundColor Gray
-    Write-Host "    api_key_env: `"OPENAI_API_KEY`"          # Uncomment if using OpenAI" -ForegroundColor Gray
+    Write-Host "    # api_key: `"sk-xxx`"                     # Direct API key (option 1)" -ForegroundColor Gray
+    Write-Host "    # api_key_env: `"OPENAI_API_KEY`"         # Or use env variable (option 2)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Example configurations:" -ForegroundColor Cyan
     Write-Host ""
@@ -420,7 +421,13 @@ function Main {
     Write-Host "    endpoint: `"http://localhost:11434/v1`"" -ForegroundColor Gray
     Write-Host "    model_name: `"codellama:7b`"" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "  # OpenAI:" -ForegroundColor Gray
+    Write-Host "  # OpenAI (with direct API key):" -ForegroundColor Gray
+    Write-Host "  model:" -ForegroundColor White
+    Write-Host "    endpoint: `"https://api.openai.com/v1`"" -ForegroundColor Gray
+    Write-Host "    model_name: `"gpt-3.5-turbo`"" -ForegroundColor Gray
+    Write-Host "    api_key: `"sk-your-api-key-here`"" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  # OpenAI (with env variable, recommended for security):" -ForegroundColor Gray
     Write-Host "  model:" -ForegroundColor White
     Write-Host "    endpoint: `"https://api.openai.com/v1`"" -ForegroundColor Gray
     Write-Host "    model_name: `"gpt-3.5-turbo`"" -ForegroundColor Gray

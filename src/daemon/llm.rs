@@ -90,8 +90,10 @@ pub async fn complete(buffer: &str, context: &ContextData, config: &Config) -> R
         .post(format!("{}/chat/completions", config.model.endpoint))
         .json(&request);
 
-    // Add API key if configured
-    if let Some(api_key_env) = &config.model.api_key_env {
+    // Add API key if configured (direct api_key takes precedence over api_key_env)
+    if let Some(api_key) = &config.model.api_key {
+        req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
+    } else if let Some(api_key_env) = &config.model.api_key_env {
         if let Ok(api_key) = std::env::var(api_key_env) {
             req_builder = req_builder.header("Authorization", format!("Bearer {}", api_key));
         } else {

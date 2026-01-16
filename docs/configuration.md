@@ -31,7 +31,8 @@ Nudge looks for configuration in the following order:
 model:
   endpoint: "http://localhost:11434/v1"  # API endpoint URL
   model_name: "codellama:7b"              # Model identifier
-  api_key_env: null                       # Environment variable for API key
+  api_key: null                           # Direct API key (takes precedence)
+  api_key_env: null                       # Environment variable for API key (fallback)
   timeout_ms: 5000                        # Request timeout in milliseconds
 
 # Context collection settings
@@ -84,7 +85,8 @@ system_prompt: null                       # Override default system prompt
 |--------|------|---------|-------------|
 | `model.endpoint` | string | `http://localhost:11434/v1` | LLM API endpoint URL |
 | `model.model_name` | string | `codellama:7b` | Model name/identifier |
-| `model.api_key_env` | string? | `null` | Environment variable containing API key |
+| `model.api_key` | string? | `null` | Direct API key (takes precedence over `api_key_env`) |
+| `model.api_key_env` | string? | `null` | Environment variable containing API key (fallback) |
 | `model.timeout_ms` | integer | `5000` | Request timeout in milliseconds |
 
 **Supported Endpoints:**
@@ -209,7 +211,7 @@ model:
   timeout_ms: 5000
 ```
 
-### OpenAI Setup
+### OpenAI Setup (using environment variable)
 
 ```yaml
 model:
@@ -218,6 +220,18 @@ model:
   api_key_env: "OPENAI_API_KEY"
   timeout_ms: 10000
 ```
+
+### OpenAI Setup (using direct API key)
+
+```yaml
+model:
+  endpoint: "https://api.openai.com/v1"
+  model_name: "gpt-3.5-turbo"
+  api_key: "sk-your-api-key-here"
+  timeout_ms: 10000
+```
+
+**Note:** Using `api_key_env` is recommended for better security. Direct `api_key` is convenient for quick setup but exposes your key in the config file.
 
 ### Minimal Context (Performance Mode)
 
