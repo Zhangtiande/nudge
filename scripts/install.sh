@@ -180,7 +180,7 @@ choose_install_location() {
     echo ""
 
     while true; do
-        read -p "Enter choice [1-2] (default: 2): " choice
+        read -p "Enter choice [1-2] (default: 2): " choice < /dev/tty
         choice=${choice:-2}
 
         case "$choice" in
