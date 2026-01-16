@@ -348,4 +348,78 @@ impl Config {
 
         Ok(())
     }
+
+    /// Check if LLM configuration is properly set up
+    /// Returns Ok(()) if valid, Err with helpful message if not
+    pub fn validate_llm_config(&self) -> Result<()> {
+        // Check endpoint
+        if self.model.endpoint.is_empty() {
+            anyhow::bail!("LLM endpoint is not configured. Please set 'model.endpoint' in your config file.");
+        }
+
+        // Check model name
+        if self.model.model_name.is_empty() {
+            anyhow::bail!("LLM model name is not configured. Please set 'model.model_name' in your config file.");
+        }
+
+        // For non-local endpoints, check if API key is configured
+        let is_local = self.model.endpoint.contains("localhost") 
+            || self.model.endpoint.contains("127.0.0.1")
+            || self.model.endpoint.contains("0.0.0.0");
+
+        if !is_local {
+            // Check if api_key is set directly
+            let has_direct_key = self.model.api_key.as_ref().map_or(false, |k| !k.is_empty());
+            
+            // Check if api_key_env is set and the env var exists
+            let has_env_key = self.model.api_key_env.as_ref().map_or(false, |env_var| {
+                !env_var.is_empty() && std::env::var(env_var).is_ok()
+            });
+
+            if !has_direct_key && !has_env_key {
+                let config_path = Self::default_config_path()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "config file".to_string());
+
+                let mut msg = format!(
+                    "API key is required for remote LLM endpoint '{}'\n\n",
+                    self.model.endpoint
+                );
+                msg.push_str("Please configure one of the following in your config file:\n\n");
+                msg.push_str("  Option 1 - Direct API key:\n");
+                msg.push_str("    model:\n");
+                msg.push_str("      api_key: \"your-api-key-here\"\n\n");
+                msg.push_str("  Option 2 - Environment variable (recommended for security):\n");
+                msg.push_str("    model:\n");
+                msg.push_str("      api_key_env: \"OPENAI_API_KEY\"\n\n");
+                msg.push_str(&format!("Config file location: {}", config_path));
+
+                anyhow::bail!(msg);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get a user-friendly summary of LLM configuration status
+    pub fn llm_config_summary(&self) -> String {
+        let mut summary = String::new();
+        summary.push_str(&format!("  Endpoint: {}\n", self.model.endpoint));
+        summary.push_str(&format!("  Model: {}\n", self.model.model_name));
+        
+        let auth_status = if self.model.api_key.as_ref().map_or(false, |k| !k.is_empty()) {
+            "Configured (direct)"
+        } else if let Some(env_var) = &self.model.api_key_env {
+            if std::env::var(env_var).is_ok() {
+                "Configured (via env)"
+            } else {
+                "NOT SET (env var missing)"
+            }
+        } else {
+            "Not required (local)"
+        };
+        summary.push_str(&format!("  API Key: {}", auth_status));
+        
+        summary
+    }
 }

@@ -56,6 +56,9 @@ pub enum Command {
     /// Stop running daemon
     Stop,
 
+    /// Restart daemon (stop + start)
+    Restart,
+
     /// Check daemon status
     Status,
 }

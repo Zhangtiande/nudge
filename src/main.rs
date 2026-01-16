@@ -67,6 +67,9 @@ async fn main() -> Result<()> {
         Command::Stop => {
             daemon::stop().await?;
         }
+        Command::Restart => {
+            daemon::restart().await?;
+        }
         Command::Status => {
             daemon::status().await?;
         }
