@@ -17,7 +17,8 @@ Nudge uses Large Language Models to predict and complete command-line inputs bas
 | 📁 **Context-Aware** | Considers current directory files and Git status |
 | 🔒 **Privacy-First** | Automatically sanitizes sensitive data (API keys, passwords) before sending to LLM |
 | ⚠️ **Safety Warnings** | Flags potentially dangerous commands (rm -rf, mkfs, etc.) |
-| 🐚 **Multi-Shell Support** | Works with Bash and Zsh |
+| 🐚 **Multi-Shell Support** | Works with Bash, Zsh, PowerShell, and CMD |
+| 🖥️ **Cross-Platform** | Supports Linux, macOS, and Windows |
 | ⚡ **Fast** | <200ms response time with local LLMs |
 
 ## 📋 Prerequisites
@@ -37,11 +38,14 @@ cd nudge
 # Build release binary
 cargo build --release
 
-# Install to /usr/local/bin
+# Install (Unix)
 sudo cp target/release/nudge /usr/local/bin/
-
-# Run the installer script
 ./shell/install.sh
+
+# Install (Windows PowerShell, run as Administrator)
+# Copy target\release\nudge.exe to a directory in your PATH
+# Then run the installer:
+# .\shell\install.ps1
 ```
 
 ### Quick Setup
@@ -56,6 +60,16 @@ After installation, add to your shell RC file:
 **Zsh** (`~/.zshrc`):
 ```zsh
 [ -f "$HOME/.config/nudge/integration.zsh" ] && source "$HOME/.config/nudge/integration.zsh"
+```
+
+**PowerShell** (automatic via `install.ps1`, or manually add to `$PROFILE`):
+```powershell
+. "C:\path\to\integration.ps1"
+```
+
+**CMD** (run `integration.cmd` or add to AutoRun registry):
+```cmd
+"C:\path\to\integration.cmd"
 ```
 
 ## 🚀 Usage
@@ -120,9 +134,11 @@ log:
 ├─────────────────────────────┬───────────────────────────────────────┤
 │         Client Mode         │            Daemon Mode                │
 ├─────────────────────────────┼───────────────────────────────────────┤
-│  • Capture buffer/cursor    │  • IPC Server (Unix Socket)           │
-│  • Send request via IPC     │  • Context Engine                     │
-│  • Output completion        │    ├─ History Reader                  │
+│  • Capture buffer/cursor    │  • IPC Server                         │
+│  • Send request via IPC     │    ├─ Unix: Unix Domain Socket        │
+│  • Output completion        │    └─ Windows: Named Pipe             │
+│                             │  • Context Engine                     │
+│                             │    ├─ History Reader                  │
 │                             │    ├─ CWD Scanner                     │
 │                             │    └─ Git Plugin                      │
 │                             │  • LLM Connector                      │
@@ -133,7 +149,7 @@ log:
 **How it works:**
 
 1. Shell hook captures input buffer on hotkey press
-2. Client sends request to daemon via Unix socket
+2. Client sends request to daemon via IPC (Unix socket or Named Pipe)
 3. Daemon gathers context (history, CWD files, Git status)
 4. Sanitizer removes sensitive data
 5. LLM generates completion

@@ -17,7 +17,8 @@ Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上�
 | 📁 **上下文感知** | 考虑当前目录文件和 Git 状态 |
 | 🔒 **隐私优先** | 发送给 LLM 前自动清理敏感数据（API 密钥、密码等） |
 | ⚠️ **安全警告** | 标记潜在危险命令（rm -rf、mkfs 等） |
-| 🐚 **多 Shell 支持** | 支持 Bash 和 Zsh |
+| 🐚 **多 Shell 支持** | 支持 Bash、Zsh、PowerShell 和 CMD |
+| 🖥️ **跨平台** | 支持 Linux、macOS 和 Windows |
 | ⚡ **响应迅速** | 本地 LLM 响应时间 <200ms |
 
 ## 📋 前置要求
@@ -37,11 +38,14 @@ cd nudge
 # 构建发布版本
 cargo build --release
 
-# 安装到 /usr/local/bin
+# 安装（Unix）
 sudo cp target/release/nudge /usr/local/bin/
-
-# 运行安装脚本
 ./shell/install.sh
+
+# 安装（Windows PowerShell，以管理员身份运行）
+# 将 target\release\nudge.exe 复制到 PATH 中的目录
+# 然后运行安装脚本：
+# .\shell\install.ps1
 ```
 
 ### 快速配置
@@ -56,6 +60,16 @@ sudo cp target/release/nudge /usr/local/bin/
 **Zsh** (`~/.zshrc`):
 ```zsh
 [ -f "$HOME/.config/nudge/integration.zsh" ] && source "$HOME/.config/nudge/integration.zsh"
+```
+
+**PowerShell**（通过 `install.ps1` 自动安装，或手动添加到 `$PROFILE`）：
+```powershell
+. "C:\path\to\integration.ps1"
+```
+
+**CMD**（运行 `integration.cmd` 或添加到 AutoRun 注册表）：
+```cmd
+"C:\path\to\integration.cmd"
 ```
 
 ## 🚀 使用方法
@@ -120,9 +134,11 @@ log:
 ├─────────────────────────────┬───────────────────────────────────────┤
 │          客户端模式          │              守护进程模式              │
 ├─────────────────────────────┼───────────────────────────────────────┤
-│  • 捕获输入缓冲区/光标位置   │  • IPC 服务器（Unix Socket）          │
-│  • 通过 IPC 发送请求        │  • 上下文引擎                          │
-│  • 输出补全结果             │    ├─ 历史记录读取器                   │
+│  • 捕获输入缓冲区/光标位置   │  • IPC 服务器                         │
+│  • 通过 IPC 发送请求        │    ├─ Unix: Unix Domain Socket        │
+│  • 输出补全结果             │    └─ Windows: Named Pipe             │
+│                             │  • 上下文引擎                          │
+│                             │    ├─ 历史记录读取器                   │
 │                             │    ├─ 当前目录扫描器                   │
 │                             │    └─ Git 插件                        │
 │                             │  • LLM 连接器                         │
@@ -133,7 +149,7 @@ log:
 **工作流程：**
 
 1. Shell 钩子在按下快捷键时捕获输入缓冲区
-2. 客户端通过 Unix Socket 向守护进程发送请求
+2. 客户端通过 IPC（Unix Socket 或 Named Pipe）向守护进程发送请求
 3. 守护进程收集上下文（历史记录、当前目录文件、Git 状态）
 4. 清理器移除敏感数据
 5. LLM 生成补全建议

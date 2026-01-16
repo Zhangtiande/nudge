@@ -1,13 +1,15 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use interprocess::local_socket::{
-    tokio::{prelude::*, Stream},
-    GenericFilePath,
-};
+use interprocess::local_socket::tokio::{prelude::*, Stream};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::time::timeout;
 use tracing::debug;
+
+#[cfg(unix)]
+use interprocess::local_socket::GenericFilePath;
+#[cfg(windows)]
+use interprocess::local_socket::GenericNamespaced;
 
 use crate::config::Config;
 use crate::protocol::{CompletionRequest, CompletionResponse, ErrorCode, ErrorInfo};
@@ -28,21 +30,37 @@ fn is_daemon_alive() -> bool {
     
     if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
         if let Ok(pid) = pid_str.trim().parse::<i32>() {
-            #[cfg(unix)]
-            {
-                // Signal 0 checks if process exists without sending actual signal
-                use nix::sys::signal::{kill, Signal};
-                use nix::unistd::Pid;
-                return kill(Pid::from_raw(pid), Signal::SIGCONT).is_ok();
-            }
-            #[cfg(not(unix))]
-            {
-                return true;
-            }
+            return is_process_alive(pid as u32);
         }
     }
     
     false
+}
+
+/// Check if a process with given PID is alive (Unix implementation)
+#[cfg(unix)]
+fn is_process_alive(pid: u32) -> bool {
+    use nix::sys::signal::{kill, Signal};
+    use nix::unistd::Pid;
+    // Signal 0 checks if process exists without sending actual signal
+    kill(Pid::from_raw(pid as i32), Signal::SIGCONT).is_ok()
+}
+
+/// Check if a process with given PID is alive (Windows implementation)
+#[cfg(windows)]
+fn is_process_alive(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle != 0 {
+            CloseHandle(handle);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// Clean up stale socket and pid files
@@ -86,7 +104,11 @@ pub async fn send_request(request: &CompletionRequest) -> Result<CompletionRespo
 
     // Connect with timeout
     let socket_path_str = socket_path.to_string_lossy().to_string();
+    
+    #[cfg(unix)]
     let name = socket_path_str.as_str().to_fs_name::<GenericFilePath>()?;
+    #[cfg(windows)]
+    let name = socket_path_str.as_str().to_ns_name::<GenericNamespaced>()?;
 
     let connect_result = timeout(
         Duration::from_millis(CONNECT_TIMEOUT_MS),
