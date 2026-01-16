@@ -1,0 +1,143 @@
+# Nudge Configuration File
+#
+# This is the default configuration template for Nudge.
+# Documentation: https://github.com/Zhangtiande/nudge
+#
+# Configuration file locations:
+#   Linux:   ~/.config/nudge/config.yaml
+#   macOS:   ~/Library/Application Support/nudge/config.yaml
+#   Windows: %APPDATA%\nudge\config.yaml
+
+# ========================================
+# LLM Model Configuration
+# ========================================
+model:
+  # API endpoint URL
+  # Default uses local Ollama server. For OpenAI, use: https://api.openai.com/v1
+  # For other OpenAI-compatible APIs, replace with your endpoint
+  endpoint: "http://localhost:11434/v1"
+
+  # Model name to use for completion
+  # For Ollama: "codellama:7b", "deepseek-coder:6.7b", etc.
+  # For OpenAI: "gpt-4", "gpt-3.5-turbo", etc.
+  model_name: "codellama:7b"
+
+  # Environment variable name containing API key (optional)
+  # Uncomment and set this if your LLM requires authentication
+  # For OpenAI: api_key_env: "OPENAI_API_KEY"
+  # For other providers: api_key_env: "YOUR_API_KEY_ENV_VAR"
+  # api_key_env: "OPENAI_API_KEY"
+
+  # Request timeout in milliseconds
+  # Increase this if you get timeout errors with slower models
+  timeout_ms: 5000
+
+# ========================================
+# Context Configuration
+# ========================================
+context:
+  # Number of recent shell history entries to include
+  # Larger values provide more context but use more tokens
+  history_window: 20
+
+  # Include current directory file listing in context
+  # Helps LLM understand available files and directories
+  include_cwd_listing: true
+
+  # Include exit code of last command
+  # Helps LLM understand if previous command succeeded or failed
+  include_exit_code: true
+
+  # Maximum number of files to include in directory listing
+  # Prevents token overflow in large directories
+  max_files_in_listing: 50
+
+  # Maximum total tokens for all context
+  # Context is automatically truncated based on priorities below
+  max_total_tokens: 4000
+
+  # Priority for each context type (higher = more important)
+  # When truncating context, lower priority items are removed first
+  priorities:
+    history: 80         # Shell command history
+    cwd_listing: 60     # Current directory listing
+    plugins: 40         # Plugin output (e.g., git status)
+
+# ========================================
+# Plugins Configuration
+# ========================================
+plugins:
+  git:
+    # Enable Git plugin to include repository context
+    enabled: true
+
+    # Detail level: light, standard, or detailed
+    # - light:    branch name, clean/dirty status
+    # - standard: + staged/unstaged files
+    # - detailed: + recent commits
+    depth: standard
+
+    # Number of recent commits to include (only in detailed mode)
+    recent_commits: 5
+
+# ========================================
+# Trigger Configuration
+# ========================================
+trigger:
+  # Trigger mode: manual or auto
+  # - manual: Only trigger when hotkey is pressed
+  # - auto:   Trigger automatically on certain conditions
+  mode: manual
+
+  # Hotkey binding (readline format)
+  # Default: Ctrl+E
+  # Other examples: "\\C-g" (Ctrl+G), "\\C-x\\C-a" (Ctrl+X Ctrl+A)
+  hotkey: "\\C-e"
+
+# ========================================
+# Privacy & Safety Configuration
+# ========================================
+privacy:
+  # Enable automatic sanitization of sensitive data
+  # Removes API keys, passwords, tokens from context before sending to LLM
+  sanitize_enabled: true
+
+  # Custom regex patterns to sanitize (in addition to built-in patterns)
+  # Example: ["MY_SECRET_.*=.*", "password:\\s*\\S+"]
+  custom_patterns: []
+
+  # Block dangerous commands from being suggested
+  # Built-in rules detect: rm -rf, fork bombs, system destruction, etc.
+  block_dangerous: true
+
+  # Custom dangerous command patterns to block
+  # Example: ["shutdown.*", "reboot.*"]
+  custom_blocked: []
+
+# ========================================
+# Logging Configuration
+# ========================================
+log:
+  # Log level: trace, debug, info, warn, error
+  # - trace/debug: Very verbose, for troubleshooting
+  # - info:        Normal operation messages
+  # - warn/error:  Only problems
+  level: "info"
+
+  # Enable file logging with daily rotation
+  # Logs are written to:
+  #   Linux/macOS: ~/.config/nudge/logs/ or ~/Library/Application Support/nudge/logs/
+  #   Windows:     %APPDATA%\nudge\logs\
+  file_enabled: false
+
+# ========================================
+# Advanced Configuration
+# ========================================
+
+# Custom system prompt (optional)
+# Override the default system prompt sent to the LLM
+# Use this to customize the AI's behavior and response style
+# system_prompt: |
+#   You are a helpful command-line assistant.
+#   Suggest commands that are safe, efficient, and follow best practices.
+#   Always explain what the command does if it's complex.

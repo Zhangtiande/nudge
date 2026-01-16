@@ -60,7 +60,67 @@ Nudge provides pre-built binaries for multiple platforms. The build status and a
 
 ## 📦 Installation
 
-### From Pre-built Binaries (Recommended)
+### Quick Install (Recommended)
+
+**Linux/macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1 | iex
+```
+
+The install script will:
+- ✅ Automatically detect your OS and architecture
+- ✅ Download the latest pre-built binary from GitHub Releases
+- ✅ Install to your preferred location (`/usr/local/bin` or `~/.local/bin` on Unix)
+- ✅ Set up shell integration (Bash/Zsh/PowerShell/CMD)
+- ✅ Create default configuration file
+
+#### Installation Options
+
+**Specify version:**
+```bash
+# Unix/Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --version 0.1.0
+
+# Windows
+irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1 | iex -Command "& { $_ -Version '0.1.0' }"
+```
+
+**Custom install location:**
+```bash
+# Unix/Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --prefix ~/.local
+
+# Windows (download script first)
+.\install.ps1 -InstallDir "C:\Tools\nudge"
+```
+
+**Skip shell integration:**
+```bash
+# Unix/Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --skip-shell
+
+# Windows
+.\install.ps1 -SkipShell
+```
+
+**Uninstall:**
+```bash
+# Unix/Linux/macOS
+curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --uninstall
+
+# Windows
+.\install.ps1 -Uninstall
+```
+
+### Alternative Installation Methods
+
+<details>
+<summary><b>Manual installation from pre-built binaries</b></summary>
 
 Download the latest release for your platform from the [Releases page](https://github.com/Zhangtiande/nudge/releases/latest).
 
@@ -72,22 +132,27 @@ curl -L https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linu
 # Move to PATH
 sudo mv nudge /usr/local/bin/
 
-# Run the installer
-nudge daemon --install
+# Setup shell integration
+cd /path/to/nudge/repo
+./shell/setup-shell.sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
 # Download from releases page and extract
-# Then add to PATH and run:
-.\nudge.exe daemon --install
+# Add to PATH manually or use install script
+# Setup shell integration
+.\shell\setup-shell.ps1
 ```
 
-### From Source
+</details>
+
+<details>
+<summary><b>Build from source</b></summary>
 
 ```bash
 # Clone the repository
-git clone https://github.com/user/nudge.git
+git clone https://github.com/Zhangtiande/nudge.git
 cd nudge
 
 # Build release binary
@@ -95,17 +160,20 @@ cargo build --release
 
 # Install (Unix)
 sudo cp target/release/nudge /usr/local/bin/
-./shell/install.sh
+./shell/setup-shell.sh
 
-# Install (Windows PowerShell, run as Administrator)
+# Install (Windows PowerShell)
 # Copy target\release\nudge.exe to a directory in your PATH
-# Then run the installer:
-# .\shell\install.ps1
+# Then run:
+.\shell\setup-shell.ps1
 ```
 
-### Quick Setup
+</details>
 
-After installation, add to your shell RC file:
+<details>
+<summary><b>Manual shell integration</b></summary>
+
+If you prefer to set up shell integration manually, add the appropriate line to your shell RC file:
 
 **Bash** (`~/.bashrc`):
 ```bash
@@ -117,15 +185,19 @@ After installation, add to your shell RC file:
 [ -f "$HOME/.config/nudge/integration.zsh" ] && source "$HOME/.config/nudge/integration.zsh"
 ```
 
-**PowerShell** (automatic via `install.ps1`, or manually add to `$PROFILE`):
+**PowerShell** (add to `$PROFILE`):
 ```powershell
-. "C:\path\to\integration.ps1"
+if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
+    . "$env:APPDATA\nudge\integration.ps1"
+}
 ```
 
-**CMD** (run `integration.cmd` or add to AutoRun registry):
+**CMD** (add to AutoRun registry key `HKCU:\Software\Microsoft\Command Processor`):
 ```cmd
-"C:\path\to\integration.cmd"
+"%APPDATA%\nudge\integration.cmd"
 ```
+
+</details>
 
 ## 🚀 Usage
 

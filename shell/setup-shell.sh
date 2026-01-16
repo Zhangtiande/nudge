@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Nudge Installation Script
+# Nudge Shell Integration Setup Script
+# This script sets up shell integration for Nudge.
+# It assumes that the 'nudge' binary is already installed and in PATH.
+
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -89,9 +92,10 @@ add_source_line() {
     } >> "$rc_file"
 }
 
-# Create default config if not exists
+# Create default config from template if not exists
 create_default_config() {
     local config_file="$CONFIG_DIR/config.yaml"
+    local template_file="$SCRIPT_DIR/../config/config.yaml.template"
 
     if [[ -f "$config_file" ]]; then
         echo "Config file already exists: $config_file"
@@ -99,15 +103,20 @@ create_default_config() {
     fi
 
     echo "Creating default config: $config_file"
-    cat > "$config_file" << 'EOF'
+
+    # Try to copy from template first
+    if [[ -f "$template_file" ]]; then
+        cp "$template_file" "$config_file"
+        echo "Config created from template: $template_file"
+    else
+        # Fallback: create basic config inline
+        cat > "$config_file" << 'EOF'
 # Nudge Configuration
-# Documentation: https://github.com/user/nudge
+# Documentation: https://github.com/Zhangtiande/nudge
 
 model:
-  # LLM endpoint (Ollama default)
   endpoint: "http://localhost:11434/v1"
   model_name: "codellama:7b"
-  # api_key_env: "OPENAI_API_KEY"  # Uncomment for OpenAI
   timeout_ms: 5000
 
 context:
@@ -124,12 +133,12 @@ context:
 plugins:
   git:
     enabled: true
-    depth: standard  # light, standard, or detailed
+    depth: standard
     recent_commits: 5
 
 trigger:
-  mode: manual  # manual or auto
-  hotkey: "\\C-e"  # Ctrl+E
+  mode: manual
+  hotkey: "\\C-e"
 
 privacy:
   sanitize_enabled: true
@@ -138,19 +147,26 @@ privacy:
   custom_blocked: []
 
 log:
-  level: "info"           # trace, debug, info, warn, error
-  file_enabled: false     # Enable file logging (daily rotation)
-
-# system_prompt: "Custom system prompt here..."
+  level: "info"
+  file_enabled: false
 EOF
+        echo "Config created with default settings"
+    fi
 }
 
 # Main installation
 main() {
     echo "========================================="
-    echo "    Nudge Installation"
+    echo "    Nudge Shell Integration Setup"
     echo "========================================="
     echo ""
+
+    # Check if nudge binary is available
+    if ! command -v nudge &> /dev/null; then
+        echo "Warning: 'nudge' command not found in PATH."
+        echo "Make sure the nudge binary is installed and in your PATH."
+        echo ""
+    fi
 
     local shell_name
     shell_name=$(detect_shell)
@@ -172,7 +188,7 @@ main() {
 
     echo ""
     echo "========================================="
-    echo "    Installation Complete!"
+    echo "    Shell Integration Complete!"
     echo "========================================="
     echo ""
     echo "To activate Nudge, either:"
