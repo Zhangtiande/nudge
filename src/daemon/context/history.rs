@@ -41,14 +41,28 @@ fn detect_shell_type(session_id: &str) -> ShellType {
         ShellType::Bash
     } else if session_id.starts_with("zsh-") {
         ShellType::Zsh
+    } else if session_id.starts_with("pwsh-") || session_id.starts_with("powershell-") {
+        ShellType::PowerShell
+    } else if session_id.starts_with("cmd-") {
+        ShellType::Cmd
     } else {
-        // Try to detect from SHELL env var
-        if let Ok(shell) = std::env::var("SHELL") {
-            if shell.contains("zsh") {
-                return ShellType::Zsh;
+        // Try to detect from environment
+        #[cfg(unix)]
+        {
+            if let Ok(shell) = std::env::var("SHELL") {
+                if shell.contains("zsh") {
+                    return ShellType::Zsh;
+                }
+                return ShellType::Bash;
             }
+            ShellType::Bash
         }
-        ShellType::Bash
+
+        #[cfg(windows)]
+        {
+            // On Windows, default to PowerShell (most common)
+            ShellType::PowerShell
+        }
     }
 }
 
@@ -56,6 +70,8 @@ fn detect_shell_type(session_id: &str) -> ShellType {
 enum ShellType {
     Bash,
     Zsh,
+    PowerShell,
+    Cmd,
 }
 
 /// Get the history file path
@@ -75,6 +91,40 @@ fn get_history_path(session_id: &str) -> Result<PathBuf> {
                 home.join(".zsh_history")
             }
         }
+        ShellType::PowerShell => {
+            // PowerShell PSReadLine history path
+            // Typical path: %APPDATA%\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt
+            #[cfg(windows)]
+            {
+                let appdata = std::env::var("APPDATA")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|_| home.join("AppData").join("Roaming"));
+                appdata
+                    .join("Microsoft")
+                    .join("Windows")
+                    .join("PowerShell")
+                    .join("PSReadLine")
+                    .join("ConsoleHost_history.txt")
+            }
+            #[cfg(unix)]
+            {
+                // PowerShell on Unix uses different path
+                // ~/.local/share/powershell/PSReadLine/ConsoleHost_history.txt
+                let local_share = if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
+                    PathBuf::from(xdg_data)
+                } else {
+                    home.join(".local").join("share")
+                };
+                local_share
+                    .join("powershell")
+                    .join("PSReadLine")
+                    .join("ConsoleHost_history.txt")
+            }
+        }
+        ShellType::Cmd => {
+            // CMD doesn't maintain a persistent history file
+            anyhow::bail!("CMD does not maintain a persistent history file");
+        }
     };
 
     Ok(path)
@@ -85,6 +135,8 @@ fn parse_history(contents: &str, shell_type: ShellType) -> Vec<String> {
     match shell_type {
         ShellType::Bash => parse_bash_history(contents),
         ShellType::Zsh => parse_zsh_history(contents),
+        ShellType::PowerShell => parse_powershell_history(contents),
+        ShellType::Cmd => Vec::new(), // CMD has no history file
     }
 }
 
@@ -124,6 +176,16 @@ fn parse_zsh_history(contents: &str) -> Vec<String> {
         .collect()
 }
 
+/// Parse PowerShell history (simple line-by-line format like Bash)
+fn parse_powershell_history(contents: &str) -> Vec<String> {
+    // PowerShell PSReadLine history is stored as simple lines
+    contents
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+        .collect()
+}
+
 /// Deduplicate consecutive identical commands
 fn deduplicate(entries: Vec<String>) -> Vec<String> {
     let mut result = Vec::new();
@@ -159,6 +221,15 @@ mod tests {
         assert_eq!(entries.len(), 3);
         assert_eq!(entries[0], "ls -la");
         assert_eq!(entries[1], "cd /home");
+    }
+
+    #[test]
+    fn test_parse_powershell_history() {
+        let history = "Get-Process\nGet-Service\nls\ncd C:\\Users\n";
+        let entries = parse_powershell_history(history);
+        assert_eq!(entries.len(), 4);
+        assert_eq!(entries[0], "Get-Process");
+        assert_eq!(entries[3], "cd C:\\Users");
     }
 
     #[test]

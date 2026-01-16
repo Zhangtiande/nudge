@@ -55,15 +55,35 @@ pub async fn run(foreground: bool, fork: bool) -> Result<()> {
 /// Fork the process and run daemon in background
 fn fork_daemon() -> Result<()> {
     let exe = std::env::current_exe()?;
-    
-    Command::new(exe)
-        .arg("daemon")
-        .arg("--foreground")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .context("Failed to fork daemon")?;
+
+    #[cfg(unix)]
+    {
+        Command::new(exe)
+            .arg("daemon")
+            .arg("--foreground")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .context("Failed to fork daemon")?;
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x00000008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+
+        Command::new(exe)
+            .arg("daemon")
+            .arg("--foreground")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP)
+            .spawn()
+            .context("Failed to fork daemon")?;
+    }
 
     Ok(())
 }

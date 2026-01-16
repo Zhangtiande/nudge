@@ -65,8 +65,13 @@ fn is_process_alive(pid: u32) -> bool {
 
 /// Clean up stale socket and pid files
 fn cleanup_stale_files() {
+    // Unix: Remove socket file (Named Pipes on Windows don't leave files)
+    #[cfg(unix)]
     let _ = std::fs::remove_file(Config::socket_path());
+
+    // Always clean up PID file
     let _ = std::fs::remove_file(Config::pid_path());
+
     debug!("Cleaned up stale socket/pid files");
 }
 
@@ -74,7 +79,8 @@ fn cleanup_stale_files() {
 pub async fn send_request(request: &CompletionRequest) -> Result<CompletionResponse> {
     let socket_path = Config::socket_path();
 
-    // Check if socket exists
+    // Unix: Check if socket file exists (doesn't work for Windows Named Pipes)
+    #[cfg(unix)]
     if !socket_path.exists() {
         return Ok(CompletionResponse::error(
             String::new(),
@@ -87,8 +93,8 @@ pub async fn send_request(request: &CompletionRequest) -> Result<CompletionRespo
         ));
     }
 
-    // CRITICAL: Check if daemon process is actually alive before attempting connection
-    // This prevents blocking on a stale socket file (which causes uninterruptible sleep)
+    // Check if daemon process is actually alive before attempting connection
+    // This prevents blocking on a stale socket file (Unix) or invalid pipe (Windows)
     if !is_daemon_alive() {
         cleanup_stale_files();
         return Ok(CompletionResponse::error(

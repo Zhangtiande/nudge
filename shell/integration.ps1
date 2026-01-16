@@ -26,14 +26,36 @@ $existingPrompt
 
 # Ensure daemon is running
 function Start-NudgeDaemon {
-    $pipeName = "\\.\pipe\nudge_$env:USERNAME"
-    
-    # Check if Named Pipe exists (daemon is running)
-    $pipeExists = [System.IO.Directory]::GetFiles("\\.\pipe\", "nudge_$env:USERNAME*").Count -gt 0
-    
-    if (-not $pipeExists) {
-        # Start daemon in background
-        Start-Process -FilePath "nudge" -ArgumentList "daemon", "--fork" -WindowStyle Hidden -ErrorAction SilentlyContinue
+    # Check if daemon is running by verifying PID file and process
+    $configDir = if ($env:APPDATA) {
+        Join-Path $env:APPDATA "nudge"
+    } else {
+        Join-Path $env:USERPROFILE ".config\nudge"
+    }
+    $pidPath = Join-Path $configDir "nudge.pid"
+
+    $daemonRunning = $false
+
+    if (Test-Path $pidPath) {
+        try {
+            $pid = Get-Content $pidPath -ErrorAction SilentlyContinue
+            if ($pid) {
+                $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+                if ($process) {
+                    $daemonRunning = $true
+                }
+            }
+        }
+        catch {
+            # PID file exists but process is not running
+        }
+    }
+
+    if (-not $daemonRunning) {
+        # Start daemon in background using 'nudge start' command
+        Start-Process -FilePath "nudge" -ArgumentList "start" -WindowStyle Hidden -ErrorAction SilentlyContinue
+        # Give it a moment to start
+        Start-Sleep -Milliseconds 100
     }
 }
 
