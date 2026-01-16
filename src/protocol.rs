@@ -59,7 +59,11 @@ pub struct CompletionResponse {
 }
 
 impl CompletionResponse {
-    pub fn success(request_id: String, suggestions: Vec<Suggestion>, processing_time_ms: u64) -> Self {
+    pub fn success(
+        request_id: String,
+        suggestions: Vec<Suggestion>,
+        processing_time_ms: u64,
+    ) -> Self {
         Self {
             request_id,
             suggestions,
@@ -176,7 +180,11 @@ impl ErrorInfo {
     }
 
     pub fn daemon_busy() -> Self {
-        Self::new(ErrorCode::DaemonBusy, "Daemon is busy processing another request", true)
+        Self::new(
+            ErrorCode::DaemonBusy,
+            "Daemon is busy processing another request",
+            true,
+        )
     }
 
     pub fn llm_unavailable(msg: impl Into<String>) -> Self {

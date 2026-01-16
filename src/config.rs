@@ -265,8 +265,7 @@ impl Config {
 
     /// Get the default config file path
     pub fn default_config_path() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "nudge")
-            .map(|dirs| dirs.config_dir().join("config.yaml"))
+        ProjectDirs::from("", "", "nudge").map(|dirs| dirs.config_dir().join("config.yaml"))
     }
 
     /// Get the socket path for IPC

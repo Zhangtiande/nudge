@@ -5,8 +5,8 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
-use crate::config::Config;
 use super::context::ContextData;
+use crate::config::Config;
 
 const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a CLI command completion assistant. Your task is to complete the user's partially typed command based on the provided context.
 
@@ -54,16 +54,15 @@ struct Choice {
 }
 
 /// Get completion from LLM
-pub async fn complete(
-    buffer: &str,
-    context: &ContextData,
-    config: &Config,
-) -> Result<String> {
+pub async fn complete(buffer: &str, context: &ContextData, config: &Config) -> Result<String> {
     let client = Client::builder()
         .timeout(Duration::from_millis(config.model.timeout_ms))
         .build()?;
 
-    let system_prompt = config.system_prompt.as_deref().unwrap_or(DEFAULT_SYSTEM_PROMPT);
+    let system_prompt = config
+        .system_prompt
+        .as_deref()
+        .unwrap_or(DEFAULT_SYSTEM_PROMPT);
     let user_prompt = build_user_prompt(buffer, context);
 
     debug!("Sending request to LLM: {}", config.model.endpoint);

@@ -1,10 +1,10 @@
+pub mod context;
+pub mod llm;
+pub mod plugins;
+pub mod safety;
+pub mod sanitizer;
 pub mod server;
 pub mod session;
-pub mod llm;
-pub mod context;
-pub mod plugins;
-pub mod sanitizer;
-pub mod safety;
 
 use std::fs;
 use std::process::Command;

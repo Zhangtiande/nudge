@@ -1,14 +1,14 @@
-pub mod history;
 pub mod cwd;
+pub mod history;
 pub mod plugin;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
+use super::plugins::git::GitContext;
 use crate::config::Config;
 use crate::protocol::CompletionRequest;
-use super::plugins::git::GitContext;
 
 /// Aggregated context data
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

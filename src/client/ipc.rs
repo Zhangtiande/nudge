@@ -23,17 +23,17 @@ const READ_TIMEOUT_MS: u64 = 10000;
 /// Check if daemon process is actually running (not just socket file exists)
 fn is_daemon_alive() -> bool {
     let pid_path = Config::pid_path();
-    
+
     if !pid_path.exists() {
         return false;
     }
-    
+
     if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
         if let Ok(pid) = pid_str.trim().parse::<i32>() {
             return is_process_alive(pid as u32);
         }
     }
-    
+
     false
 }
 
@@ -110,7 +110,7 @@ pub async fn send_request(request: &CompletionRequest) -> Result<CompletionRespo
 
     // Connect with timeout
     let socket_path_str = socket_path.to_string_lossy().to_string();
-    
+
     #[cfg(unix)]
     let name = socket_path_str.as_str().to_fs_name::<GenericFilePath>()?;
     #[cfg(windows)]
@@ -171,8 +171,8 @@ pub async fn send_request(request: &CompletionRequest) -> Result<CompletionRespo
 
     match read_result {
         Ok(Ok(_)) => {
-            let response: CompletionResponse = serde_json::from_str(&response_line)
-                .context("Failed to parse daemon response")?;
+            let response: CompletionResponse =
+                serde_json::from_str(&response_line).context("Failed to parse daemon response")?;
             debug!("Response received in {}ms", response.processing_time_ms);
             Ok(response)
         }

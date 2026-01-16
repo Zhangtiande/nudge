@@ -72,7 +72,7 @@ impl SessionStore {
     /// Update session state
     pub fn update_session(&self, id: &str, cwd: &PathBuf) {
         let mut sessions = self.sessions.write().unwrap();
-        
+
         if let Some(session) = sessions.get_mut(id) {
             session.update(cwd);
         } else {

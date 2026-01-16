@@ -17,7 +17,7 @@ async fn test_context_gathering_collects_all_sources() {
     // Create some test files in the directory
     std::fs::write(temp_path.join("README.md"), "# Test Project").unwrap();
     std::fs::write(temp_path.join("Cargo.toml"), "[package]\nname = \"test\"").unwrap();
-    
+
     // Create src directory first, then the file
     std::fs::create_dir_all(temp_path.join("src")).unwrap();
     std::fs::write(temp_path.join("src/main.rs"), "fn main() {}").unwrap();
@@ -44,7 +44,7 @@ async fn test_cwd_listing_respects_limit() {
         .unwrap()
         .filter_map(|e| e.ok())
         .count();
-    
+
     assert_eq!(files, 100);
 }
 
@@ -62,7 +62,7 @@ fn test_history_deduplication() {
     // Deduplicate consecutive identical commands
     let mut deduped = Vec::new();
     let mut last: Option<&String> = None;
-    
+
     for cmd in &history {
         if last != Some(cmd) {
             deduped.push(cmd.clone());
@@ -77,7 +77,7 @@ fn test_history_deduplication() {
 #[test]
 fn test_completion_request_serialization() {
     use chrono::Utc;
-    
+
     let request = serde_json::json!({
         "session_id": "test-12345",
         "timestamp": Utc::now().to_rfc3339(),
@@ -117,7 +117,7 @@ fn test_completion_response_format() {
 fn test_empty_buffer_handling() {
     let buffer = "";
     assert!(buffer.is_empty());
-    
+
     // An empty buffer should not cause a panic
     let cursor_pos = 0;
     assert!(cursor_pos <= buffer.len());
@@ -128,9 +128,9 @@ fn test_empty_buffer_handling() {
 fn test_cursor_position_validation() {
     let buffer = "git commit";
     let cursor_pos = 10; // At the end
-    
+
     assert!(cursor_pos <= buffer.len());
-    
+
     // Test boundary conditions
     assert!(0 <= buffer.len());
     assert!(buffer.len() <= buffer.len());
@@ -141,12 +141,13 @@ fn test_cursor_position_validation() {
 fn test_session_id_format() {
     let bash_session = "bash-12345";
     let zsh_session = "zsh-67890";
-    
+
     assert!(bash_session.starts_with("bash-"));
     assert!(zsh_session.starts_with("zsh-"));
-    
+
     // Extract PID from session
-    let bash_pid: Option<u32> = bash_session.strip_prefix("bash-")
+    let bash_pid: Option<u32> = bash_session
+        .strip_prefix("bash-")
         .and_then(|s| s.parse().ok());
     assert_eq!(bash_pid, Some(12345));
 }
@@ -171,10 +172,10 @@ fn test_suggestions_ordering() {
 fn test_token_estimation() {
     let text = "This is a test command with several words";
     let word_count = text.split_whitespace().count();
-    
+
     // Estimate: words × 1.3
     let estimated_tokens = (word_count as f32 * 1.3).ceil() as usize;
-    
+
     assert_eq!(word_count, 8);
     assert!(estimated_tokens > word_count);
     assert!(estimated_tokens <= word_count * 2);
@@ -186,7 +187,7 @@ fn test_context_aggregation() {
     let history = vec!["ls".to_string(), "cd".to_string()];
     let files = vec!["README.md".to_string(), "Cargo.toml".to_string()];
     let exit_code = Some(0);
-    
+
     // Verify all context sources are present
     assert!(!history.is_empty());
     assert!(!files.is_empty());

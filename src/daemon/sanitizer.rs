@@ -50,7 +50,10 @@ lazy_static! {
 }
 
 /// Sanitize context data
-pub fn sanitize(context: &ContextData, custom_patterns: &[String]) -> (ContextData, Vec<SanitizationEvent>) {
+pub fn sanitize(
+    context: &ContextData,
+    custom_patterns: &[String],
+) -> (ContextData, Vec<SanitizationEvent>) {
     let mut result = context.clone();
     let mut events = Vec::new();
 
@@ -110,7 +113,9 @@ fn sanitize_text(input: &str, custom_patterns: &[Regex]) -> (String, Vec<Sanitiz
                     original_length: mat.as_str().len(),
                 });
             }
-            result = pattern.replace_all(&result, "[REDACTED:custom]").to_string();
+            result = pattern
+                .replace_all(&result, "[REDACTED:custom]")
+                .to_string();
         }
     }
 
@@ -123,7 +128,8 @@ mod tests {
 
     #[test]
     fn test_sanitize_openai_key() {
-        let (result, events) = sanitize_text("export OPENAI_API_KEY=sk-abcdef1234567890abcdefghij", &[]);
+        let (result, events) =
+            sanitize_text("export OPENAI_API_KEY=sk-abcdef1234567890abcdefghij", &[]);
         assert!(result.contains("[REDACTED"));
         assert!(!result.contains("sk-abcdef"));
         assert!(!events.is_empty());
@@ -131,14 +137,20 @@ mod tests {
 
     #[test]
     fn test_sanitize_github_token() {
-        let (result, _) = sanitize_text("git clone https://ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@github.com/repo", &[]);
+        let (result, _) = sanitize_text(
+            "git clone https://ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@github.com/repo",
+            &[],
+        );
         assert!(result.contains("[REDACTED"));
         assert!(!result.contains("ghp_"));
     }
 
     #[test]
     fn test_sanitize_bearer_token() {
-        let (result, _) = sanitize_text("curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'", &[]);
+        let (result, _) = sanitize_text(
+            "curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'",
+            &[],
+        );
         assert!(result.contains("[REDACTED]"));
     }
 

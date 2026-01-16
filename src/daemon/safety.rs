@@ -62,7 +62,9 @@ pub fn check(command: &str, custom_patterns: &[String]) -> Option<Warning> {
         if let Ok(pattern) = Regex::new(pattern_str) {
             if pattern.is_match(command) {
                 debug!("Custom dangerous pattern matched: {}", command);
-                return Some(Warning::dangerous("This command matches a custom dangerous pattern"));
+                return Some(Warning::dangerous(
+                    "This command matches a custom dangerous pattern",
+                ));
             }
         }
     }

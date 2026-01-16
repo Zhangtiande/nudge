@@ -360,7 +360,11 @@ fn test_large_repo_performance() {
 
     // Create many files
     for i in 0..100 {
-        std::fs::write(path.join(format!("file_{}.txt", i)), format!("content {}", i)).unwrap();
+        std::fs::write(
+            path.join(format!("file_{}.txt", i)),
+            format!("content {}", i),
+        )
+        .unwrap();
     }
 
     Command::new("git")
@@ -377,7 +381,7 @@ fn test_large_repo_performance() {
 
     // Timing test - should complete quickly
     let start = std::time::Instant::now();
-    
+
     let output = Command::new("git")
         .args(["status", "--porcelain"])
         .current_dir(path)
@@ -385,7 +389,11 @@ fn test_large_repo_performance() {
         .expect("Failed to get status");
 
     let elapsed = start.elapsed();
-    
+
     assert!(output.status.success());
-    assert!(elapsed.as_millis() < 1000, "Git status took too long: {:?}", elapsed);
+    assert!(
+        elapsed.as_millis() < 1000,
+        "Git status took too long: {:?}",
+        elapsed
+    );
 }

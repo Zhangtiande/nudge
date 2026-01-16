@@ -40,6 +40,56 @@ cargo fmt --check
 cargo clippy
 ```
 
+## Pre-Commit Quality Checks
+
+**IMPORTANT**: Before any code changes are committed, you MUST run the following checks to ensure code quality and prevent CI failures. These checks mirror the GitHub Actions workflows defined in `.github/workflows/`.
+
+### Required Checks (Run in sequence)
+
+```bash
+# 1. Format check - Ensures code follows Rust style guidelines
+cargo fmt --all -- --check
+
+# 2. Clippy check - Catches common mistakes and enforces best practices
+cargo clippy --all-targets --all-features -- -D warnings
+
+# 3. Compile check - Verifies code compiles on current platform
+cargo check --all-targets
+
+# 4. Test suite - Ensures all tests pass
+cargo test --verbose
+```
+
+### When to Run These Checks
+
+- **Always**: After making ANY code changes (fixes, features, refactors)
+- **Before**: Asking the user to commit or create a pull request
+- **After**: Resolving merge conflicts or updating dependencies
+
+### Handling Check Failures
+
+If any check fails:
+1. **DO NOT** proceed with commit/push
+2. Fix the issues reported by the failing check
+3. Re-run all checks from the beginning
+4. Only proceed when ALL checks pass
+
+### Quick Check (Faster alternative for iterative development)
+
+For rapid iteration during development, you can use:
+```bash
+# Fast validation (skips tests)
+cargo check --all-targets && cargo clippy --all-targets -- -D warnings
+```
+
+But always run the full check suite before final commit.
+
+### Cross-Platform Considerations
+
+- The CI runs on **Ubuntu, macOS, and Windows**
+- If you make platform-specific changes (e.g., `#[cfg(windows)]`), note this in your commit message
+- Consider running checks on multiple platforms when possible (though not required locally)
+
 ## Architecture
 
 ```

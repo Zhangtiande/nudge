@@ -7,7 +7,10 @@ use tracing::debug;
 /// List files in the current working directory
 pub fn list_files(cwd: &Path, max_files: usize) -> Result<Vec<String>> {
     if !cwd.exists() || !cwd.is_dir() {
-        debug!("CWD does not exist or is not a directory: {}", cwd.display());
+        debug!(
+            "CWD does not exist or is not a directory: {}",
+            cwd.display()
+        );
         return Ok(Vec::new());
     }
 

@@ -18,7 +18,11 @@ pub fn read_history(session_id: &str, window_size: usize) -> Result<Vec<String>>
     let bytes = match fs::read(&history_path) {
         Ok(b) => b,
         Err(e) => {
-            debug!("Cannot read history file {}: {} (continuing without history)", history_path.display(), e);
+            debug!(
+                "Cannot read history file {}: {} (continuing without history)",
+                history_path.display(),
+                e
+            );
             return Ok(Vec::new());
         }
     };
@@ -30,7 +34,12 @@ pub fn read_history(session_id: &str, window_size: usize) -> Result<Vec<String>>
 
     // Deduplicate consecutive commands and limit to window size
     let deduplicated = deduplicate(entries);
-    let limited: Vec<String> = deduplicated.into_iter().rev().take(window_size).rev().collect();
+    let limited: Vec<String> = deduplicated
+        .into_iter()
+        .rev()
+        .take(window_size)
+        .rev()
+        .collect();
 
     Ok(limited)
 }

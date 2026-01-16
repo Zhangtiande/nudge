@@ -136,9 +136,7 @@ fn get_branch(cwd: &Path) -> Option<String> {
         .ok()?;
 
     if output.status.success() {
-        let branch = String::from_utf8_lossy(&output.stdout)
-            .trim()
-            .to_string();
+        let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if branch.is_empty() {
             // Detached HEAD
             None
@@ -178,13 +176,11 @@ fn get_staged_files(cwd: &Path) -> Vec<String> {
         .output();
 
     match output {
-        Ok(o) if o.status.success() => {
-            String::from_utf8_lossy(&o.stdout)
-                .lines()
-                .filter(|l| !l.is_empty())
-                .map(|l| l.to_string())
-                .collect()
-        }
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -197,13 +193,11 @@ fn get_unstaged_files(cwd: &Path) -> Vec<String> {
         .output();
 
     match output {
-        Ok(o) if o.status.success() => {
-            String::from_utf8_lossy(&o.stdout)
-                .lines()
-                .filter(|l| !l.is_empty())
-                .map(|l| l.to_string())
-                .collect()
-        }
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -222,10 +216,7 @@ fn get_recent_commits(cwd: &Path, count: usize) -> Vec<String> {
                 .filter(|l| !l.is_empty())
                 .map(|l| {
                     // Extract just the commit message (remove hash)
-                    l.splitn(2, ' ')
-                        .nth(1)
-                        .unwrap_or(l)
-                        .to_string()
+                    l.splitn(2, ' ').nth(1).unwrap_or(l).to_string()
                 })
                 .collect()
         }

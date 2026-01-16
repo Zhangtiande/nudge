@@ -15,40 +15,38 @@ use interprocess::local_socket::GenericFilePath;
 #[cfg(windows)]
 use interprocess::local_socket::GenericNamespaced;
 
-use crate::config::Config;
-use crate::protocol::{CompletionRequest, CompletionResponse, ErrorCode, ErrorInfo, Suggestion};
 use super::context;
 use super::llm;
 use super::safety;
 use super::sanitizer;
 use super::session::SessionStore;
+use crate::config::Config;
+use crate::protocol::{CompletionRequest, CompletionResponse, ErrorCode, ErrorInfo, Suggestion};
 
 /// Common error messages for better user experience
 #[allow(dead_code)]
 mod error_messages {
-    pub const SOCKET_PERMISSION_DENIED: &str = 
+    pub const SOCKET_PERMISSION_DENIED: &str =
         "Permission denied when creating socket. Check that the directory exists and is writable: ";
-    pub const SOCKET_ALREADY_IN_USE: &str = 
+    pub const SOCKET_ALREADY_IN_USE: &str =
         "Socket is already in use. Another daemon instance may be running. Try 'nudge stop' first.";
-    pub const CONFIG_NOT_FOUND: &str = 
+    pub const CONFIG_NOT_FOUND: &str =
         "Configuration file not found. Using default settings. Create config at: ";
-    pub const CONFIG_PARSE_ERROR: &str = 
+    pub const CONFIG_PARSE_ERROR: &str =
         "Failed to parse configuration file. Check YAML syntax at: ";
-    pub const LLM_CONNECTION_REFUSED: &str = 
+    pub const LLM_CONNECTION_REFUSED: &str =
         "Cannot connect to LLM endpoint. Ensure the LLM server (e.g., Ollama) is running at: ";
-    pub const LLM_TIMEOUT: &str = 
+    pub const LLM_TIMEOUT: &str =
         "LLM request timed out. The model may be overloaded or the timeout is too short.";
-    pub const LLM_AUTH_FAILED: &str = 
+    pub const LLM_AUTH_FAILED: &str =
         "LLM authentication failed. Check your API key environment variable: ";
-    pub const CONTEXT_CWD_NOT_FOUND: &str = 
-        "Current working directory not accessible: ";
-    pub const CONTEXT_HISTORY_UNREADABLE: &str = 
+    pub const CONTEXT_CWD_NOT_FOUND: &str = "Current working directory not accessible: ";
+    pub const CONTEXT_HISTORY_UNREADABLE: &str =
         "Cannot read shell history file. Completion will work without history context.";
-    pub const GIT_TIMEOUT: &str = 
-        "Git operations timed out (>50ms). Git context will be excluded.";
-    pub const REQUEST_INVALID_JSON: &str = 
+    pub const GIT_TIMEOUT: &str = "Git operations timed out (>50ms). Git context will be excluded.";
+    pub const REQUEST_INVALID_JSON: &str =
         "Invalid request format. Expected JSON with session_id, buffer, cursor_pos, cwd fields.";
-    pub const REQUEST_BUFFER_TOO_LARGE: &str = 
+    pub const REQUEST_BUFFER_TOO_LARGE: &str =
         "Command buffer exceeds maximum size (10000 characters).";
 }
 
@@ -64,15 +62,13 @@ pub async fn run(config: Config) -> Result<()> {
 
     // Create listener
     let socket_path_str = socket_path.to_string_lossy().to_string();
-    
+
     #[cfg(unix)]
     let name = socket_path_str.as_str().to_fs_name::<GenericFilePath>()?;
     #[cfg(windows)]
     let name = socket_path_str.as_str().to_ns_name::<GenericNamespaced>()?;
-    
-    let listener = ListenerOptions::new()
-        .name(name)
-        .create_tokio()?;
+
+    let listener = ListenerOptions::new().name(name).create_tokio()?;
 
     info!("Listening on {}", socket_path.display());
 
@@ -117,11 +113,7 @@ pub async fn run(config: Config) -> Result<()> {
 }
 
 /// Handle a single client connection
-async fn handle_connection(
-    stream: Stream,
-    config: Config,
-    sessions: SessionStore,
-) -> Result<()> {
+async fn handle_connection(stream: Stream, config: Config, sessions: SessionStore) -> Result<()> {
     let (reader, mut writer) = stream.split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -133,7 +125,11 @@ async fn handle_connection(
         error!("Failed to read request: {}", e);
         let response = CompletionResponse::error(
             Uuid::new_v4().to_string(),
-            ErrorInfo::new(ErrorCode::InternalError, format!("Read error: {}", e), false),
+            ErrorInfo::new(
+                ErrorCode::InternalError,
+                format!("Read error: {}", e),
+                false,
+            ),
             start.elapsed().as_millis() as u64,
         );
         send_response(&mut writer, &response).await?;
@@ -148,7 +144,7 @@ async fn handle_connection(
             let response = CompletionResponse::error(
                 Uuid::new_v4().to_string(),
                 ErrorInfo::new(
-                    ErrorCode::InternalError, 
+                    ErrorCode::InternalError,
                     format!("{} Error: {}", error_messages::REQUEST_INVALID_JSON, e),
                     false,
                 ),
@@ -164,7 +160,11 @@ async fn handle_connection(
         warn!("Buffer too large: {} bytes", request.buffer.len());
         let response = CompletionResponse::error(
             Uuid::new_v4().to_string(),
-            ErrorInfo::new(ErrorCode::InternalError, error_messages::REQUEST_BUFFER_TOO_LARGE, false),
+            ErrorInfo::new(
+                ErrorCode::InternalError,
+                error_messages::REQUEST_BUFFER_TOO_LARGE,
+                false,
+            ),
             start.elapsed().as_millis() as u64,
         );
         send_response(&mut writer, &response).await?;
@@ -221,23 +221,22 @@ async fn process_request(
     // Gather context with timing
     let context_result = context::gather(&request, config).await;
     let context_time = context_start.elapsed();
-    
+
     if context_time.as_millis() > 50 {
-        warn!("Context gathering took {}ms (target: <50ms)", context_time.as_millis());
+        warn!(
+            "Context gathering took {}ms (target: <50ms)",
+            context_time.as_millis()
+        );
     } else {
         debug!("Context gathered in {}ms", context_time.as_millis());
     }
-    
+
     let context_data = match context_result {
         Ok(ctx) => ctx,
         Err(e) => {
             let error_msg = categorize_context_error(&e, &request.cwd);
             warn!("Context gathering failed: {} ({})", error_msg, e);
-            return CompletionResponse::error(
-                request_id,
-                ErrorInfo::internal_error(error_msg),
-                0,
-            );
+            return CompletionResponse::error(request_id, ErrorInfo::internal_error(error_msg), 0);
         }
     };
 
@@ -288,7 +287,7 @@ async fn process_request(
 /// Categorize context gathering errors for better user feedback
 fn categorize_context_error(error: &anyhow::Error, cwd: &std::path::Path) -> String {
     let error_str = error.to_string().to_lowercase();
-    
+
     if error_str.contains("permission denied") {
         format!("{}{}", error_messages::CONTEXT_CWD_NOT_FOUND, cwd.display())
     } else if error_str.contains("no such file") || error_str.contains("not found") {
@@ -305,9 +304,13 @@ fn categorize_context_error(error: &anyhow::Error, cwd: &std::path::Path) -> Str
 /// Categorize LLM errors for better user feedback
 fn categorize_llm_error(error: &anyhow::Error, config: &Config) -> (ErrorInfo, String) {
     let error_str = error.to_string().to_lowercase();
-    
+
     if error_str.contains("connection refused") || error_str.contains("connect error") {
-        let msg = format!("{}{}", error_messages::LLM_CONNECTION_REFUSED, config.model.endpoint);
+        let msg = format!(
+            "{}{}",
+            error_messages::LLM_CONNECTION_REFUSED,
+            config.model.endpoint
+        );
         (ErrorInfo::llm_unavailable(&msg), msg)
     } else if error_str.contains("timeout") || error_str.contains("timed out") {
         let msg = format!(
@@ -316,15 +319,21 @@ fn categorize_llm_error(error: &anyhow::Error, config: &Config) -> (ErrorInfo, S
             config.model.timeout_ms
         );
         (ErrorInfo::llm_timeout(), msg)
-    } else if error_str.contains("401") || error_str.contains("unauthorized") || error_str.contains("authentication") {
-        let api_key_env = config.model.api_key_env.as_deref().unwrap_or("(not configured)");
+    } else if error_str.contains("401")
+        || error_str.contains("unauthorized")
+        || error_str.contains("authentication")
+    {
+        let api_key_env = config
+            .model
+            .api_key_env
+            .as_deref()
+            .unwrap_or("(not configured)");
         let msg = format!("{}{}", error_messages::LLM_AUTH_FAILED, api_key_env);
         (ErrorInfo::llm_unavailable(&msg), msg)
     } else if error_str.contains("404") || error_str.contains("not found") {
         let msg = format!(
             "Model '{}' not found at endpoint '{}'. Check model name and endpoint configuration.",
-            config.model.model_name,
-            config.model.endpoint
+            config.model.model_name, config.model.endpoint
         );
         (ErrorInfo::llm_unavailable(&msg), msg)
     } else if error_str.contains("429") || error_str.contains("rate limit") {
