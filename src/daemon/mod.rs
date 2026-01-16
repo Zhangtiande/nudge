@@ -18,7 +18,9 @@ use crate::config::Config;
 pub async fn run(foreground: bool, fork: bool) -> Result<()> {
     let config = Config::load()?;
 
-    // Ensure config directory exists
+    // Ensure config directory exists (Unix only - socket is a filesystem path)
+    // On Windows, Named Pipes don't need directory creation
+    #[cfg(unix)]
     if let Some(config_dir) = Config::socket_path().parent() {
         fs::create_dir_all(config_dir)?;
     }
@@ -30,9 +32,13 @@ pub async fn run(foreground: bool, fork: bool) -> Result<()> {
         return Ok(());
     }
 
-    // Write PID file
+    // Write PID file (ensure directory exists first)
+    let pid_path = Config::pid_path();
+    if let Some(pid_dir) = pid_path.parent() {
+        fs::create_dir_all(pid_dir)?;
+    }
     let pid = std::process::id();
-    fs::write(Config::pid_path(), pid.to_string())?;
+    fs::write(&pid_path, pid.to_string())?;
 
     info!("Starting Nudge daemon (pid: {})", pid);
     info!("Socket path: {}", Config::socket_path().display());

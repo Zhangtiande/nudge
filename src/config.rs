@@ -290,14 +290,23 @@ impl Config {
     pub fn pid_path() -> PathBuf {
         ProjectDirs::from("", "", "nudge")
             .map(|dirs| dirs.config_dir().join("nudge.pid"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/nudge.pid"))
+            .unwrap_or_else(|| {
+                let mut temp = std::env::temp_dir();
+                temp.push("nudge.pid");
+                temp
+            })
     }
 
     /// Get the log directory path (XDG data dir)
     pub fn log_dir() -> PathBuf {
         ProjectDirs::from("", "", "nudge")
             .map(|dirs| dirs.data_dir().join("logs"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/nudge/logs"))
+            .unwrap_or_else(|| {
+                let mut temp = std::env::temp_dir();
+                temp.push("nudge");
+                temp.push("logs");
+                temp
+            })
     }
 
     /// Validate configuration values
