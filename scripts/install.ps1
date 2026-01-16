@@ -393,10 +393,110 @@ function Main {
     Write-Host ""
     Write-Success "Nudge $Version has been installed successfully!"
     Write-Host ""
+    
+    # Determine config file location
+    $configFile = Join-Path $env:APPDATA "nudge\config\config.yaml"
+    
+    Write-Host "=========================================" -ForegroundColor Cyan
+    Write-Host "    Configuration Required" -ForegroundColor Cyan
+    Write-Host "=========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Warning "Please configure your LLM settings before using Nudge!"
+    Write-Host ""
+    Write-Host "Configuration file location:" -ForegroundColor Cyan
+    Write-Host "  $configFile" -ForegroundColor White
+    Write-Host ""
+    Write-Host "You need to edit the following settings:" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  model:" -ForegroundColor White
+    Write-Host "    endpoint: `"http://localhost:11434/v1`"  # Change if using different LLM" -ForegroundColor Gray
+    Write-Host "    model_name: `"codellama:7b`"              # Change to your preferred model" -ForegroundColor Gray
+    Write-Host "    api_key_env: `"OPENAI_API_KEY`"          # Uncomment if using OpenAI" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Example configurations:" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  # Local Ollama (default):" -ForegroundColor Gray
+    Write-Host "  model:" -ForegroundColor White
+    Write-Host "    endpoint: `"http://localhost:11434/v1`"" -ForegroundColor Gray
+    Write-Host "    model_name: `"codellama:7b`"" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  # OpenAI:" -ForegroundColor Gray
+    Write-Host "  model:" -ForegroundColor White
+    Write-Host "    endpoint: `"https://api.openai.com/v1`"" -ForegroundColor Gray
+    Write-Host "    model_name: `"gpt-3.5-turbo`"" -ForegroundColor Gray
+    Write-Host "    api_key_env: `"OPENAI_API_KEY`"" -ForegroundColor Gray
+    Write-Host ""
+    
+    # Ensure config directory exists
+    $configDir = Split-Path -Parent $configFile
+    if (-not (Test-Path $configDir)) {
+        New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+    }
+    
+    # Open config file if it exists, otherwise create it first
+    if (Test-Path $configFile) {
+        Write-Info "Opening configuration file in your default editor..."
+        Start-Process notepad.exe -ArgumentList $configFile
+        Write-Host ""
+        Write-Host "The configuration file has been opened. Please edit the LLM settings above." -ForegroundColor Yellow
+    } else {
+        Write-Info "Configuration file not found. Creating default configuration..."
+        
+        # Create default config
+        $defaultConfig = @"
+# Nudge Configuration
+# Documentation: https://github.com/$GitHubRepo
+
+model:
+  endpoint: "http://localhost:11434/v1"
+  model_name: "codellama:7b"
+  timeout_ms: 5000
+
+context:
+  history_window: 20
+  include_cwd_listing: true
+  include_exit_code: true
+  max_files_in_listing: 50
+  max_total_tokens: 4000
+  priorities:
+    history: 80
+    cwd_listing: 60
+    plugins: 40
+
+plugins:
+  git:
+    enabled: true
+    depth: standard
+    recent_commits: 5
+
+trigger:
+  mode: manual
+  hotkey: "\C-e"
+
+privacy:
+  sanitize_enabled: true
+  custom_patterns: []
+  block_dangerous: true
+  custom_blocked: []
+
+log:
+  level: "info"
+  file_enabled: false
+"@
+        Set-Content -Path $configFile -Value $defaultConfig
+        Write-Success "Default configuration file created"
+        Write-Info "Opening configuration file in your default editor..."
+        Start-Process notepad.exe -ArgumentList $configFile
+        Write-Host ""
+        Write-Host "The configuration file has been created and opened. Please edit the LLM settings above." -ForegroundColor Yellow
+    }
+    
+    Write-Host ""
     Write-Host "Next steps:" -ForegroundColor Cyan
-    Write-Host "  1. Restart your terminal (or run: . `$PROFILE)" -ForegroundColor White
-    Write-Host "  2. Start Ollama if using local LLM: ollama serve" -ForegroundColor White
-    Write-Host "  3. Press Ctrl+E in your terminal to trigger AI completion" -ForegroundColor White
+    Write-Host "  1. Edit the configuration file (opened above)" -ForegroundColor White
+    Write-Host "  2. Restart your terminal (or run: . `$PROFILE)" -ForegroundColor White
+    Write-Host "  3. Start Ollama if using local LLM: ollama serve" -ForegroundColor White
+    Write-Host "  4. Press Ctrl+E in your terminal to trigger AI completion" -ForegroundColor White
     Write-Host ""
     Write-Info "For more information, visit: https://github.com/$GitHubRepo"
     Write-Host ""
