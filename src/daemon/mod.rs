@@ -78,16 +78,15 @@ pub async fn start() -> Result<()> {
 /// Stop running daemon
 pub async fn stop() -> Result<()> {
     let pid_path = Config::pid_path();
+    #[cfg(unix)]
+    let socket_path = Config::socket_path();
 
     if !pid_path.exists() {
         // Clean up any stale socket file (Unix only, Windows Named Pipes don't leave files)
         #[cfg(unix)]
-        {
-            let socket_path = Config::socket_path();
-            if socket_path.exists() {
-                let _ = fs::remove_file(&socket_path);
-                println!("Cleaned up stale socket file");
-            }
+        if socket_path.exists() {
+            let _ = fs::remove_file(&socket_path);
+            println!("Cleaned up stale socket file");
         }
         println!("Nudge daemon is not running");
         return Ok(());
@@ -98,7 +97,7 @@ pub async fn stop() -> Result<()> {
 
     // Check if process is actually running before attempting to stop
     let process_exists = is_process_alive(pid);
-    
+
     if process_exists {
         if terminate_process(pid) {
             println!("Nudge daemon stopped (pid: {})", pid);
