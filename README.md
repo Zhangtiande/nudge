@@ -4,6 +4,11 @@
 
 [English](./README.md) | [中文](./README_zh.md)
 
+[![CI](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml)
+[![Release](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/Zhangtiande/nudge)](https://github.com/Zhangtiande/nudge/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 ---
 
 Nudge uses Large Language Models to predict and complete command-line inputs based on your shell history, current directory context, and Git repository state.
@@ -26,7 +31,57 @@ Nudge uses Large Language Models to predict and complete command-line inputs bas
 - **Rust** (for building from source)
 - **Ollama** (for local LLM inference) or OpenAI API access
 
+## 🖥️ Platform Support
+
+Nudge provides pre-built binaries for multiple platforms. The build status and available downloads can be found on the [latest release](https://github.com/Zhangtiande/nudge/releases/latest) page.
+
+> **Build Status**: [![Release](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml)
+> Check the [Actions](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml) page for detailed build status of each platform.
+
+| Platform | Architecture | Binary | Download |
+|----------|--------------|--------|----------|
+| **Linux** | x86_64 (glibc) | `nudge-linux-x86_64.tar.gz` | [📥 Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz) |
+| **Linux** | x86_64 (musl) | `nudge-linux-x86_64-musl.tar.gz` | [📥 Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64-musl.tar.gz) |
+| **Linux** | aarch64 (ARM64) | `nudge-linux-aarch64.tar.gz` | [📥 Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-aarch64.tar.gz) |
+| **macOS** | x86_64 (Intel) | `nudge-macos-x86_64.tar.gz` | [📥 Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-x86_64.tar.gz) |
+| **macOS** | aarch64 (Apple Silicon) | `nudge-macos-aarch64.tar.gz` | [📥 Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-aarch64.tar.gz) |
+| **Windows** | x86_64 | `nudge-windows-x86_64.zip` | [📥 Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-windows-x86_64.zip) |
+
+> **Note**: Download links will only work after a successful release build. If a platform's build fails, its binary will not be available in the release.
+
+### Shell Support
+
+| Shell | Linux | macOS | Windows | Integration |
+|-------|-------|-------|---------|-------------|
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | `integration.bash` |
+| Zsh | ✅ | ✅ | ✅ (WSL) | `integration.zsh` |
+| PowerShell | ❌ | ❌ | ✅ | `integration.ps1` |
+| CMD | ❌ | ❌ | ✅ | `integration.cmd` |
+
 ## 📦 Installation
+
+### From Pre-built Binaries (Recommended)
+
+Download the latest release for your platform from the [Releases page](https://github.com/Zhangtiande/nudge/releases/latest).
+
+**Linux/macOS:**
+```bash
+# Download and extract (replace with your platform's binary)
+curl -L https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz | tar xz
+
+# Move to PATH
+sudo mv nudge /usr/local/bin/
+
+# Run the installer
+nudge daemon --install
+```
+
+**Windows (PowerShell):**
+```powershell
+# Download from releases page and extract
+# Then add to PATH and run:
+.\nudge.exe daemon --install
+```
 
 ### From Source
 

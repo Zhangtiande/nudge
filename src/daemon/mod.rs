@@ -78,14 +78,16 @@ pub async fn start() -> Result<()> {
 /// Stop running daemon
 pub async fn stop() -> Result<()> {
     let pid_path = Config::pid_path();
-    let socket_path = Config::socket_path();
 
     if !pid_path.exists() {
         // Clean up any stale socket file (Unix only, Windows Named Pipes don't leave files)
         #[cfg(unix)]
-        if socket_path.exists() {
-            let _ = fs::remove_file(&socket_path);
-            println!("Cleaned up stale socket file");
+        {
+            let socket_path = Config::socket_path();
+            if socket_path.exists() {
+                let _ = fs::remove_file(&socket_path);
+                println!("Cleaned up stale socket file");
+            }
         }
         println!("Nudge daemon is not running");
         return Ok(());
@@ -128,10 +130,10 @@ fn is_process_alive(pid: u32) -> bool {
 fn is_process_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
-    
+
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if handle != 0 {
+        if !handle.is_null() {
             CloseHandle(handle);
             true
         } else {
@@ -153,10 +155,10 @@ fn terminate_process(pid: u32) -> bool {
 fn terminate_process(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
-    
+
     unsafe {
         let handle = OpenProcess(PROCESS_TERMINATE, 0, pid);
-        if handle != 0 {
+        if !handle.is_null() {
             let result = TerminateProcess(handle, 0) != 0;
             CloseHandle(handle);
             result

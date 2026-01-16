@@ -4,6 +4,11 @@
 
 [English](./README.md) | [中文](./README_zh.md)
 
+[![CI](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml)
+[![Release](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/Zhangtiande/nudge)](https://github.com/Zhangtiande/nudge/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 ---
 
 Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上下文和 Git 仓库状态来预测和补全命令行输入。
@@ -26,7 +31,57 @@ Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上�
 - **Rust**（从源码构建）
 - **Ollama**（本地 LLM 推理）或 OpenAI API 访问权限
 
+## 🖥️ 平台支持
+
+Nudge 为多个平台提供预构建的二进制文件。构建状态和可用下载请查看[最新版本](https://github.com/Zhangtiande/nudge/releases/latest)页面。
+
+> **构建状态**: [![Release](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml)
+> 查看 [Actions](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml) 页面获取每个平台的详细构建状态。
+
+| 平台 | 架构 | 二进制文件 | 下载 |
+|------|------|-----------|------|
+| **Linux** | x86_64 (glibc) | `nudge-linux-x86_64.tar.gz` | [📥 下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz) |
+| **Linux** | x86_64 (musl) | `nudge-linux-x86_64-musl.tar.gz` | [📥 下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64-musl.tar.gz) |
+| **Linux** | aarch64 (ARM64) | `nudge-linux-aarch64.tar.gz` | [📥 下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-aarch64.tar.gz) |
+| **macOS** | x86_64 (Intel) | `nudge-macos-x86_64.tar.gz` | [📥 下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-x86_64.tar.gz) |
+| **macOS** | aarch64 (Apple Silicon) | `nudge-macos-aarch64.tar.gz` | [📥 下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-aarch64.tar.gz) |
+| **Windows** | x86_64 | `nudge-windows-x86_64.zip` | [📥 下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-windows-x86_64.zip) |
+
+> **注意**: 下载链接仅在发布构建成功后可用。如果某个平台的构建失败，其二进制文件将不会出现在发布中。
+
+### Shell 支持
+
+| Shell | Linux | macOS | Windows | 集成脚本 |
+|-------|-------|-------|---------|---------|
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | `integration.bash` |
+| Zsh | ✅ | ✅ | ✅ (WSL) | `integration.zsh` |
+| PowerShell | ❌ | ❌ | ✅ | `integration.ps1` |
+| CMD | ❌ | ❌ | ✅ | `integration.cmd` |
+
 ## 📦 安装
+
+### 从预构建二进制文件安装（推荐）
+
+从 [Releases 页面](https://github.com/Zhangtiande/nudge/releases/latest)下载适合您平台的最新版本。
+
+**Linux/macOS:**
+```bash
+# 下载并解压（替换为您平台的二进制文件）
+curl -L https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz | tar xz
+
+# 移动到 PATH
+sudo mv nudge /usr/local/bin/
+
+# 运行安装程序
+nudge daemon --install
+```
+
+**Windows (PowerShell):**
+```powershell
+# 从 releases 页面下载并解压
+# 然后添加到 PATH 并运行：
+.\nudge.exe daemon --install
+```
 
 ### 从源码构建
 

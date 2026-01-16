@@ -62,8 +62,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           fi
+
+      - name: Configure cross-compilation (aarch64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << EOF
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+          EOF
+
+      - name: Configure cross-compilation (musl)
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << EOF
+          [target.x86_64-unknown-linux-musl]
+          linker = "musl-gcc"
+          EOF
 
       - name: Cache cargo registry
         uses: actions/cache@v4
