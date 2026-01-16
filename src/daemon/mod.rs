@@ -10,12 +10,13 @@ use std::fs;
 use std::process::Command;
 
 use anyhow::{Context, Result};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::config::Config;
 
 /// Run the daemon
 pub async fn run(foreground: bool, fork: bool) -> Result<()> {
+    debug!("Loading configuration...");
     let config = Config::load()?;
 
     // Ensure config directory exists (Unix only - socket is a filesystem path)
@@ -42,6 +43,7 @@ pub async fn run(foreground: bool, fork: bool) -> Result<()> {
 
     info!("Starting Nudge daemon (pid: {})", pid);
     info!("Socket path: {}", Config::socket_path().display());
+    debug!("PID file: {}", pid_path.display());
 
     // Run the server
     let result = server::run(config).await;

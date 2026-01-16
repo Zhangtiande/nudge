@@ -10,17 +10,17 @@ Nudge looks for configuration in the following order:
 2. Platform-specific default location:
    - **macOS**: `~/Library/Application Support/nudge/config.yaml`
    - **Linux**: `~/.config/nudge/config.yaml`
-   - **Windows**: `%APPDATA%\nudge\config.yaml`
+   - **Windows**: `%APPDATA%\nudge\config\config.yaml`
 3. Built-in defaults (if no config file exists)
 
 ### Related Files
 
 | File | macOS | Linux | Windows |
 |------|-------|-------|---------|
-| Config | `~/Library/Application Support/nudge/config.yaml` | `~/.config/nudge/config.yaml` | `%APPDATA%\nudge\config.yaml` |
+| Config | `~/Library/Application Support/nudge/config.yaml` | `~/.config/nudge/config.yaml` | `%APPDATA%\nudge\config\config.yaml` |
 | IPC | `~/Library/Application Support/nudge/nudge.sock` | `~/.config/nudge/nudge.sock` | `\\.\pipe\nudge_{username}` |
-| PID | `~/Library/Application Support/nudge/nudge.pid` | `~/.config/nudge/nudge.pid` | `%APPDATA%\nudge\nudge.pid` |
-| Logs | `~/Library/Application Support/nudge/logs/` | `~/.local/share/nudge/logs/` | `%APPDATA%\nudge\logs\` |
+| PID | `~/Library/Application Support/nudge/nudge.pid` | `~/.config/nudge/nudge.pid` | `%APPDATA%\nudge\config\nudge.pid` |
+| Logs | `~/Library/Application Support/nudge/logs/` | `~/.local/share/nudge/logs/` | `%LOCALAPPDATA%\nudge\data\logs\` |
 
 **Note:** On Windows, IPC uses Named Pipes instead of Unix Domain Sockets.
 
@@ -184,7 +184,7 @@ Priority values range from 1-100. Higher values mean the data is kept longer dur
 When `log.file_enabled` is `true`, logs are written to:
 - **macOS**: `~/Library/Application Support/nudge/logs/nudge.log.YYYY-MM-DD`
 - **Linux**: `~/.local/share/nudge/logs/nudge.log.YYYY-MM-DD`
-- **Windows**: `%APPDATA%\nudge\logs\nudge.log.YYYY-MM-DD`
+- **Windows**: `%LOCALAPPDATA%\nudge\data\logs\nudge.log.YYYY-MM-DD`
 
 Logs are rotated daily. Both console (stderr) and file output are enabled when file logging is on.
 

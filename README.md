@@ -220,7 +220,9 @@ if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
 
 ## ⚙️ Configuration
 
-Configuration file: `~/.config/nudge/config.yaml`
+For detailed configuration options, see the [Configuration Reference](docs/configuration.md).
+
+**Quick start example** (`~/.config/nudge/config.yaml` on Linux/macOS, `%APPDATA%\nudge\config\config.yaml` on Windows):
 
 ```yaml
 # Model Configuration

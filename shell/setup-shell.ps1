@@ -16,8 +16,8 @@ $ErrorActionPreference = "Stop"
 
 # Detect script location
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$IntegrationPs1 = Join-Path $ScriptDir "integration.ps1"
-$IntegrationCmd = Join-Path $ScriptDir "integration.cmd"
+$SourceIntegrationPs1 = Join-Path $ScriptDir "integration.ps1"
+$SourceIntegrationCmd = Join-Path $ScriptDir "integration.cmd"
 $TemplateConfig = Join-Path (Split-Path -Parent $ScriptDir) "config\config.yaml.template"
 
 # Marker for profile modifications
@@ -32,9 +32,20 @@ function Get-ProfilePath {
     return $PROFILE
 }
 
-function Get-ConfigDir {
+function Get-NudgeDir {
+    # Base nudge directory in APPDATA
     return Join-Path $env:APPDATA "nudge"
 }
+
+function Get-ConfigDir {
+    # directories crate on Windows: config_dir() = {ROAMING_APPDATA}/{project}/config
+    return Join-Path (Get-NudgeDir) "config"
+}
+
+# Get installed integration script paths (in APPDATA)
+$NudgeDir = Get-NudgeDir
+$IntegrationPs1 = Join-Path $NudgeDir "integration.ps1"
+$IntegrationCmd = Join-Path $NudgeDir "integration.cmd"
 
 function Install-PowerShellIntegration {
     $profilePath = Get-ProfilePath
@@ -137,14 +148,32 @@ function Uninstall-CmdIntegration {
     Write-Host "CMD integration removed from registry AutoRun." -ForegroundColor Green
 }
 
-function Setup-ConfigDir {
+function Setup-NudgeDir {
+    $nudgeDir = Get-NudgeDir
     $configDir = Get-ConfigDir
     $configFile = Join-Path $configDir "config.yaml"
+
+    # Create nudge directory
+    if (-not (Test-Path $nudgeDir)) {
+        Write-Host "Creating nudge directory: $nudgeDir" -ForegroundColor Cyan
+        New-Item -ItemType Directory -Path $nudgeDir -Force | Out-Null
+    }
 
     # Create config directory
     if (-not (Test-Path $configDir)) {
         Write-Host "Creating config directory: $configDir" -ForegroundColor Cyan
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+    }
+
+    # Copy integration scripts to nudge directory
+    if (Test-Path $SourceIntegrationPs1) {
+        Write-Host "Installing integration script: $IntegrationPs1" -ForegroundColor Cyan
+        Copy-Item -Path $SourceIntegrationPs1 -Destination $IntegrationPs1 -Force
+    }
+
+    if (Test-Path $SourceIntegrationCmd) {
+        Write-Host "Installing integration script: $IntegrationCmd" -ForegroundColor Cyan
+        Copy-Item -Path $SourceIntegrationCmd -Destination $IntegrationCmd -Force
     }
 
     # Create default config from template if not exists
@@ -232,7 +261,7 @@ if ($Uninstall) {
         Write-Host ""
     }
 
-    Setup-ConfigDir
+    Setup-NudgeDir
     $installed = Install-PowerShellIntegration
 
     if ($Cmd) {

@@ -220,7 +220,9 @@ if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
 
 ## ⚙️ 配置
 
-配置文件位置：`~/.config/nudge/config.yaml`
+详细配置选项请参阅 [配置参考文档](docs/configuration.md)。
+
+**快速配置示例**（Linux/macOS: `~/.config/nudge/config.yaml`，Windows: `%APPDATA%\nudge\config\config.yaml`）：
 
 ```yaml
 # 模型配置

@@ -25,7 +25,7 @@ $existingPrompt
 }
 
 # Ensure daemon is running
-function Start-NudgeDaemon {
+function global:Start-NudgeDaemon {
     # Check if daemon is running by verifying PID file and process
     $configDir = if ($env:APPDATA) {
         Join-Path $env:APPDATA "nudge"
@@ -60,7 +60,7 @@ function Start-NudgeDaemon {
 }
 
 # Main completion function
-function Invoke-NudgeComplete {
+function global:Invoke-NudgeComplete {
     # Ensure daemon is running
     Start-NudgeDaemon
     

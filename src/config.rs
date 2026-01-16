@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, warn};
 
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,17 +238,25 @@ impl Config {
     pub fn load() -> Result<Self> {
         // Check for environment variable override
         if let Ok(config_path) = std::env::var("SMARTSHELL_CONFIG") {
+            info!("Loading config from SMARTSHELL_CONFIG: {}", config_path);
             return Self::load_from_path(&PathBuf::from(config_path));
         }
 
         // Use standard config path
         if let Some(config_path) = Self::default_config_path() {
+            debug!("Default config path: {}", config_path.display());
             if config_path.exists() {
+                info!("Loading config from: {}", config_path.display());
                 return Self::load_from_path(&config_path);
+            } else {
+                debug!("Config file not found at: {}", config_path.display());
             }
+        } else {
+            warn!("Could not determine default config path (ProjectDirs failed)");
         }
 
         // Return defaults if no config file exists
+        info!("Using default configuration");
         Ok(Self::default())
     }
 
@@ -256,10 +265,22 @@ impl Config {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
+        debug!("Config file contents ({} bytes):\n{}", contents.len(), contents);
+
         let config: Self = serde_yaml::from_str(&contents)
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
 
         config.validate()?;
+        
+        // Log loaded configuration details
+        info!("Config loaded successfully:");
+        info!("  Model endpoint: {}", config.model.endpoint);
+        info!("  Model name: {}", config.model.model_name);
+        info!("  API key env: {:?}", config.model.api_key_env);
+        info!("  Timeout: {}ms", config.model.timeout_ms);
+        debug!("  History window: {}", config.context.history_window);
+        debug!("  Git plugin enabled: {}", config.plugins.git.enabled);
+        
         Ok(config)
     }
 
