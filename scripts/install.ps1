@@ -381,7 +381,8 @@ function Get-ShellIntegrationFiles {
             "shell/setup-shell.ps1",
             "shell/integration.ps1",
             "shell/integration.cmd",
-            "config/config.yaml.template"
+            "config/config.default.yaml.template",
+            "config/config.user.yaml.template"
         )
 
         foreach ($file in $files) {

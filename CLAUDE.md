@@ -110,6 +110,85 @@ Shell (Bash/Zsh/PowerShell/CMD) → nudge complete (CLI) → IPC → nudge daemo
               - Git Plugin        - API key removal    - Safety checker
 ```
 
+## Configuration System
+
+Nudge uses a **layered configuration system** to balance defaults with user customization:
+
+### Configuration Files
+
+1. **`config.default.yaml`** (Default configuration)
+   - Ships with the application
+   - Updated automatically on upgrades
+   - **DO NOT** manually edit this file
+   - Located at:
+     - Linux: `~/.config/nudge/config/config.default.yaml`
+     - macOS: `~/Library/Application Support/nudge/config/config.default.yaml`
+     - Windows: `%APPDATA%\nudge\config\config.default.yaml`
+
+2. **`config.yaml`** (User configuration)
+   - Contains user customizations that override defaults
+   - **Preserved across upgrades**
+   - Only needs to include settings that differ from defaults
+   - Same locations as above, but named `config.yaml`
+
+### Configuration Templates
+
+Templates in `config/` directory:
+- **`config.default.yaml.template`**: Complete default configuration with all settings documented
+- **`config.user.yaml.template`**: Minimal user configuration template with common customizations
+
+### Configuration Sync Requirements
+
+**CRITICAL**: When adding or modifying configuration options, you MUST update ALL of the following files to maintain cross-platform consistency:
+
+#### 1. Core Configuration Files
+- [ ] `src/config.rs` - Rust struct definitions
+- [ ] `config/config.default.yaml.template` - Complete default configuration template
+- [ ] `config/config.user.yaml.template` - User configuration template (if commonly customized)
+
+#### 2. Installation Scripts (All Platforms)
+- [ ] `scripts/install.ps1` - Windows one-click installer
+- [ ] `scripts/install.sh` - Unix/Linux/macOS one-click installer
+- [ ] `shell/setup-shell.ps1` - PowerShell/CMD shell integration setup
+- [ ] `shell/setup-shell.sh` - Bash/Zsh shell integration setup
+
+#### 3. Wizard Configuration Generators
+When the interactive wizard needs to handle new settings:
+- [ ] Update wizard prompts in installation scripts
+- [ ] Update `New-ConfigFromWizard` (PowerShell) and `create_config_from_wizard` (Bash)
+- [ ] Update fallback inline configurations
+
+#### 4. Documentation
+- [ ] Update configuration examples in README.md
+- [ ] Update configuration examples in README_zh.md (Chinese version)
+- [ ] Update this CLAUDE.md file if architectural changes
+
+### Configuration Sync Checklist Example
+
+When adding a new config option like `context.include_system_info`:
+
+1. ✅ Add to `ContextConfig` struct in `src/config.rs`
+2. ✅ Add to `config.default.yaml.template` with comments
+3. ✅ Add to inline default config in `scripts/install.ps1` (lines ~590-634)
+4. ✅ Add to inline default config in `shell/setup-shell.ps1` (similar section)
+5. ✅ Add to inline fallback config in `shell/setup-shell.sh` (lines ~305-372)
+6. ✅ Optionally add to `config.user.yaml.template` if commonly customized
+7. ✅ Update README examples if relevant to users
+
+**Why this matters**: Installation scripts contain embedded fallback configurations. If these get out of sync, users may experience:
+- Missing configuration options on fresh installs
+- Runtime errors from unrecognized settings
+- Inconsistent behavior across platforms
+- Failed upgrades
+
+### Loading Behavior
+
+The configuration loader (`src/config.rs::Config::load()`):
+1. Starts with built-in Rust defaults
+2. Merges `config.default.yaml` (if exists)
+3. Merges `config.yaml` (if exists) - user overrides win
+4. Uses deep merge for nested structures (maps are merged recursively)
+
 ### Key Modules
 
 - **`src/cli.rs`**: CLI argument definitions using clap (daemon, complete, start, stop, status)

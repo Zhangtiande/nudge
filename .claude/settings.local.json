@@ -5,7 +5,10 @@
       "mcp__acp__Write",
       "mcp__acp__Bash",
       "Bash(pwsh -Command:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git mv:*)"
     ]
   }
 }

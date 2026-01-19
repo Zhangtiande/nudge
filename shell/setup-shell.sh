@@ -271,7 +271,7 @@ setup_config_files() {
     local config_subdir="$CONFIG_DIR/config"
     local default_config="$config_subdir/config.default.yaml"
     local user_config="$config_subdir/config.yaml"
-    local template_default="$SCRIPT_DIR/../config/config.yaml.template"
+    local template_default="$SCRIPT_DIR/../config/config.default.yaml.template"
     local template_user="$SCRIPT_DIR/../config/config.user.yaml.template"
 
     # Always update config.default.yaml (ships with app, updated on upgrade)

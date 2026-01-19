@@ -268,7 +268,7 @@ setup_shell_integration() {
         local base_url="https://raw.githubusercontent.com/$GITHUB_REPO/main"
 
         # Create directory structure matching repository layout
-        # setup-shell.sh expects: $SCRIPT_DIR/../config/config.yaml.template
+        # setup-shell.sh expects: $SCRIPT_DIR/../config/*.template
         mkdir -p "$tmpdir/shell"
         mkdir -p "$tmpdir/config"
 
@@ -282,7 +282,7 @@ setup_shell_integration() {
         done
 
         # Download config templates to proper location
-        for template in config.yaml.template config.user.yaml.template; do
+        for template in config.default.yaml.template config.user.yaml.template; do
             if command -v curl &> /dev/null; then
                 curl -fsSL "$base_url/config/$template" -o "$tmpdir/config/$template"
             else

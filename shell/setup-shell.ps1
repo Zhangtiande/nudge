@@ -19,7 +19,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SourceIntegrationPs1 = Join-Path $ScriptDir "integration.ps1"
 $SourceIntegrationCmd = Join-Path $ScriptDir "integration.cmd"
 $ConfigDir = Join-Path (Split-Path -Parent $ScriptDir) "config"
-$TemplateDefaultConfig = Join-Path $ConfigDir "config.yaml.template"
+$TemplateDefaultConfig = Join-Path $ConfigDir "config.default.yaml.template"
 $TemplateUserConfig = Join-Path $ConfigDir "config.user.yaml.template"
 
 # Marker for profile modifications

@@ -53,6 +53,22 @@ context:
   # Helps LLM understand if previous command succeeded or failed
   include_exit_code: true
 
+  # Include system information (OS, architecture, shell type, etc.)
+  # Helps LLM provide platform-specific suggestions
+  include_system_info: true
+
+  # Enable similar commands search from history
+  # Finds and includes commands similar to current input
+  similar_commands_enabled: true
+
+  # Number of history commands to search for similar commands
+  # Larger values search deeper but may be slower
+  similar_commands_window: 200
+
+  # Maximum number of similar commands to return
+  # Prevents context overflow with too many matches
+  similar_commands_max: 5
+
   # Maximum number of files to include in directory listing
   # Prevents token overflow in large directories
   max_files_in_listing: 50
