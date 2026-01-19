@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
+use serde_yaml::Value;
 use tracing::{debug, info, warn};
 
 /// Main configuration structure
@@ -249,33 +250,107 @@ impl Default for LogConfig {
 }
 
 impl Config {
-    /// Load configuration from file or use defaults
+    /// Load configuration with layered approach:
+    /// 1. Start with built-in defaults
+    /// 2. Override with config.default.yaml (ships with app, updated on upgrade)
+    /// 3. Override with config.yaml (user customizations, preserved on upgrade)
     pub fn load() -> Result<Self> {
-        // Check for environment variable override
+        // Check for environment variable override (skips layered loading)
         if let Ok(config_path) = std::env::var("SMARTSHELL_CONFIG") {
             info!("Loading config from SMARTSHELL_CONFIG: {}", config_path);
             return Self::load_from_path(&PathBuf::from(config_path));
         }
 
-        // Use standard config path
-        if let Some(config_path) = Self::default_config_path() {
-            debug!("Default config path: {}", config_path.display());
-            if config_path.exists() {
-                info!("Loading config from: {}", config_path.display());
-                return Self::load_from_path(&config_path);
+        // Start with built-in defaults as YAML value
+        let default_config = Self::default();
+        let mut merged_value: Value =
+            serde_yaml::to_value(&default_config).context("Failed to serialize default config")?;
+
+        // Layer 1: Load config.default.yaml if exists (ships with app)
+        if let Some(base_path) = Self::base_config_path() {
+            if base_path.exists() {
+                debug!("Loading base config from: {}", base_path.display());
+                if let Ok(contents) = std::fs::read_to_string(&base_path) {
+                    if let Ok(base_value) = serde_yaml::from_str::<Value>(&contents) {
+                        merged_value = Self::deep_merge(merged_value, base_value);
+                        info!("Base config loaded: {}", base_path.display());
+                    } else {
+                        warn!("Failed to parse base config: {}", base_path.display());
+                    }
+                }
             } else {
-                debug!("Config file not found at: {}", config_path.display());
+                debug!("Base config not found: {}", base_path.display());
             }
-        } else {
-            warn!("Could not determine default config path (ProjectDirs failed)");
         }
 
-        // Return defaults if no config file exists
-        info!("Using default configuration");
-        Ok(Self::default())
+        // Layer 2: Load config.yaml if exists (user customizations)
+        if let Some(user_path) = Self::default_config_path() {
+            if user_path.exists() {
+                debug!("Loading user config from: {}", user_path.display());
+                if let Ok(contents) = std::fs::read_to_string(&user_path) {
+                    // Skip empty files
+                    let trimmed = contents.trim();
+                    if !trimmed.is_empty() && trimmed != "---" {
+                        if let Ok(user_value) = serde_yaml::from_str::<Value>(&contents) {
+                            merged_value = Self::deep_merge(merged_value, user_value);
+                            info!("User config loaded: {}", user_path.display());
+                        } else {
+                            warn!("Failed to parse user config: {}", user_path.display());
+                        }
+                    } else {
+                        debug!("User config is empty, using defaults");
+                    }
+                }
+            } else {
+                debug!("User config not found: {}", user_path.display());
+            }
+        } else {
+            warn!("Could not determine config path (ProjectDirs failed)");
+        }
+
+        // Deserialize merged config
+        let config: Self =
+            serde_yaml::from_value(merged_value).context("Failed to deserialize merged config")?;
+
+        config.validate()?;
+
+        // Log loaded configuration details
+        info!("Config loaded successfully (layered):");
+        info!("  Model endpoint: {}", config.model.endpoint);
+        info!("  Model name: {}", config.model.model_name);
+        info!(
+            "  API key configured: {}",
+            config.model.api_key.is_some() || config.model.api_key_env.is_some()
+        );
+        info!("  Timeout: {}ms", config.model.timeout_ms);
+        debug!("  History window: {}", config.context.history_window);
+        debug!("  Git plugin enabled: {}", config.plugins.git.enabled);
+
+        Ok(config)
     }
 
-    /// Load configuration from a specific path
+    /// Deep merge two YAML values. Values from `override_value` take precedence.
+    /// For mappings, keys are merged recursively.
+    /// For other types, override completely replaces base.
+    fn deep_merge(base: Value, override_value: Value) -> Value {
+        match (base, override_value) {
+            (Value::Mapping(mut base_map), Value::Mapping(override_map)) => {
+                for (key, override_val) in override_map {
+                    let merged_val = if let Some(base_val) = base_map.remove(&key) {
+                        Self::deep_merge(base_val, override_val)
+                    } else {
+                        override_val
+                    };
+                    base_map.insert(key, merged_val);
+                }
+                Value::Mapping(base_map)
+            }
+            // For non-mapping types, override wins
+            (_, override_value) => override_value,
+        }
+    }
+
+    /// Load configuration from a specific path (no layering, direct load)
     pub fn load_from_path(path: &PathBuf) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
@@ -303,7 +378,12 @@ impl Config {
         Ok(config)
     }
 
-    /// Get the default config file path
+    /// Get the base config file path (config.default.yaml - ships with app)
+    pub fn base_config_path() -> Option<PathBuf> {
+        ProjectDirs::from("", "", "nudge").map(|dirs| dirs.config_dir().join("config.default.yaml"))
+    }
+
+    /// Get the user config file path (config.yaml - user customizations)
     pub fn default_config_path() -> Option<PathBuf> {
         ProjectDirs::from("", "", "nudge").map(|dirs| dirs.config_dir().join("config.yaml"))
     }
@@ -387,12 +467,18 @@ impl Config {
 
         if !is_local {
             // Check if api_key is set directly
-            let has_direct_key = self.model.api_key.as_ref().map_or(false, |k| !k.is_empty());
+            let has_direct_key = self
+                .model
+                .api_key
+                .as_ref()
+                .is_some_and(|k| !k.is_empty());
 
             // Check if api_key_env is set and the env var exists
-            let has_env_key = self.model.api_key_env.as_ref().map_or(false, |env_var| {
-                !env_var.is_empty() && std::env::var(env_var).is_ok()
-            });
+            let has_env_key = self
+                .model
+                .api_key_env
+                .as_ref()
+                .is_some_and(|env_var| !env_var.is_empty() && std::env::var(env_var).is_ok());
 
             if !has_direct_key && !has_env_key {
                 let config_path = Self::default_config_path()
@@ -425,7 +511,7 @@ impl Config {
         summary.push_str(&format!("  Endpoint: {}\n", self.model.endpoint));
         summary.push_str(&format!("  Model: {}\n", self.model.model_name));
 
-        let auth_status = if self.model.api_key.as_ref().map_or(false, |k| !k.is_empty()) {
+        let auth_status = if self.model.api_key.as_ref().is_some_and(|k| !k.is_empty()) {
             "Configured (direct)"
         } else if let Some(env_var) = &self.model.api_key_env {
             if std::env::var(env_var).is_ok() {

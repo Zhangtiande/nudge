@@ -5,8 +5,6 @@
 //! - Sanitization of sensitive data
 //! - Safety checks for dangerous commands
 
-use std::path::PathBuf;
-
 /// Test that context gathering collects all expected sources
 #[tokio::test]
 async fn test_context_gathering_collects_all_sources() {
@@ -116,7 +114,7 @@ fn test_completion_response_format() {
 #[test]
 fn test_empty_buffer_handling() {
     let buffer = "";
-    assert!(buffer.is_empty());
+    assert_eq!(buffer.len(), 0);
 
     // An empty buffer should not cause a panic
     let cursor_pos = 0;
@@ -132,8 +130,8 @@ fn test_cursor_position_validation() {
     assert!(cursor_pos <= buffer.len());
 
     // Test boundary conditions
-    assert!(0 <= buffer.len());
-    assert!(buffer.len() <= buffer.len());
+    assert_eq!(buffer.len(), 10);
+    assert!(cursor_pos == buffer.len());
 }
 
 /// Test session ID format
@@ -155,7 +153,7 @@ fn test_session_id_format() {
 /// Test that multiple suggestions are properly ordered
 #[test]
 fn test_suggestions_ordering() {
-    let suggestions = vec![
+    let suggestions = [
         ("git commit -m", 0.95),
         ("git checkout", 0.75),
         ("git cherry-pick", 0.60),
@@ -184,8 +182,8 @@ fn test_token_estimation() {
 /// Test that context aggregation includes all sources
 #[test]
 fn test_context_aggregation() {
-    let history = vec!["ls".to_string(), "cd".to_string()];
-    let files = vec!["README.md".to_string(), "Cargo.toml".to_string()];
+    let history = ["ls".to_string(), "cd".to_string()];
+    let files = ["README.md".to_string(), "Cargo.toml".to_string()];
     let exit_code = Some(0);
 
     // Verify all context sources are present
