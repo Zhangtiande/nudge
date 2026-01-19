@@ -400,12 +400,14 @@ impl Config {
 
     /// Get the base config file path (config.default.yaml - ships with app)
     pub fn base_config_path() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "nudge").map(|dirs| dirs.config_dir().join("config.default.yaml"))
+        ProjectDirs::from("", "", "nudge")
+            .map(|dirs| dirs.config_dir().join("config").join("config.default.yaml"))
     }
 
     /// Get the user config file path (config.yaml - user customizations)
     pub fn default_config_path() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "nudge").map(|dirs| dirs.config_dir().join("config.yaml"))
+        ProjectDirs::from("", "", "nudge")
+            .map(|dirs| dirs.config_dir().join("config").join("config.yaml"))
     }
 
     /// Get the socket path for IPC
