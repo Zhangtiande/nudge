@@ -18,7 +18,7 @@ use crate::config::Config;
 pub async fn run(foreground: bool, fork: bool) -> Result<()> {
     debug!("Loading configuration...");
     let config = Config::load()?;
-    
+
     // Validate LLM configuration
     if let Err(e) = config.validate_llm_config() {
         eprintln!("\n\x1b[1;31mError: LLM configuration issue\x1b[0m\n");
@@ -101,7 +101,7 @@ fn fork_daemon() -> Result<()> {
 /// Validate LLM configuration before starting daemon
 fn validate_config_before_start() -> Result<Config> {
     let config = Config::load()?;
-    
+
     // Validate LLM configuration
     if let Err(e) = config.validate_llm_config() {
         eprintln!("\n\x1b[1;31mError: LLM configuration issue\x1b[0m\n");
@@ -109,7 +109,7 @@ fn validate_config_before_start() -> Result<Config> {
         eprintln!();
         anyhow::bail!("Cannot start daemon without valid LLM configuration");
     }
-    
+
     Ok(config)
 }
 
@@ -117,7 +117,7 @@ fn validate_config_before_start() -> Result<Config> {
 pub async fn start() -> Result<()> {
     // Validate configuration first
     let config = validate_config_before_start()?;
-    
+
     // Check if already running
     if is_running() {
         println!("Nudge daemon is already running");
@@ -137,10 +137,10 @@ pub async fn start() -> Result<()> {
 /// Restart the daemon (stop + start)
 pub async fn restart() -> Result<()> {
     println!("Restarting Nudge daemon...");
-    
+
     // Validate config before stopping (fail fast)
     let config = validate_config_before_start()?;
-    
+
     // Stop if running
     let was_running = is_running();
     if was_running {
@@ -148,12 +148,12 @@ pub async fn restart() -> Result<()> {
         // Wait a bit for the process to fully terminate
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
-    
+
     // Print LLM configuration summary
     println!("\x1b[1;32mLLM Configuration:\x1b[0m");
     println!("{}", config.llm_config_summary());
     println!();
-    
+
     // Start
     fork_daemon()?;
     println!("\x1b[1;32mNudge daemon restarted\x1b[0m");

@@ -92,27 +92,26 @@ add_source_line() {
     } >> "$rc_file"
 }
 
-# Create default config from template if not exists
-create_default_config() {
-    local config_file="$CONFIG_DIR/config.yaml"
-    local template_file="$SCRIPT_DIR/../config/config.yaml.template"
+# Setup configuration files with layered approach:
+# - config.default.yaml: Full default config (updated on every install/upgrade)
+# - config.yaml: User customizations only (preserved across upgrades)
+setup_config_files() {
+    local default_config="$CONFIG_DIR/config.default.yaml"
+    local user_config="$CONFIG_DIR/config.yaml"
+    local default_template="$SCRIPT_DIR/../config/config.yaml.template"
+    local user_template="$SCRIPT_DIR/../config/config.user.yaml.template"
 
-    if [[ -f "$config_file" ]]; then
-        echo "Config file already exists: $config_file"
-        return 0
-    fi
-
-    echo "Creating default config: $config_file"
-
-    # Try to copy from template first
-    if [[ -f "$template_file" ]]; then
-        cp "$template_file" "$config_file"
-        echo "Config created from template: $template_file"
+    # Always update config.default.yaml (ships with app)
+    echo "Updating default config: $default_config"
+    if [[ -f "$default_template" ]]; then
+        cp "$default_template" "$default_config"
+        echo "Default config updated from template"
     else
-        # Fallback: create basic config inline
-        cat > "$config_file" << 'EOF'
-# Nudge Configuration
-# Documentation: https://github.com/Zhangtiande/nudge
+        # Fallback: create basic default config inline
+        cat > "$default_config" << 'EOF'
+# Nudge Default Configuration
+# DO NOT EDIT - This file is overwritten on upgrades.
+# Put your customizations in config.yaml instead.
 
 model:
   endpoint: "http://localhost:11434/v1"
@@ -150,7 +149,34 @@ log:
   level: "info"
   file_enabled: false
 EOF
-        echo "Config created with default settings"
+        echo "Default config created with built-in settings"
+    fi
+
+    # Create user config only if it doesn't exist (preserve user customizations)
+    if [[ -f "$user_config" ]]; then
+        echo "User config preserved: $user_config"
+    else
+        echo "Creating user config: $user_config"
+        if [[ -f "$user_template" ]]; then
+            cp "$user_template" "$user_config"
+            echo "User config created from template"
+        else
+            # Fallback: create minimal user config
+            cat > "$user_config" << 'EOF'
+# Nudge User Configuration
+#
+# Add your custom settings here. They will override config.default.yaml.
+# This file is preserved across upgrades.
+#
+# Example - To use OpenAI instead of local Ollama:
+#
+# model:
+#   endpoint: "https://api.openai.com/v1"
+#   model_name: "gpt-3.5-turbo"
+#   api_key_env: "OPENAI_API_KEY"
+EOF
+            echo "User config created with minimal template"
+        fi
     fi
 }
 
@@ -184,7 +210,7 @@ main() {
     setup_config_dir
     copy_integration "$shell_name"
     add_source_line "$rc_file" "$CONFIG_DIR/integration.$shell_name"
-    create_default_config
+    setup_config_files
 
     echo ""
     echo "========================================="

@@ -18,7 +18,9 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $SourceIntegrationPs1 = Join-Path $ScriptDir "integration.ps1"
 $SourceIntegrationCmd = Join-Path $ScriptDir "integration.cmd"
-$TemplateConfig = Join-Path (Split-Path -Parent $ScriptDir) "config\config.yaml.template"
+$ConfigDir = Join-Path (Split-Path -Parent $ScriptDir) "config"
+$TemplateDefaultConfig = Join-Path $ConfigDir "config.yaml.template"
+$TemplateUserConfig = Join-Path $ConfigDir "config.user.yaml.template"
 
 # Marker for profile modifications
 $NudgeMarkerStart = "# >>> Nudge Integration >>>"
@@ -151,7 +153,8 @@ function Uninstall-CmdIntegration {
 function Setup-NudgeDir {
     $nudgeDir = Get-NudgeDir
     $configDir = Get-ConfigDir
-    $configFile = Join-Path $configDir "config.yaml"
+    $defaultConfigFile = Join-Path $configDir "config.default.yaml"
+    $userConfigFile = Join-Path $configDir "config.yaml"
 
     # Create nudge directory
     if (-not (Test-Path $nudgeDir)) {
@@ -176,18 +179,17 @@ function Setup-NudgeDir {
         Copy-Item -Path $SourceIntegrationCmd -Destination $IntegrationCmd -Force
     }
 
-    # Create default config from template if not exists
-    if (-not (Test-Path $configFile)) {
-        Write-Host "Creating default config: $configFile" -ForegroundColor Cyan
-
-        if (Test-Path $TemplateConfig) {
-            Copy-Item -Path $TemplateConfig -Destination $configFile
-            Write-Host "Config created from template" -ForegroundColor Green
-        } else {
-            # Fallback: create basic config inline
-            $defaultConfig = @"
-# Nudge Configuration
-# Documentation: https://github.com/Zhangtiande/nudge
+    # Always update config.default.yaml (ships with app, updated on upgrade)
+    Write-Host "Updating default config: $defaultConfigFile" -ForegroundColor Cyan
+    if (Test-Path $TemplateDefaultConfig) {
+        Copy-Item -Path $TemplateDefaultConfig -Destination $defaultConfigFile -Force
+        Write-Host "Default config updated from template" -ForegroundColor Green
+    } else {
+        # Fallback: create basic default config inline
+        $defaultConfig = @"
+# Nudge Default Configuration
+# DO NOT EDIT - This file is overwritten on upgrades.
+# Put your customizations in config.yaml instead.
 
 model:
   endpoint: "http://localhost:11434/v1"
@@ -225,11 +227,36 @@ log:
   level: "info"
   file_enabled: false
 "@
-            Set-Content -Path $configFile -Value $defaultConfig
-            Write-Host "Config created with default settings" -ForegroundColor Green
+        Set-Content -Path $defaultConfigFile -Value $defaultConfig
+        Write-Host "Default config created with built-in settings" -ForegroundColor Green
+    }
+
+    # Create user config only if it doesn't exist (preserve user customizations)
+    if (-not (Test-Path $userConfigFile)) {
+        Write-Host "Creating user config: $userConfigFile" -ForegroundColor Cyan
+        if (Test-Path $TemplateUserConfig) {
+            Copy-Item -Path $TemplateUserConfig -Destination $userConfigFile
+            Write-Host "User config created from template" -ForegroundColor Green
+        } else {
+            # Fallback: create minimal user config
+            $userConfig = @"
+# Nudge User Configuration
+#
+# Add your custom settings here. They will override config.default.yaml.
+# This file is preserved across upgrades.
+#
+# Example - To use OpenAI instead of local Ollama:
+#
+# model:
+#   endpoint: "https://api.openai.com/v1"
+#   model_name: "gpt-3.5-turbo"
+#   api_key_env: "OPENAI_API_KEY"
+"@
+            Set-Content -Path $userConfigFile -Value $userConfig
+            Write-Host "User config created with minimal template" -ForegroundColor Green
         }
     } else {
-        Write-Host "Config file already exists: $configFile" -ForegroundColor Yellow
+        Write-Host "User config preserved: $userConfigFile" -ForegroundColor Yellow
     }
 }
 

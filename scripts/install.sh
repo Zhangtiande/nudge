@@ -281,12 +281,14 @@ setup_shell_integration() {
             fi
         done
 
-        # Download config template to proper location
-        if command -v curl &> /dev/null; then
-            curl -fsSL "$base_url/config/config.yaml.template" -o "$tmpdir/config/config.yaml.template"
-        else
-            wget -q "$base_url/config/config.yaml.template" -O "$tmpdir/config/config.yaml.template"
-        fi
+        # Download config templates to proper location
+        for template in config.yaml.template config.user.yaml.template; do
+            if command -v curl &> /dev/null; then
+                curl -fsSL "$base_url/config/$template" -o "$tmpdir/config/$template"
+            else
+                wget -q "$base_url/config/$template" -O "$tmpdir/config/$template"
+            fi
+        done
 
         setup_script="$tmpdir/shell/setup-shell.sh"
         chmod +x "$setup_script"
@@ -436,44 +438,38 @@ main() {
         config_file="${XDG_CONFIG_HOME:-$HOME/.config}/nudge/config.yaml"
     fi
     
+    # Determine config directory
+    local config_dir=""
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        config_dir="$HOME/Library/Application Support/nudge"
+    else
+        config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+    fi
+    
     echo "========================================="
-    echo "    Configuration Required"
+    echo "    Configuration"
     echo "========================================="
     echo ""
-    warning "Please configure your LLM settings before using Nudge!"
+    echo "Nudge uses layered configuration:"
     echo ""
-    echo "Configuration file location:"
-    echo "  $config_file"
+    echo "  ${CYAN}config.default.yaml${NC} - Default settings (auto-updated on upgrade)"
+    echo "  ${CYAN}config.yaml${NC}         - Your customizations (preserved on upgrade)"
     echo ""
-    echo "You need to edit the following settings:"
+    echo "Location: $config_dir/"
     echo ""
-    echo "  model:"
-    echo "    endpoint: \"http://localhost:11434/v1\"  # Change if using different LLM"
-    echo "    model_name: \"codellama:7b\"              # Change to your preferred model"
-    echo "    # api_key: \"sk-xxx\"                     # Direct API key (option 1)"
-    echo "    # api_key_env: \"OPENAI_API_KEY\"         # Or use env variable (option 2)"
+    warning "Edit config.yaml to customize your LLM settings:"
     echo ""
-    echo "Example configurations:"
-    echo ""
-    echo "  # Local Ollama (default):"
-    echo "  model:"
-    echo "    endpoint: \"http://localhost:11434/v1\""
-    echo "    model_name: \"codellama:7b\""
-    echo ""
-    echo "  # OpenAI (with direct API key):"
-    echo "  model:"
-    echo "    endpoint: \"https://api.openai.com/v1\""
-    echo "    model_name: \"gpt-3.5-turbo\""
-    echo "    api_key: \"sk-your-api-key-here\""
-    echo ""
-    echo "  # OpenAI (with env variable, recommended for security):"
-    echo "  model:"
-    echo "    endpoint: \"https://api.openai.com/v1\""
-    echo "    model_name: \"gpt-3.5-turbo\""
-    echo "    api_key_env: \"OPENAI_API_KEY\""
-    echo ""
-    echo "To edit the config file, run:"
     echo "  ${EDITOR:-nano} \"$config_file\""
+    echo ""
+    echo "Example - To use OpenAI instead of local Ollama:"
+    echo ""
+    echo "  model:"
+    echo "    endpoint: \"https://api.openai.com/v1\""
+    echo "    model_name: \"gpt-3.5-turbo\""
+    echo "    api_key_env: \"OPENAI_API_KEY\"  # or api_key: \"sk-xxx\""
+    echo ""
+    echo "For local Ollama (default), no configuration changes needed."
+    echo "Just make sure Ollama is running: ${CYAN}ollama serve${NC}"
     echo ""
     echo "Next steps:"
     echo "  1. Edit the configuration file above"
