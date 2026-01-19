@@ -70,6 +70,14 @@ pub struct ContextConfig {
     pub include_cwd_listing: bool,
     /// Include last exit code
     pub include_exit_code: bool,
+    /// Include system information (OS, architecture, shell type, etc.)
+    pub include_system_info: bool,
+    /// Enable similar commands search from history
+    pub similar_commands_enabled: bool,
+    /// Number of history commands to search for similar commands
+    pub similar_commands_window: usize,
+    /// Maximum number of similar commands to return
+    pub similar_commands_max: usize,
     /// Max files to include in CWD listing
     pub max_files_in_listing: usize,
     /// Max total context tokens
@@ -84,6 +92,10 @@ impl Default for ContextConfig {
             history_window: 20,
             include_cwd_listing: true,
             include_exit_code: true,
+            include_system_info: true,
+            similar_commands_enabled: true,
+            similar_commands_window: 200,
+            similar_commands_max: 5,
             max_files_in_listing: 50,
             max_total_tokens: 4000,
             priorities: PriorityConfig::default(),
@@ -268,13 +280,17 @@ impl Config {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-        debug!("Config file contents ({} bytes):\n{}", contents.len(), contents);
+        debug!(
+            "Config file contents ({} bytes):\n{}",
+            contents.len(),
+            contents
+        );
 
         let config: Self = serde_yaml::from_str(&contents)
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
 
         config.validate()?;
-        
+
         // Log loaded configuration details
         info!("Config loaded successfully:");
         info!("  Model endpoint: {}", config.model.endpoint);
@@ -283,7 +299,7 @@ impl Config {
         info!("  Timeout: {}ms", config.model.timeout_ms);
         debug!("  History window: {}", config.context.history_window);
         debug!("  Git plugin enabled: {}", config.plugins.git.enabled);
-        
+
         Ok(config)
     }
 
@@ -354,7 +370,9 @@ impl Config {
     pub fn validate_llm_config(&self) -> Result<()> {
         // Check endpoint
         if self.model.endpoint.is_empty() {
-            anyhow::bail!("LLM endpoint is not configured. Please set 'model.endpoint' in your config file.");
+            anyhow::bail!(
+                "LLM endpoint is not configured. Please set 'model.endpoint' in your config file."
+            );
         }
 
         // Check model name
@@ -363,14 +381,14 @@ impl Config {
         }
 
         // For non-local endpoints, check if API key is configured
-        let is_local = self.model.endpoint.contains("localhost") 
+        let is_local = self.model.endpoint.contains("localhost")
             || self.model.endpoint.contains("127.0.0.1")
             || self.model.endpoint.contains("0.0.0.0");
 
         if !is_local {
             // Check if api_key is set directly
             let has_direct_key = self.model.api_key.as_ref().map_or(false, |k| !k.is_empty());
-            
+
             // Check if api_key_env is set and the env var exists
             let has_env_key = self.model.api_key_env.as_ref().map_or(false, |env_var| {
                 !env_var.is_empty() && std::env::var(env_var).is_ok()
@@ -406,7 +424,7 @@ impl Config {
         let mut summary = String::new();
         summary.push_str(&format!("  Endpoint: {}\n", self.model.endpoint));
         summary.push_str(&format!("  Model: {}\n", self.model.model_name));
-        
+
         let auth_status = if self.model.api_key.as_ref().map_or(false, |k| !k.is_empty()) {
             "Configured (direct)"
         } else if let Some(env_var) = &self.model.api_key_env {
@@ -419,7 +437,7 @@ impl Config {
             "Not required (local)"
         };
         summary.push_str(&format!("  API Key: {}", auth_status));
-        
+
         summary
     }
 }

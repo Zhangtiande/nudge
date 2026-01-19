@@ -133,6 +133,16 @@ pub async fn complete(buffer: &str, context: &ContextData, config: &Config) -> R
 fn build_user_prompt(buffer: &str, context: &ContextData) -> String {
     let mut prompt = String::new();
 
+    // Add system information
+    prompt.push_str("## System Environment\n");
+    prompt.push_str(&format!(
+        "OS: {} {}\n",
+        context.system.os_type, context.system.os_version
+    ));
+    prompt.push_str(&format!("Architecture: {}\n", context.system.arch));
+    prompt.push_str(&format!("Shell: {}\n", context.system.shell_type));
+    prompt.push_str(&format!("User: {}\n\n", context.system.username));
+
     // Add history
     if !context.history.is_empty() {
         prompt.push_str("## Recent Commands\n");
@@ -140,6 +150,16 @@ fn build_user_prompt(buffer: &str, context: &ContextData) -> String {
             prompt.push_str(&format!("- {}\n", cmd));
         }
         prompt.push('\n');
+    }
+
+    // Add similar commands (if available)
+    if !context.similar_commands.is_empty() {
+        prompt.push_str("## Similar Commands from History\n");
+        prompt.push_str("The following commands are similar to what you're typing:\n");
+        for cmd in &context.similar_commands {
+            prompt.push_str(&format!("- {}\n", cmd));
+        }
+        prompt.push_str("\nConsider these examples, but provide the most appropriate completion based on current context.\n\n");
     }
 
     // Add CWD listing

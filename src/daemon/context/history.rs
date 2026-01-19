@@ -44,6 +44,86 @@ pub fn read_history(session_id: &str, window_size: usize) -> Result<Vec<String>>
     Ok(limited)
 }
 
+/// Find similar commands from history based on query string
+pub fn find_similar_commands(
+    session_id: &str,
+    query: &str,
+    window_size: usize,
+    max_results: usize,
+) -> Result<Vec<String>> {
+    // Read history with larger window for searching
+    let history_path = get_history_path(session_id)?;
+
+    if !history_path.exists() {
+        debug!("History file not found: {}", history_path.display());
+        return Ok(Vec::new());
+    }
+
+    let bytes = match fs::read(&history_path) {
+        Ok(b) => b,
+        Err(e) => {
+            debug!(
+                "Cannot read history file {}: {} (continuing without similar commands)",
+                history_path.display(),
+                e
+            );
+            return Ok(Vec::new());
+        }
+    };
+
+    let contents = String::from_utf8_lossy(&bytes).into_owned();
+    let shell_type = detect_shell_type(session_id);
+    let entries = parse_history(&contents, shell_type);
+
+    // Extract keywords from query (ignore common shell keywords)
+    let keywords = extract_keywords(query);
+    if keywords.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Filter commands that contain any of the keywords (case-insensitive)
+    let mut similar_commands: Vec<String> = entries
+        .into_iter()
+        .rev() // Start from most recent
+        .take(window_size) // Limit search window
+        .filter(|cmd| {
+            let cmd_lower = cmd.to_lowercase();
+            keywords
+                .iter()
+                .any(|keyword| cmd_lower.contains(&keyword.to_lowercase()))
+        })
+        .collect();
+
+    // Remove consecutive duplicates
+    similar_commands = deduplicate(similar_commands);
+
+    // Limit to max_results
+    similar_commands.truncate(max_results);
+
+    debug!(
+        "Found {} similar commands for query: {}",
+        similar_commands.len(),
+        query
+    );
+
+    Ok(similar_commands)
+}
+
+/// Extract keywords from query string, filtering out common shell commands
+fn extract_keywords(query: &str) -> Vec<String> {
+    const COMMON_COMMANDS: &[&str] = &[
+        "cd", "ls", "pwd", "echo", "cat", "grep", "sed", "awk", "rm", "mv", "cp", "mkdir", "touch",
+        "chmod", "chown", "sudo", "su", "exit", "clear", "history",
+    ];
+
+    query
+        .split_whitespace()
+        .filter(|word| !word.is_empty() && word.len() >= 2) // At least 2 characters
+        .filter(|word| !COMMON_COMMANDS.contains(word))
+        .map(|word| word.to_string())
+        .collect()
+}
+
 /// Detect shell type from session ID
 fn detect_shell_type(session_id: &str) -> ShellType {
     if session_id.starts_with("bash-") {
@@ -251,5 +331,29 @@ mod tests {
         ];
         let deduped = deduplicate(entries);
         assert_eq!(deduped, vec!["ls", "cd", "ls"]);
+    }
+
+    #[test]
+    fn test_extract_keywords() {
+        let query = "docker ps -a";
+        let keywords = extract_keywords(query);
+        assert_eq!(keywords, vec!["docker", "ps", "-a"]);
+
+        let query2 = "cd ls"; // Common commands should be filtered
+        let keywords2 = extract_keywords(query2);
+        assert_eq!(keywords2.len(), 0);
+
+        let query3 = "git commit -m message";
+        let keywords3 = extract_keywords(query3);
+        assert!(keywords3.contains(&"git".to_string()));
+        assert!(keywords3.contains(&"commit".to_string()));
+    }
+
+    #[test]
+    fn test_extract_keywords_min_length() {
+        let query = "a b cd docker";
+        let keywords = extract_keywords(query);
+        // "a" and "b" are too short, "cd" is filtered as common command
+        assert_eq!(keywords, vec!["docker"]);
     }
 }

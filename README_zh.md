@@ -19,11 +19,13 @@ Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上�
 |------|------|
 | 🤖 **AI 智能补全** | 使用 LLM 理解上下文，提供相关命令建议 |
 | 📝 **历史感知** | 从 Shell 历史记录中学习，提供个性化建议 |
+| 🔍 **相似指令搜索** | 自动从历史记录中查找相似命令（类似 Bash Ctrl+R） |
+| 🖥️ **系统感知** | 根据您的操作系统、架构和 Shell 类型调整建议 |
 | 📁 **上下文感知** | 考虑当前目录文件和 Git 状态 |
 | 🔒 **隐私优先** | 发送给 LLM 前自动清理敏感数据（API 密钥、密码等） |
 | ⚠️ **安全警告** | 标记潜在危险命令（rm -rf、mkfs 等） |
 | 🐚 **多 Shell 支持** | 支持 Bash、Zsh、PowerShell 和 CMD |
-| 🖥️ **跨平台** | 支持 Linux、macOS 和 Windows |
+| 🌐 **跨平台** | 支持 Linux、macOS 和 Windows |
 | ⚡ **响应迅速** | 本地 LLM 响应时间 <200ms |
 
 ## 📋 前置要求
@@ -235,6 +237,10 @@ model:
 context:
   history_window: 20              # 历史命令窗口大小
   include_cwd_listing: true       # 包含当前目录文件列表
+  include_system_info: true       # 包含系统信息（操作系统、架构、Shell、用户）
+  similar_commands_enabled: true  # 启用相似命令搜索（类似 Ctrl+R）
+  similar_commands_window: 200    # 搜索最近 200 条历史记录
+  similar_commands_max: 5         # 最多返回 5 条相似命令
   max_files_in_listing: 50        # 最大文件数
   max_total_tokens: 4000          # 最大 token 数
 

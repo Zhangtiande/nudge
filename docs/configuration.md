@@ -40,6 +40,10 @@ context:
   history_window: 20                      # Number of history commands to include
   include_cwd_listing: true               # Include current directory files
   include_exit_code: true                 # Include last command exit code
+  include_system_info: true               # Include system information (OS, arch, shell, user)
+  similar_commands_enabled: true          # Enable similar command search (like Bash Ctrl+R)
+  similar_commands_window: 200            # Number of history commands to search
+  similar_commands_max: 5                 # Maximum similar commands to return
   max_files_in_listing: 50                # Max files to list from CWD
   max_total_tokens: 4000                  # Max context tokens
   priorities:
@@ -105,8 +109,33 @@ system_prompt: null                       # Override default system prompt
 | `context.history_window` | integer | `20` | Number of recent commands to include |
 | `context.include_cwd_listing` | boolean | `true` | Whether to include CWD file listing |
 | `context.include_exit_code` | boolean | `true` | Whether to include last exit code |
+| `context.include_system_info` | boolean | `true` | Include system info (OS, architecture, shell, user) |
+| `context.similar_commands_enabled` | boolean | `true` | Enable similar command search from history |
+| `context.similar_commands_window` | integer | `200` | Number of history entries to search |
+| `context.similar_commands_max` | integer | `5` | Maximum similar commands to return |
 | `context.max_files_in_listing` | integer | `50` | Maximum files to include from CWD |
 | `context.max_total_tokens` | integer | `4000` | Maximum total context tokens |
+
+**System Information:**
+
+When `include_system_info` is enabled, the LLM receives:
+- Operating system type and version (e.g., "Windows 11 Build 22621", "Ubuntu 22.04")
+- System architecture (e.g., "x86_64", "aarch64")
+- Current shell type (e.g., "bash", "zsh", "powershell", "cmd")
+- Current username
+
+This helps the LLM provide platform-specific and shell-appropriate completions.
+
+**Similar Commands Feature:**
+
+When `similar_commands_enabled` is true and you type a command (≥3 characters), Nudge automatically searches your history for similar commands and includes them in the context. This works like Bash's `Ctrl+R` reverse search, but powered by LLM's semantic understanding.
+
+Example: Typing `docker ps` will find similar commands like:
+- `docker ps -a`
+- `docker ps --format "table {{.ID}}\t{{.Names}}"`
+- `docker inspect container_name`
+
+The search uses keyword matching (ignoring common shell commands like cd, ls) and returns the most recent matches.
 
 **Priority Configuration:**
 
@@ -114,9 +143,13 @@ Priority values range from 1-100. Higher values mean the data is kept longer dur
 
 | Source | Default Priority | Description |
 |--------|------------------|-------------|
+| `system_info` | 100 (implicit) | System information (never truncated) |
 | `history` | 80 | Shell command history |
+| `similar_commands` | 70 (implicit) | Similar commands from history |
 | `cwd_listing` | 60 | Current directory files |
 | `plugins` | 40 | Plugin-provided context |
+
+**Note:** System information has the highest implicit priority and is never truncated. Similar commands are prioritized between history and CWD listing.
 
 ### Git Plugin Configuration
 

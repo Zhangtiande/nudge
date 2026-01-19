@@ -19,11 +19,13 @@ Nudge uses Large Language Models to predict and complete command-line inputs bas
 |---------|-------------|
 | 🤖 **AI-Powered Completions** | Uses LLM to understand context and suggest relevant commands |
 | 📝 **History-Aware** | Learns from your shell history to provide personalized suggestions |
+| 🔍 **Similar Command Search** | Automatically finds similar commands from history (like Bash Ctrl+R) |
+| 🖥️ **System-Aware** | Adapts suggestions based on your OS, architecture, and shell type |
 | 📁 **Context-Aware** | Considers current directory files and Git status |
 | 🔒 **Privacy-First** | Automatically sanitizes sensitive data (API keys, passwords) before sending to LLM |
 | ⚠️ **Safety Warnings** | Flags potentially dangerous commands (rm -rf, mkfs, etc.) |
 | 🐚 **Multi-Shell Support** | Works with Bash, Zsh, PowerShell, and CMD |
-| 🖥️ **Cross-Platform** | Supports Linux, macOS, and Windows |
+| 🌐 **Cross-Platform** | Supports Linux, macOS, and Windows |
 | ⚡ **Fast** | <200ms response time with local LLMs |
 
 ## 📋 Prerequisites
@@ -233,8 +235,12 @@ model:
 
 # Context Settings
 context:
-  history_window: 20
-  include_cwd_listing: true
+  history_window: 20              # Recent command history
+  include_cwd_listing: true       # Current directory files
+  include_system_info: true       # OS, architecture, shell, user
+  similar_commands_enabled: true  # Search similar commands (like Ctrl+R)
+  similar_commands_window: 200    # Search last 200 history entries
+  similar_commands_max: 5         # Return up to 5 similar commands
   max_files_in_listing: 50
   max_total_tokens: 4000
 

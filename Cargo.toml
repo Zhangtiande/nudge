@@ -1,6 +1,6 @@
 [package]
 name = "nudge"
-version = "0.1.0"
+version = "0.2.1"
 edition = "2021"
 description = "LLM-powered CLI auto-completion - a gentle nudge for your shell"
 license = "MIT"
@@ -53,6 +53,9 @@ anyhow = "1.0"
 
 # Async trait
 async-trait = "0.1"
+
+# System information
+sysinfo = "0.31"
 
 # Unix process control
 [target.'cfg(unix)'.dependencies]
