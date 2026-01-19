@@ -73,6 +73,70 @@ async fn main() -> Result<()> {
         Command::Status => {
             daemon::status().await?;
         }
+        Command::Config { show } => {
+            show_config(show)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn show_config(show_full: bool) -> Result<()> {
+    println!("Nudge Configuration\n");
+
+    // Show file locations
+    if let Some(base_path) = Config::base_config_path() {
+        println!("Default config: {}", base_path.display());
+        println!("  Exists: {}", base_path.exists());
+    }
+
+    if let Some(user_path) = Config::default_config_path() {
+        println!("User config:    {}", user_path.display());
+        println!("  Exists: {}", user_path.exists());
+    }
+
+    println!("\nSocket path:    {}", Config::socket_path().display());
+    println!("PID file:       {}", Config::pid_path().display());
+    println!("Log directory:  {}", Config::log_dir().display());
+
+    if show_full {
+        println!("\n{}", "=".repeat(50));
+        println!("Loading Configuration (with layered merge)...\n");
+
+        match Config::load() {
+            Ok(config) => {
+                println!("✓ Configuration loaded successfully\n");
+                println!("{}", config.llm_config_summary());
+                println!("\nContext Settings:");
+                println!("  History window: {}", config.context.history_window);
+                println!(
+                    "  Include CWD listing: {}",
+                    config.context.include_cwd_listing
+                );
+                println!(
+                    "  Include system info: {}",
+                    config.context.include_system_info
+                );
+                println!("  Max total tokens: {}", config.context.max_total_tokens);
+                println!("\nPlugin Settings:");
+                println!("  Git enabled: {}", config.plugins.git.enabled);
+                println!("\nPrivacy Settings:");
+                println!(
+                    "  Sanitization enabled: {}",
+                    config.privacy.sanitize_enabled
+                );
+                println!(
+                    "  Block dangerous commands: {}",
+                    config.privacy.block_dangerous
+                );
+            }
+            Err(e) => {
+                println!("✗ Failed to load configuration: {}", e);
+                return Err(e);
+            }
+        }
+    } else {
+        println!("\nTip: Use 'nudge config --show' to see full configuration");
     }
 
     Ok(())

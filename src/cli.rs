@@ -61,6 +61,13 @@ pub enum Command {
 
     /// Check daemon status
     Status,
+
+    /// Show configuration paths and status
+    Config {
+        /// Show full configuration (not just paths)
+        #[arg(long, default_value_t = false)]
+        show: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]

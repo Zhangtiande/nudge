@@ -273,14 +273,18 @@ impl Config {
                 if let Ok(contents) = std::fs::read_to_string(&base_path) {
                     if let Ok(base_value) = serde_yaml::from_str::<Value>(&contents) {
                         merged_value = Self::deep_merge(merged_value, base_value);
-                        info!("Base config loaded: {}", base_path.display());
+                        info!("Base config loaded and merged: {}", base_path.display());
                     } else {
                         warn!("Failed to parse base config: {}", base_path.display());
                     }
+                } else {
+                    warn!("Failed to read base config: {}", base_path.display());
                 }
             } else {
                 debug!("Base config not found: {}", base_path.display());
             }
+        } else {
+            warn!("Could not determine base config path (ProjectDirs failed)");
         }
 
         // Layer 2: Load config.yaml if exists (user customizations)
@@ -291,15 +295,23 @@ impl Config {
                     // Skip empty files
                     let trimmed = contents.trim();
                     if !trimmed.is_empty() && trimmed != "---" {
+                        debug!(
+                            "User config contents ({} bytes): {}",
+                            contents.len(),
+                            &contents[..contents.len().min(200)]
+                        );
                         if let Ok(user_value) = serde_yaml::from_str::<Value>(&contents) {
+                            debug!("User config parsed successfully, merging...");
                             merged_value = Self::deep_merge(merged_value, user_value);
-                            info!("User config loaded: {}", user_path.display());
+                            info!("User config loaded and merged: {}", user_path.display());
                         } else {
                             warn!("Failed to parse user config: {}", user_path.display());
                         }
                     } else {
                         debug!("User config is empty, using defaults");
                     }
+                } else {
+                    warn!("Failed to read user config: {}", user_path.display());
                 }
             } else {
                 debug!("User config not found: {}", user_path.display());
@@ -325,6 +337,14 @@ impl Config {
         info!("  Timeout: {}ms", config.model.timeout_ms);
         debug!("  History window: {}", config.context.history_window);
         debug!("  Git plugin enabled: {}", config.plugins.git.enabled);
+        debug!(
+            "  Include system info: {}",
+            config.context.include_system_info
+        );
+        debug!(
+            "  Include CWD listing: {}",
+            config.context.include_cwd_listing
+        );
 
         Ok(config)
     }
@@ -467,11 +487,7 @@ impl Config {
 
         if !is_local {
             // Check if api_key is set directly
-            let has_direct_key = self
-                .model
-                .api_key
-                .as_ref()
-                .is_some_and(|k| !k.is_empty());
+            let has_direct_key = self.model.api_key.as_ref().is_some_and(|k| !k.is_empty());
 
             // Check if api_key_env is set and the env var exists
             let has_env_key = self

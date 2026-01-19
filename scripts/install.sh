@@ -299,6 +299,36 @@ setup_shell_integration() {
     else
         warning "Shell setup script not found. You'll need to set up shell integration manually."
         echo "See: https://github.com/$GITHUB_REPO#installation"
+
+        # Provide fallback configuration setup
+        local config_dir=""
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            config_dir="$HOME/Library/Application Support/nudge"
+        else
+            config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+        fi
+
+        info "Creating basic configuration manually..."
+        mkdir -p "$config_dir/config"
+
+        # Create basic config files if they don't exist
+        if [[ ! -f "$config_dir/config/config.yaml" ]]; then
+            cat > "$config_dir/config/config.yaml" << 'EOF'
+# Nudge User Configuration
+#
+# Add your custom settings here. They will override config.default.yaml.
+# This file is preserved across upgrades.
+#
+# Example - To use OpenAI instead of local Ollama:
+#
+# model:
+#   endpoint: "https://api.openai.com/v1"
+#   model_name: "gpt-3.5-turbo"
+#   api_key_env: "OPENAI_API_KEY"
+EOF
+            success "Created basic config.yaml"
+            warning "Please edit $config_dir/config/config.yaml to configure your LLM"
+        fi
     fi
 }
 
