@@ -92,37 +92,184 @@ add_source_line() {
     } >> "$rc_file"
 }
 
-# Create default config from template if not exists
-create_default_config() {
-    local config_file="$CONFIG_DIR/config.yaml"
-    local template_file="$SCRIPT_DIR/../config/config.yaml.template"
+# Interactive configuration wizard
+start_config_wizard() {
+    echo ""
+    echo "========================================="
+    echo "    LLM Configuration Wizard"
+    echo "========================================="
+    echo ""
+    echo "Let's configure your LLM settings interactively."
+    echo ""
 
-    if [[ -f "$config_file" ]]; then
-        echo "Config file already exists: $config_file"
-        return 0
+    # Step 1: Choose LLM provider
+    echo "1. Which LLM provider do you want to use?"
+    echo "   [1] Local Ollama (recommended for privacy, free)"
+    echo "   [2] OpenAI (requires API key, paid)"
+    echo "   [3] Other OpenAI-compatible API"
+    echo "   [4] Skip configuration (I'll configure manually later)"
+    echo ""
+    read -p "Enter your choice (1-4): " provider_choice
+
+    if [[ "$provider_choice" == "4" ]]; then
+        echo "Skipping configuration. You can configure manually later."
+        return 1
     fi
 
-    echo "Creating default config: $config_file"
+    local endpoint=""
+    local model_name=""
+    local api_key=""
+    local api_key_env=""
 
-    # Try to copy from template first
-    if [[ -f "$template_file" ]]; then
-        cp "$template_file" "$config_file"
-        echo "Config created from template: $template_file"
+    case "$provider_choice" in
+        1)
+            # Local Ollama
+            echo ""
+            echo "Configuring for local Ollama..."
+
+            endpoint="http://localhost:11434/v1"
+
+            echo ""
+            echo "2. Which Ollama model do you want to use?"
+            echo "   Common models:"
+            echo "   - codellama:7b (fast, good for code)"
+            echo "   - deepseek-coder:6.7b (excellent for code)"
+            echo "   - qwen2.5-coder:7b (multilingual code support)"
+            echo ""
+            read -p "Enter model name (press Enter for 'codellama:7b'): " model_input
+
+            if [[ -z "$model_input" ]]; then
+                model_name="codellama:7b"
+            else
+                model_name="$model_input"
+            fi
+
+            echo ""
+            echo "INFO: Make sure to run 'ollama serve' before using Nudge!"
+            ;;
+        2)
+            # OpenAI
+            echo ""
+            echo "Configuring for OpenAI..."
+
+            endpoint="https://api.openai.com/v1"
+
+            echo ""
+            echo "2. Which OpenAI model do you want to use?"
+            echo "   [1] gpt-4o (best quality, expensive)"
+            echo "   [2] gpt-4o-mini (good balance)"
+            echo "   [3] gpt-3.5-turbo (fastest, cheapest)"
+            echo ""
+            read -p "Enter your choice (1-3): " model_choice
+
+            case "$model_choice" in
+                1) model_name="gpt-4o" ;;
+                2) model_name="gpt-4o-mini" ;;
+                3) model_name="gpt-3.5-turbo" ;;
+                *) model_name="gpt-4o-mini" ;;
+            esac
+
+            echo ""
+            echo "3. How do you want to provide your API key?"
+            echo "   [1] Environment variable (recommended for security)"
+            echo "   [2] Direct in config file (convenient but less secure)"
+            echo ""
+            read -p "Enter your choice (1-2): " key_choice
+
+            if [[ "$key_choice" == "2" ]]; then
+                echo ""
+                read -sp "Enter your OpenAI API key (sk-...): " api_key
+                echo ""
+            else
+                api_key_env="OPENAI_API_KEY"
+                echo ""
+                echo "WARNING: Please set the OPENAI_API_KEY environment variable with your API key"
+                echo "Example: export OPENAI_API_KEY='sk-your-api-key-here'"
+                echo "Add this to your ~/.bashrc or ~/.zshrc to make it permanent"
+            fi
+            ;;
+        3)
+            # Custom OpenAI-compatible API
+            echo ""
+            echo "Configuring for custom OpenAI-compatible API..."
+
+            echo ""
+            read -p "Enter API endpoint URL (e.g., https://api.example.com/v1): " endpoint
+
+            echo ""
+            read -p "Enter model name: " model_name
+
+            echo ""
+            read -p "Does this API require an API key? (y/N): " requires_key
+
+            if [[ "$requires_key" =~ ^[Yy]$ ]]; then
+                echo ""
+                echo "How do you want to provide your API key?"
+                echo "   [1] Environment variable (recommended)"
+                echo "   [2] Direct in config file"
+                echo ""
+                read -p "Enter your choice (1-2): " key_choice
+
+                if [[ "$key_choice" == "2" ]]; then
+                    echo ""
+                    read -sp "Enter your API key: " api_key
+                    echo ""
+                else
+                    echo ""
+                    read -p "Enter environment variable name (e.g., MY_API_KEY): " api_key_env
+                    echo ""
+                    echo "WARNING: Please set the $api_key_env environment variable with your API key"
+                fi
+            fi
+            ;;
+        *)
+            echo "WARNING: Invalid choice. Using default Ollama configuration."
+            endpoint="http://localhost:11434/v1"
+            model_name="codellama:7b"
+            ;;
+    esac
+
+    # Export for use in create_config_from_wizard
+    export WIZARD_ENDPOINT="$endpoint"
+    export WIZARD_MODEL_NAME="$model_name"
+    export WIZARD_API_KEY="$api_key"
+    export WIZARD_API_KEY_ENV="$api_key_env"
+
+    return 0
+}
+
+# Create config file from wizard results
+create_config_from_wizard() {
+    local config_file="$1"
+
+    local api_key_line=""
+    if [[ -n "$WIZARD_API_KEY" ]]; then
+        api_key_line="  api_key: \"$WIZARD_API_KEY\""
+    elif [[ -n "$WIZARD_API_KEY_ENV" ]]; then
+        api_key_line="  api_key_env: \"$WIZARD_API_KEY_ENV\""
     else
-        # Fallback: create basic config inline
-        cat > "$config_file" << 'EOF'
+        api_key_line="  # api_key_env: \"OPENAI_API_KEY\"  # Uncomment and set if needed"
+    fi
+
+    cat > "$config_file" << EOF
 # Nudge Configuration
+# Generated by installation wizard
 # Documentation: https://github.com/Zhangtiande/nudge
 
 model:
-  endpoint: "http://localhost:11434/v1"
-  model_name: "codellama:7b"
+  endpoint: "$WIZARD_ENDPOINT"
+  model_name: "$WIZARD_MODEL_NAME"
+$api_key_line
   timeout_ms: 5000
 
 context:
   history_window: 20
   include_cwd_listing: true
   include_exit_code: true
+  include_system_info: true
+  similar_commands_enabled: true
+  similar_commands_window: 200
+  similar_commands_max: 5
   max_files_in_listing: 50
   max_total_tokens: 4000
   priorities:
@@ -150,7 +297,82 @@ log:
   level: "info"
   file_enabled: false
 EOF
-        echo "Config created with default settings"
+
+    echo "Configuration file created: $config_file"
+}
+
+# Create default config from template if not exists
+create_default_config() {
+    local config_file="$CONFIG_DIR/config.yaml"
+
+    if [[ -f "$config_file" ]]; then
+        echo "Config file already exists: $config_file"
+        return 0
+    fi
+
+    # Run interactive configuration wizard
+    if start_config_wizard; then
+        create_config_from_wizard "$config_file"
+        echo "Configuration completed!"
+    else
+        # User skipped wizard, create default config
+        echo "Creating default config: $config_file"
+        local template_file="$SCRIPT_DIR/../config/config.yaml.template"
+
+        # Try to copy from template first
+        if [[ -f "$template_file" ]]; then
+            cp "$template_file" "$config_file"
+            echo "Config created from template: $template_file"
+        else
+            # Fallback: create basic config inline
+            cat > "$config_file" << 'EOF'
+# Nudge Configuration
+# Documentation: https://github.com/Zhangtiande/nudge
+
+model:
+  endpoint: "http://localhost:11434/v1"
+  model_name: "codellama:7b"
+  # api_key_env: "OPENAI_API_KEY"  # Uncomment if using OpenAI
+  timeout_ms: 5000
+
+context:
+  history_window: 20
+  include_cwd_listing: true
+  include_exit_code: true
+  include_system_info: true
+  similar_commands_enabled: true
+  similar_commands_window: 200
+  similar_commands_max: 5
+  max_files_in_listing: 50
+  max_total_tokens: 4000
+  priorities:
+    history: 80
+    cwd_listing: 60
+    plugins: 40
+
+plugins:
+  git:
+    enabled: true
+    depth: standard
+    recent_commits: 5
+
+trigger:
+  mode: manual
+  hotkey: "\\C-e"
+
+privacy:
+  sanitize_enabled: true
+  custom_patterns: []
+  block_dangerous: true
+  custom_blocked: []
+
+log:
+  level: "info"
+  file_enabled: false
+EOF
+            echo "Config created with default settings"
+        fi
+        echo "Please edit $config_file to configure your LLM settings"
     fi
 }
 

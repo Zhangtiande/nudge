@@ -79,7 +79,8 @@ The install script will:
 - ✅ Download the latest pre-built binary from GitHub Releases
 - ✅ Install to your preferred location (`/usr/local/bin` or `~/.local/bin` on Unix)
 - ✅ Set up shell integration (Bash/Zsh/PowerShell/CMD)
-- ✅ Create default configuration file
+- ✅ **Run interactive configuration wizard** to set up your LLM provider
+- ✅ Create configuration file with your preferences
 
 #### Installation Options
 

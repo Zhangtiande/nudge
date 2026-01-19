@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__acp__Edit",
+      "mcp__acp__Write",
+      "mcp__acp__Bash",
+      "Bash(pwsh -Command:*)",
+      "Bash(bash:*)"
+    ]
+  }
+}

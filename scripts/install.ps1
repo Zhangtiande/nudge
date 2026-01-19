@@ -188,6 +188,221 @@ function Add-ToPath {
     Write-Warning "You may need to restart your terminal for PATH changes to take effect"
 }
 
+# Interactive configuration wizard
+function Start-ConfigWizard {
+    param([string]$ConfigFile)
+
+    Write-Host ""
+    Write-Host "=========================================" -ForegroundColor Cyan
+    Write-Host "    LLM Configuration Wizard" -ForegroundColor Cyan
+    Write-Host "=========================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Let's configure your LLM settings interactively." -ForegroundColor White
+    Write-Host ""
+
+    # Step 1: Choose LLM provider
+    Write-Host "1. Which LLM provider do you want to use?" -ForegroundColor Cyan
+    Write-Host "   [1] Local Ollama (recommended for privacy, free)" -ForegroundColor White
+    Write-Host "   [2] OpenAI (requires API key, paid)" -ForegroundColor White
+    Write-Host "   [3] Other OpenAI-compatible API" -ForegroundColor White
+    Write-Host "   [4] Skip configuration (I'll configure manually later)" -ForegroundColor Gray
+    Write-Host ""
+
+    $providerChoice = Read-Host "Enter your choice (1-4)"
+
+    if ($providerChoice -eq "4") {
+        Write-Info "Skipping configuration. You can configure manually later."
+        return $null
+    }
+
+    $config = @{
+        endpoint = ""
+        model_name = ""
+        api_key = $null
+        api_key_env = $null
+    }
+
+    switch ($providerChoice) {
+        "1" {
+            # Local Ollama
+            Write-Host ""
+            Write-Host "Configuring for local Ollama..." -ForegroundColor Green
+
+            $config.endpoint = "http://localhost:11434/v1"
+
+            Write-Host ""
+            Write-Host "2. Which Ollama model do you want to use?" -ForegroundColor Cyan
+            Write-Host "   Common models:" -ForegroundColor Gray
+            Write-Host "   - codellama:7b (fast, good for code)" -ForegroundColor Gray
+            Write-Host "   - deepseek-coder:6.7b (excellent for code)" -ForegroundColor Gray
+            Write-Host "   - qwen2.5-coder:7b (multilingual code support)" -ForegroundColor Gray
+            Write-Host ""
+
+            $modelInput = Read-Host "Enter model name (press Enter for 'codellama:7b')"
+            if ([string]::IsNullOrWhiteSpace($modelInput)) {
+                $config.model_name = "codellama:7b"
+            } else {
+                $config.model_name = $modelInput.Trim()
+            }
+
+            Write-Host ""
+            Write-Info "Make sure to run 'ollama serve' before using Nudge!"
+        }
+        "2" {
+            # OpenAI
+            Write-Host ""
+            Write-Host "Configuring for OpenAI..." -ForegroundColor Green
+
+            $config.endpoint = "https://api.openai.com/v1"
+
+            Write-Host ""
+            Write-Host "2. Which OpenAI model do you want to use?" -ForegroundColor Cyan
+            Write-Host "   [1] gpt-4o (best quality, expensive)" -ForegroundColor White
+            Write-Host "   [2] gpt-4o-mini (good balance)" -ForegroundColor White
+            Write-Host "   [3] gpt-3.5-turbo (fastest, cheapest)" -ForegroundColor White
+            Write-Host ""
+
+            $modelChoice = Read-Host "Enter your choice (1-3)"
+            switch ($modelChoice) {
+                "1" { $config.model_name = "gpt-4o" }
+                "2" { $config.model_name = "gpt-4o-mini" }
+                "3" { $config.model_name = "gpt-3.5-turbo" }
+                default { $config.model_name = "gpt-4o-mini" }
+            }
+
+            Write-Host ""
+            Write-Host "3. How do you want to provide your API key?" -ForegroundColor Cyan
+            Write-Host "   [1] Environment variable (recommended for security)" -ForegroundColor White
+            Write-Host "   [2] Direct in config file (convenient but less secure)" -ForegroundColor White
+            Write-Host ""
+
+            $keyChoice = Read-Host "Enter your choice (1-2)"
+            if ($keyChoice -eq "2") {
+                Write-Host ""
+                $apiKey = Read-Host "Enter your OpenAI API key (sk-...)" -AsSecureString
+                $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($apiKey)
+                $config.api_key = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+            } else {
+                $config.api_key_env = "OPENAI_API_KEY"
+                Write-Host ""
+                Write-Warning "Please set the OPENAI_API_KEY environment variable with your API key"
+                Write-Host "Example: `$env:OPENAI_API_KEY = 'sk-your-api-key-here'" -ForegroundColor Gray
+            }
+        }
+        "3" {
+            # Custom OpenAI-compatible API
+            Write-Host ""
+            Write-Host "Configuring for custom OpenAI-compatible API..." -ForegroundColor Green
+
+            Write-Host ""
+            $config.endpoint = Read-Host "Enter API endpoint URL (e.g., https://api.example.com/v1)"
+
+            Write-Host ""
+            $config.model_name = Read-Host "Enter model name"
+
+            Write-Host ""
+            Write-Host "Does this API require an API key? (Y/N)" -ForegroundColor Cyan
+            $requiresKey = Read-Host
+
+            if ($requiresKey -eq "Y" -or $requiresKey -eq "y") {
+                Write-Host ""
+                Write-Host "How do you want to provide your API key?" -ForegroundColor Cyan
+                Write-Host "   [1] Environment variable (recommended)" -ForegroundColor White
+                Write-Host "   [2] Direct in config file" -ForegroundColor White
+                Write-Host ""
+
+                $keyChoice = Read-Host "Enter your choice (1-2)"
+                if ($keyChoice -eq "2") {
+                    Write-Host ""
+                    $apiKey = Read-Host "Enter your API key" -AsSecureString
+                    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($apiKey)
+                    $config.api_key = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+                } else {
+                    Write-Host ""
+                    $envVarName = Read-Host "Enter environment variable name (e.g., MY_API_KEY)"
+                    $config.api_key_env = $envVarName
+                    Write-Host ""
+                    Write-Warning "Please set the $envVarName environment variable with your API key"
+                }
+            }
+        }
+        default {
+            Write-Warning "Invalid choice. Using default Ollama configuration."
+            $config.endpoint = "http://localhost:11434/v1"
+            $config.model_name = "codellama:7b"
+        }
+    }
+
+    return $config
+}
+
+# Create config file from wizard results
+function New-ConfigFromWizard {
+    param(
+        [string]$ConfigFile,
+        [hashtable]$Config
+    )
+
+    $apiKeyLine = ""
+    if ($Config.api_key) {
+        $apiKeyLine = "  api_key: `"$($Config.api_key)`""
+    } elseif ($Config.api_key_env) {
+        $apiKeyLine = "  api_key_env: `"$($Config.api_key_env)`""
+    } else {
+        $apiKeyLine = "  # api_key_env: `"OPENAI_API_KEY`"  # Uncomment and set if needed"
+    }
+
+    $configContent = @"
+# Nudge Configuration
+# Generated by installation wizard
+# Documentation: https://github.com/$GitHubRepo
+
+model:
+  endpoint: "$($Config.endpoint)"
+  model_name: "$($Config.model_name)"
+$apiKeyLine
+  timeout_ms: 5000
+
+context:
+  history_window: 20
+  include_cwd_listing: true
+  include_exit_code: true
+  include_system_info: true
+  similar_commands_enabled: true
+  similar_commands_window: 200
+  similar_commands_max: 5
+  max_files_in_listing: 50
+  max_total_tokens: 4000
+  priorities:
+    history: 80
+    cwd_listing: 60
+    plugins: 40
+
+plugins:
+  git:
+    enabled: true
+    depth: standard
+    recent_commits: 5
+
+trigger:
+  mode: manual
+  hotkey: "\C-e"
+
+privacy:
+  sanitize_enabled: true
+  custom_patterns: []
+  block_dangerous: true
+  custom_blocked: []
+
+log:
+  level: "info"
+  file_enabled: false
+"@
+
+    Set-Content -Path $ConfigFile -Value $configContent -Encoding UTF8
+    Write-Success "Configuration file created: $ConfigFile"
+}
+
 # Download shell integration files
 function Get-ShellIntegrationFiles {
     Write-Info "Downloading shell integration files..."
@@ -393,76 +608,45 @@ function Main {
     Write-Host ""
     Write-Success "Nudge $Version has been installed successfully!"
     Write-Host ""
-    
+
     # Determine config file location
     $configFile = Join-Path $env:APPDATA "nudge\config\config.yaml"
-    
-    Write-Host "=========================================" -ForegroundColor Cyan
-    Write-Host "    Configuration Required" -ForegroundColor Cyan
-    Write-Host "=========================================" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Warning "Please configure your LLM settings before using Nudge!"
-    Write-Host ""
-    Write-Host "Configuration file location:" -ForegroundColor Cyan
-    Write-Host "  $configFile" -ForegroundColor White
-    Write-Host ""
-    Write-Host "You need to edit the following settings:" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  model:" -ForegroundColor White
-    Write-Host "    endpoint: `"http://localhost:11434/v1`"  # Change if using different LLM" -ForegroundColor Gray
-    Write-Host "    model_name: `"codellama:7b`"              # Change to your preferred model" -ForegroundColor Gray
-    Write-Host "    # api_key: `"sk-xxx`"                     # Direct API key (option 1)" -ForegroundColor Gray
-    Write-Host "    # api_key_env: `"OPENAI_API_KEY`"         # Or use env variable (option 2)" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "Example configurations:" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "  # Local Ollama (default):" -ForegroundColor Gray
-    Write-Host "  model:" -ForegroundColor White
-    Write-Host "    endpoint: `"http://localhost:11434/v1`"" -ForegroundColor Gray
-    Write-Host "    model_name: `"codellama:7b`"" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  # OpenAI (with direct API key):" -ForegroundColor Gray
-    Write-Host "  model:" -ForegroundColor White
-    Write-Host "    endpoint: `"https://api.openai.com/v1`"" -ForegroundColor Gray
-    Write-Host "    model_name: `"gpt-3.5-turbo`"" -ForegroundColor Gray
-    Write-Host "    api_key: `"sk-your-api-key-here`"" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "  # OpenAI (with env variable, recommended for security):" -ForegroundColor Gray
-    Write-Host "  model:" -ForegroundColor White
-    Write-Host "    endpoint: `"https://api.openai.com/v1`"" -ForegroundColor Gray
-    Write-Host "    model_name: `"gpt-3.5-turbo`"" -ForegroundColor Gray
-    Write-Host "    api_key_env: `"OPENAI_API_KEY`"" -ForegroundColor Gray
-    Write-Host ""
-    
-    # Ensure config directory exists
     $configDir = Split-Path -Parent $configFile
+
+    # Ensure config directory exists
     if (-not (Test-Path $configDir)) {
         New-Item -ItemType Directory -Path $configDir -Force | Out-Null
     }
-    
-    # Open config file if it exists, otherwise create it first
-    if (Test-Path $configFile) {
-        Write-Info "Opening configuration file in your default editor..."
-        Start-Process notepad.exe -ArgumentList $configFile
-        Write-Host ""
-        Write-Host "The configuration file has been opened. Please edit the LLM settings above." -ForegroundColor Yellow
-    } else {
-        Write-Info "Configuration file not found. Creating default configuration..."
-        
-        # Create default config
-        $defaultConfig = @"
+
+    # Run interactive configuration wizard
+    if (-not (Test-Path $configFile)) {
+        $wizardConfig = Start-ConfigWizard -ConfigFile $configFile
+
+        if ($wizardConfig) {
+            New-ConfigFromWizard -ConfigFile $configFile -Config $wizardConfig
+            Write-Host ""
+            Write-Success "Configuration completed!"
+        } else {
+            # User skipped wizard, create default config
+            Write-Info "Creating default configuration file..."
+            $defaultConfig = @"
 # Nudge Configuration
 # Documentation: https://github.com/$GitHubRepo
 
 model:
   endpoint: "http://localhost:11434/v1"
   model_name: "codellama:7b"
+  # api_key_env: "OPENAI_API_KEY"  # Uncomment if using OpenAI
   timeout_ms: 5000
 
 context:
   history_window: 20
   include_cwd_listing: true
   include_exit_code: true
+  include_system_info: true
+  similar_commands_enabled: true
+  similar_commands_window: 200
+  similar_commands_max: 5
   max_files_in_listing: 50
   max_total_tokens: 4000
   priorities:
@@ -490,21 +674,24 @@ log:
   level: "info"
   file_enabled: false
 "@
-        Set-Content -Path $configFile -Value $defaultConfig
-        Write-Success "Default configuration file created"
-        Write-Info "Opening configuration file in your default editor..."
-        Start-Process notepad.exe -ArgumentList $configFile
-        Write-Host ""
-        Write-Host "The configuration file has been created and opened. Please edit the LLM settings above." -ForegroundColor Yellow
+            Set-Content -Path $configFile -Value $defaultConfig -Encoding UTF8
+            Write-Success "Default configuration file created: $configFile"
+            Write-Warning "Please edit the configuration file to set your LLM settings"
+        }
+    } else {
+        Write-Info "Configuration file already exists: $configFile"
     }
-    
+
     Write-Host ""
-    Write-Host "Next steps:" -ForegroundColor Cyan
-    Write-Host "  1. Edit the configuration file (opened above)" -ForegroundColor White
-    Write-Host "  2. Restart your terminal (or run: . `$PROFILE)" -ForegroundColor White
-    Write-Host "  3. Start Ollama if using local LLM: ollama serve" -ForegroundColor White
-    Write-Host "  4. Press Ctrl+E in your terminal to trigger AI completion" -ForegroundColor White
+    Write-Host "=========================================" -ForegroundColor Cyan
+    Write-Host "    Next Steps" -ForegroundColor Cyan
+    Write-Host "=========================================" -ForegroundColor Cyan
     Write-Host ""
+    Write-Host "  1. Restart your terminal (or run: . `$PROFILE)" -ForegroundColor White
+    Write-Host "  2. Start Ollama if using local LLM: ollama serve" -ForegroundColor White
+    Write-Host "  3. Press Ctrl+E in your terminal to trigger AI completion" -ForegroundColor White
+    Write-Host ""
+    Write-Info "Configuration file: $configFile"
     Write-Info "For more information, visit: https://github.com/$GitHubRepo"
     Write-Host ""
 }

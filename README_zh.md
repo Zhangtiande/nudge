@@ -79,7 +79,8 @@ irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1
 - ✅ 从 GitHub Releases 下载最新的预构建二进制文件
 - ✅ 安装到您选择的位置（Unix 上可选 `/usr/local/bin` 或 `~/.local/bin`）
 - ✅ 设置 Shell 集成（Bash/Zsh/PowerShell/CMD）
-- ✅ 创建默认配置文件
+- ✅ **运行交互式配置向导**设置您的 LLM 提供商
+- ✅ 根据您的选择创建配置文件
 
 #### 安装选项
 
