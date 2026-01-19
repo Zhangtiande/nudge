@@ -267,24 +267,28 @@ setup_shell_integration() {
 
         local base_url="https://raw.githubusercontent.com/$GITHUB_REPO/main"
 
+        # Create directory structure matching repository layout
+        # setup-shell.sh expects: $SCRIPT_DIR/../config/config.yaml.template
+        mkdir -p "$tmpdir/shell"
+        mkdir -p "$tmpdir/config"
+
         for file in setup-shell.sh integration.bash integration.zsh; do
             local url="$base_url/shell/$file"
             if command -v curl &> /dev/null; then
-                curl -fsSL "$url" -o "$tmpdir/$file"
+                curl -fsSL "$url" -o "$tmpdir/shell/$file"
             else
-                wget -q "$url" -O "$tmpdir/$file"
+                wget -q "$url" -O "$tmpdir/shell/$file"
             fi
         done
 
-        # Also download config template
-        mkdir -p "$tmpdir/config"
+        # Download config template to proper location
         if command -v curl &> /dev/null; then
             curl -fsSL "$base_url/config/config.yaml.template" -o "$tmpdir/config/config.yaml.template"
         else
             wget -q "$base_url/config/config.yaml.template" -O "$tmpdir/config/config.yaml.template"
         fi
 
-        setup_script="$tmpdir/setup-shell.sh"
+        setup_script="$tmpdir/shell/setup-shell.sh"
         chmod +x "$setup_script"
     fi
 
