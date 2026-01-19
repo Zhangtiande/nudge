@@ -1,0 +1,54 @@
+# Nudge User Configuration
+#
+# This file contains YOUR custom settings that override the defaults.
+# Only uncomment and modify the settings you want to change.
+#
+# The default settings are in config.default.yaml (do not edit that file).
+# Your changes here will be preserved across upgrades.
+#
+# Documentation: https://github.com/Zhangtiande/nudge
+
+# ========================================
+# LLM Model Configuration (Most Important)
+# ========================================
+model:
+  # API endpoint URL
+  # Default: "http://localhost:11434/v1" (local Ollama)
+  # For OpenAI: "https://api.openai.com/v1"
+  # endpoint: "http://localhost:11434/v1"
+
+  # Model name
+  # For Ollama: "codellama:7b", "deepseek-coder:6.7b", etc.
+  # For OpenAI: "gpt-4", "gpt-3.5-turbo", etc.
+  # model_name: "codellama:7b"
+
+  # API key (choose ONE of the following options):
+  #
+  # Option 1 - Direct API key:
+  # api_key: "sk-your-api-key-here"
+  #
+  # Option 2 - Environment variable (recommended for security):
+  # api_key_env: "OPENAI_API_KEY"
+
+# ========================================
+# Other Settings (Optional)
+# ========================================
+# Uncomment and modify only if you need to change defaults.
+# See config.default.yaml for all available options.
+
+# context:
+#   history_window: 20
+#   max_total_tokens: 4000
+
+# plugins:
+#   git:
+#     enabled: true
+#     depth: standard
+
+# privacy:
+#   sanitize_enabled: true
+#   block_dangerous: true
+
+# log:
+#   level: "info"
+#   file_enabled: false
