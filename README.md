@@ -346,6 +346,33 @@ cargo clippy
 cargo fmt
 ```
 
+## 🗺️ Roadmap
+
+Nudge is actively evolving with exciting features planned. Here's a glimpse of what's coming:
+
+### 🎯 Upcoming Features
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Project-Aware Context** | Auto-activate plugins based on command keywords (docker, npm, etc.) to provide deep project context | 🎯 Planned |
+| **Cross-Platform Ghost Text** | Real-time inline AI suggestions while typing, similar to IDE autocompletion | 🎯 Planned |
+| **Error Context Recovery** | Automatically collect error context and provide intelligent fix suggestions when commands fail | 🎯 Planned |
+| **Smart History Analytics** | Analyze command patterns and suggest aliases for frequently used commands | 🎯 Planned |
+| **Community Plugin System** | WASM-based plugin marketplace for custom context providers | 🎯 Planned |
+
+### 🔌 Planned Plugins
+
+Expanding beyond Git to provide context for:
+- **Docker**: Dockerfile, compose files, running containers
+- **Node.js**: package.json, scripts, dependencies
+- **Python**: requirements.txt, virtual environments, pip packages
+- **Rust**: Cargo.toml, workspace info
+- **Kubernetes**: kubectl context, pods, resources
+- **Terraform**: .tf files, workspaces, state
+- **Databases**: connection configs, schemas
+
+**📖 Full Roadmap**: See [ROADMAP.md](./ROADMAP.md) for detailed feature specifications, technical implementation plans, and release timeline.
+
 ## 📄 License
 
 MIT
