@@ -3,11 +3,14 @@ pub mod history;
 pub mod plugin;
 pub mod system;
 
+use std::collections::HashMap;
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::debug;
 
-use super::plugins::git::GitContext;
+use super::plugins::builtin::git::GitContext;
 use crate::config::Config;
 use crate::protocol::CompletionRequest;
 use system::SystemInfo;
@@ -23,10 +26,13 @@ pub struct ContextData {
     pub files: Vec<String>,
     /// Exit code of last command
     pub last_exit_code: Option<i32>,
-    /// Git context (if applicable)
+    /// Git context (if applicable) - legacy field for backward compatibility
     pub git: Option<GitContext>,
     /// System information
     pub system: SystemInfo,
+    /// Plugin context data (new unified field)
+    #[serde(default)]
+    pub plugins: HashMap<String, Value>,
     /// Estimated token count
     pub estimated_tokens: usize,
 }
@@ -40,6 +46,7 @@ impl Default for ContextData {
             last_exit_code: None,
             git: None,
             system: SystemInfo::default(),
+            plugins: HashMap::new(),
             estimated_tokens: 0,
         }
     }
@@ -97,17 +104,28 @@ pub async fn gather(request: &CompletionRequest, config: &Config) -> Result<Cont
         context.last_exit_code = request.last_exit_code;
     }
 
-    // Gather git context
-    if config.plugins.git.enabled {
-        match super::plugins::git::collect(&request.cwd, &config.plugins.git).await {
-            Ok(git_ctx) => {
+    // Gather plugin context using PluginManager
+    let plugin_manager = create_plugin_manager(config);
+    let plugin_data = plugin_manager
+        .collect_all(&request.cwd, &request.buffer)
+        .await;
+
+    // Populate plugins HashMap and maintain legacy git field
+    for data in plugin_data {
+        let plugin_id = data.plugin_id.clone();
+        let value = data.data.clone();
+
+        // Store in plugins map
+        context.plugins.insert(plugin_id.clone(), value.clone());
+
+        // Legacy: populate git field for backward compatibility
+        if plugin_id == "git" {
+            if let Ok(git_ctx) = serde_json::from_value::<GitContext>(value) {
                 context.git = Some(git_ctx);
-                debug!("Gathered git context");
-            }
-            Err(e) => {
-                debug!("Git context not available: {}", e);
             }
         }
+
+        debug!("Gathered {} plugin context", plugin_id);
     }
 
     // Estimate tokens
@@ -141,13 +159,20 @@ fn estimate_tokens(context: &ContextData) -> usize {
     // Files: roughly 1 token per file name
     total += context.files.len();
 
-    // Git context: estimate based on content
+    // Legacy git context: estimate based on content
     if let Some(git) = &context.git {
         if git.branch.is_some() {
             total += 5;
         }
         total += git.staged.len();
         total += git.recent_commits.len() * 10;
+    }
+
+    // Plugin context: estimate based on JSON size (rough approximation)
+    for (_plugin_id, data) in &context.plugins {
+        // Conservative estimate: JSON string length / 4 characters per token
+        let json_str = serde_json::to_string(data).unwrap_or_default();
+        total += json_str.len() / 4;
     }
 
     total
@@ -160,7 +185,7 @@ fn truncate_by_priority(context: &mut ContextData, config: &Config) {
 
     // Define priority order (system info has highest implicit priority - never truncated)
     // Priority order for truncation (lowest to highest):
-    // 1. Git plugins (40)
+    // 1. Plugin contexts (40-50 range, configurable)
     // 2. CWD listing (60)
     // 3. Similar commands (70, implicit)
     // 4. History (80)
@@ -169,9 +194,12 @@ fn truncate_by_priority(context: &mut ContextData, config: &Config) {
     while context.estimated_tokens > max_tokens {
         let before_tokens = context.estimated_tokens;
 
-        // First: Remove git context (priority 40)
-        if context.git.is_some() && priorities.plugins <= priorities.cwd_listing {
-            context.git = None;
+        // First: Remove plugin contexts (priority ~40-50, lowest)
+        if !context.plugins.is_empty() && priorities.plugins <= priorities.cwd_listing {
+            // Simple MVP: clear all plugins at once
+            // Future: could sort by priority and remove lowest first
+            context.plugins.clear();
+            context.git = None; // Also clear legacy git field
             context.estimated_tokens = estimate_tokens(context);
             if context.estimated_tokens != before_tokens {
                 continue;
@@ -225,4 +253,46 @@ fn truncate_by_priority(context: &mut ContextData, config: &Config) {
             break;
         }
     }
+}
+
+/// Create and configure plugin manager with registered plugins
+fn create_plugin_manager(config: &Config) -> plugin::PluginManager {
+    use super::plugins::builtin::git::GitPlugin;
+    use super::plugins::community::docker::DockerPlugin;
+    use plugin::{
+        CombinedActivation, CommandPrefixActivation, FeatureFileActivation, PluginManager,
+    };
+
+    PluginManager::new()
+        // Register Git plugin
+        .register(
+            Box::new(GitPlugin::new(config.plugins.git.clone())),
+            Box::new(CombinedActivation::new(vec![
+                Box::new(FeatureFileActivation::new(vec![".git"])),
+                Box::new(CommandPrefixActivation::new(vec!["git"])),
+            ])),
+            config.plugins.git.enabled,
+            50, // Git timeout is hardcoded to 50ms
+            config.plugins.git.priority.unwrap_or(50),
+        )
+        // Register Docker plugin
+        .register(
+            Box::new(DockerPlugin::new(config.plugins.docker.clone())),
+            Box::new(CombinedActivation::new(vec![
+                Box::new(FeatureFileActivation::new(vec![
+                    "Dockerfile",
+                    "docker-compose.yml",
+                    "docker-compose.yaml",
+                    "compose.yml",
+                    "compose.yaml",
+                ])),
+                Box::new(CommandPrefixActivation::new(vec![
+                    "docker",
+                    "docker-compose",
+                ])),
+            ])),
+            config.plugins.docker.enabled,
+            config.plugins.docker.timeout_ms,
+            config.plugins.docker.priority.unwrap_or(45),
+        )
 }
