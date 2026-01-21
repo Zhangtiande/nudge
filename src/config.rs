@@ -128,6 +128,7 @@ impl Default for PriorityConfig {
 #[serde(default)]
 pub struct PluginsConfig {
     pub git: GitPluginConfig,
+    pub docker: DockerPluginConfig,
     pub plugin_dir: Option<PathBuf>,
 }
 
@@ -135,6 +136,7 @@ impl Default for PluginsConfig {
     fn default() -> Self {
         Self {
             git: GitPluginConfig::default(),
+            docker: DockerPluginConfig::default(),
             plugin_dir: None,
         }
     }
@@ -173,6 +175,35 @@ pub enum GitDepth {
 impl Default for GitDepth {
     fn default() -> Self {
         Self::Standard
+    }
+}
+
+/// Docker plugin configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DockerPluginConfig {
+    pub enabled: bool,
+    pub timeout_ms: u64,
+    pub priority: Option<u8>,
+    pub max_containers: usize,
+    pub max_images: usize,
+    pub show_containers: bool,
+    pub include_compose: bool,
+    pub include_dockerfile: bool,
+}
+
+impl Default for DockerPluginConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            timeout_ms: 100,
+            priority: Some(45),
+            max_containers: 10,
+            max_images: 10,
+            show_containers: true,
+            include_compose: true,
+            include_dockerfile: true,
+        }
     }
 }
 

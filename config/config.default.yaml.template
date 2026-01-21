@@ -101,6 +101,31 @@ plugins:
     # Number of recent commits to include (only in detailed mode)
     recent_commits: 5
 
+  docker:
+    # Enable Docker plugin to include container/image context
+    enabled: true
+
+    # Timeout for Docker command execution (milliseconds)
+    timeout_ms: 100
+
+    # Plugin priority for truncation (1-100, higher = kept longer)
+    # priority: 45
+
+    # Maximum containers to include in context
+    max_containers: 10
+
+    # Maximum images to include in context
+    max_images: 10
+
+    # Show running containers in context
+    show_containers: true
+
+    # Include docker-compose service information
+    include_compose: true
+
+    # Include Dockerfile preview (first 50 lines)
+    include_dockerfile: true
+
 # ========================================
 # Trigger Configuration
 # ========================================

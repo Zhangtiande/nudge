@@ -174,7 +174,7 @@ fn build_user_prompt(buffer: &str, context: &ContextData) -> String {
         prompt.push_str(&format!("## Last Command Exit Code: {}\n\n", exit_code));
     }
 
-    // Add git context
+    // Add git context (legacy)
     if let Some(git) = &context.git {
         prompt.push_str("## Git Status\n");
         if let Some(branch) = &git.branch {
@@ -184,6 +184,61 @@ fn build_user_prompt(buffer: &str, context: &ContextData) -> String {
         if !git.staged.is_empty() {
             prompt.push_str(&format!("Staged: {}\n", git.staged.join(", ")));
         }
+        prompt.push('\n');
+    }
+
+    // Add plugin contexts (new unified approach)
+    for (plugin_id, data) in &context.plugins {
+        // Format plugin name for display
+        let plugin_name = plugin_id
+            .chars()
+            .next()
+            .map(|c| c.to_uppercase().collect::<String>())
+            .unwrap_or_default()
+            + &plugin_id[1..];
+
+        prompt.push_str(&format!("## {} Context\n", plugin_name));
+
+        // Format plugin data based on type
+        if let Some(obj) = data.as_object() {
+            for (key, value) in obj {
+                // Skip internal fields
+                if key.starts_with('_') {
+                    continue;
+                }
+
+                let display_key = humanize_key(key);
+                prompt.push_str(&format!("{}: ", display_key));
+
+                match value {
+                    serde_json::Value::Bool(b) => {
+                        prompt.push_str(&format!("{}\n", if *b { "Yes" } else { "No" }));
+                    }
+                    serde_json::Value::Number(n) => {
+                        prompt.push_str(&format!("{}\n", n));
+                    }
+                    serde_json::Value::String(s) => {
+                        prompt.push_str(&format!("{}\n", s));
+                    }
+                    serde_json::Value::Array(arr) => {
+                        if arr.is_empty() {
+                            prompt.push_str("None\n");
+                        } else {
+                            prompt.push_str(&format_array(arr));
+                            prompt.push('\n');
+                        }
+                    }
+                    serde_json::Value::Null => {
+                        prompt.push_str("None\n");
+                    }
+                    _ => {
+                        // For complex objects, just indicate presence
+                        prompt.push_str("(present)\n");
+                    }
+                }
+            }
+        }
+
         prompt.push('\n');
     }
 
@@ -219,4 +274,59 @@ fn clean_completion(text: &str, original_buffer: &str) -> String {
     }
 
     text.to_string()
+}
+
+/// Convert snake_case to Title Case
+fn humanize_key(key: &str) -> String {
+    key.replace('_', " ")
+        .split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Format JSON array for display
+fn format_array(arr: &[serde_json::Value]) -> String {
+    // Limit array output to prevent overwhelming the prompt
+    let items: Vec<String> = arr
+        .iter()
+        .take(10)
+        .map(|v| match v {
+            serde_json::Value::String(s) => s.clone(),
+            serde_json::Value::Object(obj) => {
+                // For objects in array, show a concise representation
+                let fields: Vec<String> = obj
+                    .iter()
+                    .take(3)
+                    .filter_map(|(k, v)| {
+                        if k.starts_with('_') {
+                            None
+                        } else if let serde_json::Value::String(s) = v {
+                            Some(format!("{}={}", k, s))
+                        } else {
+                            Some(format!("{}={}", k, v))
+                        }
+                    })
+                    .collect();
+                if fields.is_empty() {
+                    "(object)".to_string()
+                } else {
+                    format!("[{}]", fields.join(", "))
+                }
+            }
+            _ => v.to_string(),
+        })
+        .collect();
+
+    if items.is_empty() {
+        "None".to_string()
+    } else {
+        items.join(", ")
+    }
 }
