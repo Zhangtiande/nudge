@@ -154,7 +154,7 @@ fn estimate_tokens(context: &ContextData) -> usize {
     }
 
     // Plugin context: estimate based on JSON size (rough approximation)
-    for (_plugin_id, data) in &context.plugins {
+    for data in context.plugins.values() {
         // Conservative estimate: JSON string length / 4 characters per token
         let json_str = serde_json::to_string(data).unwrap_or_default();
         total += json_str.len() / 4;
