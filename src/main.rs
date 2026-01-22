@@ -81,6 +81,9 @@ async fn main() -> Result<()> {
         Command::Info { json, field } => {
             commands::info::run_info(json, field)?;
         }
+        Command::Setup { shell, force } => {
+            commands::setup::run_setup(shell, force)?;
+        }
     }
 
     Ok(())

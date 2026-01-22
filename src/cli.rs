@@ -80,6 +80,16 @@ pub enum Command {
         #[arg(long)]
         field: Option<String>,
     },
+
+    /// Setup shell integration automatically
+    Setup {
+        /// Shell type (bash, zsh, powershell) - auto-detect if not specified
+        shell: Option<String>,
+
+        /// Force reinstall even if already configured
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
