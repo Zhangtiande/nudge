@@ -576,3 +576,141 @@ impl Config {
         summary
     }
 }
+
+/// Platform detection and OS-specific logic
+#[allow(dead_code)]
+pub struct Platform {
+    pub os: OsType,
+    pub shell: ShellType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OsType {
+    Linux,
+    MacOS,
+    Windows,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShellType {
+    Bash,
+    Zsh,
+    PowerShell,
+    Cmd,
+    Unknown,
+}
+
+impl Platform {
+    /// Detect current platform at runtime
+    #[allow(dead_code)]
+    pub fn detect() -> Self {
+        let os = if cfg!(target_os = "macos") {
+            OsType::MacOS
+        } else if cfg!(target_os = "linux") {
+            OsType::Linux
+        } else if cfg!(target_os = "windows") {
+            OsType::Windows
+        } else {
+            panic!("Unsupported operating system");
+        };
+
+        let shell = Self::detect_shell();
+
+        Self { os, shell }
+    }
+
+    /// Detect current shell from environment
+    #[allow(dead_code)]
+    fn detect_shell() -> ShellType {
+        // Check SHELL environment variable (Unix)
+        if let Ok(shell_path) = std::env::var("SHELL") {
+            if shell_path.contains("bash") {
+                return ShellType::Bash;
+            } else if shell_path.contains("zsh") {
+                return ShellType::Zsh;
+            }
+        }
+
+        // Check PSModulePath (PowerShell)
+        if std::env::var("PSModulePath").is_ok() {
+            return ShellType::PowerShell;
+        }
+
+        // Check COMSPEC (CMD)
+        if let Ok(comspec) = std::env::var("COMSPEC") {
+            if comspec.to_lowercase().contains("cmd.exe") {
+                return ShellType::Cmd;
+            }
+        }
+
+        ShellType::Unknown
+    }
+
+    /// Get platform-specific config directory
+    #[allow(dead_code)]
+    pub fn config_dir(&self) -> PathBuf {
+        match self.os {
+            OsType::MacOS => {
+                let home = std::env::var("HOME").expect("HOME not set");
+                PathBuf::from(home).join("Library/Application Support/nudge")
+            }
+            OsType::Linux => {
+                let base = std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
+                    let home = std::env::var("HOME").expect("HOME not set");
+                    format!("{}/.config", home)
+                });
+                PathBuf::from(base).join("nudge")
+            }
+            OsType::Windows => {
+                let appdata = std::env::var("APPDATA").expect("APPDATA not set");
+                PathBuf::from(appdata).join("nudge")
+            }
+        }
+    }
+
+    /// Get shell integration script path for current shell
+    #[allow(dead_code)]
+    pub fn integration_script_path(&self) -> PathBuf {
+        let filename = match self.shell {
+            ShellType::Bash => "integration.bash",
+            ShellType::Zsh => "integration.zsh",
+            ShellType::PowerShell => "integration.ps1",
+            ShellType::Cmd => "integration.cmd",
+            ShellType::Unknown => "integration.bash", // fallback
+        };
+        self.config_dir().join("shell").join(filename)
+    }
+
+    /// Get shell profile path (for setup command)
+    #[allow(dead_code)]
+    pub fn shell_profile_path(&self) -> Result<PathBuf> {
+        match self.shell {
+            ShellType::Bash => {
+                let home = std::env::var("HOME")?;
+                Ok(PathBuf::from(home).join(".bashrc"))
+            }
+            ShellType::Zsh => {
+                let home = std::env::var("HOME")?;
+                Ok(PathBuf::from(home).join(".zshrc"))
+            }
+            ShellType::PowerShell => {
+                // Check PROFILE env var first
+                if let Ok(profile) = std::env::var("PROFILE") {
+                    return Ok(PathBuf::from(profile));
+                }
+                // Fallback to default location
+                let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME"))?;
+                Ok(PathBuf::from(home)
+                    .join("Documents/PowerShell/Microsoft.PowerShell_profile.ps1"))
+            }
+            ShellType::Cmd => {
+                anyhow::bail!("CMD does not support profile-based integration")
+            }
+            ShellType::Unknown => {
+                anyhow::bail!("Cannot determine shell profile path for unknown shell")
+            }
+        }
+    }
+}
