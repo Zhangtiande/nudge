@@ -32,3 +32,6 @@ coverage/
 *.dll
 *.so
 *.dylib
+
+# Git worktrees
+.worktrees/
