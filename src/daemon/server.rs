@@ -288,9 +288,10 @@ async fn process_request(
 fn categorize_context_error(error: &anyhow::Error, cwd: &std::path::Path) -> String {
     let error_str = error.to_string().to_lowercase();
 
-    if error_str.contains("permission denied") {
-        format!("{}{}", error_messages::CONTEXT_CWD_NOT_FOUND, cwd.display())
-    } else if error_str.contains("no such file") || error_str.contains("not found") {
+    if error_str.contains("permission denied")
+        || error_str.contains("no such file")
+        || error_str.contains("not found")
+    {
         format!("{}{}", error_messages::CONTEXT_CWD_NOT_FOUND, cwd.display())
     } else if error_str.contains("history") {
         error_messages::CONTEXT_HISTORY_UNREADABLE.to_string()

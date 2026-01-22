@@ -16,7 +16,7 @@ use crate::protocol::CompletionRequest;
 use system::SystemInfo;
 
 /// Aggregated context data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextData {
     /// Recent command history
     pub history: Vec<String>,
@@ -35,21 +35,6 @@ pub struct ContextData {
     pub plugins: HashMap<String, Value>,
     /// Estimated token count
     pub estimated_tokens: usize,
-}
-
-impl Default for ContextData {
-    fn default() -> Self {
-        Self {
-            history: Vec::new(),
-            similar_commands: Vec::new(),
-            files: Vec::new(),
-            last_exit_code: None,
-            git: None,
-            system: SystemInfo::default(),
-            plugins: HashMap::new(),
-            estimated_tokens: 0,
-        }
-    }
 }
 
 impl ContextData {

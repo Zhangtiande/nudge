@@ -7,7 +7,7 @@ use serde_yaml::Value;
 use tracing::{debug, info, warn};
 
 /// Main configuration structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct Config {
     pub model: ModelConfig,
@@ -17,20 +17,6 @@ pub struct Config {
     pub privacy: PrivacyConfig,
     pub log: LogConfig,
     pub system_prompt: Option<String>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            model: ModelConfig::default(),
-            context: ContextConfig::default(),
-            plugins: PluginsConfig::default(),
-            trigger: TriggerConfig::default(),
-            privacy: PrivacyConfig::default(),
-            log: LogConfig::default(),
-            system_prompt: None,
-        }
-    }
 }
 
 /// Model/LLM configuration
@@ -124,22 +110,12 @@ impl Default for PriorityConfig {
 }
 
 /// Plugin settings
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct PluginsConfig {
     pub git: GitPluginConfig,
     pub docker: DockerPluginConfig,
     pub plugin_dir: Option<PathBuf>,
-}
-
-impl Default for PluginsConfig {
-    fn default() -> Self {
-        Self {
-            git: GitPluginConfig::default(),
-            docker: DockerPluginConfig::default(),
-            plugin_dir: None,
-        }
-    }
 }
 
 /// Git plugin configuration
