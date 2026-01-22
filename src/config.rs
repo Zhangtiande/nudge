@@ -578,6 +578,7 @@ impl Config {
 }
 
 /// Platform detection and OS-specific logic
+/// Foundation module for Phase 1 - methods marked #[allow(dead_code)] until integrated in Phase 2
 #[allow(dead_code)]
 pub struct Platform {
     pub os: OsType,
@@ -605,7 +606,7 @@ pub enum ShellType {
 impl Platform {
     /// Detect current platform at runtime
     #[allow(dead_code)]
-    pub fn detect() -> Self {
+    pub fn detect() -> Result<Self> {
         let os = if cfg!(target_os = "macos") {
             OsType::MacOS
         } else if cfg!(target_os = "linux") {
@@ -613,12 +614,12 @@ impl Platform {
         } else if cfg!(target_os = "windows") {
             OsType::Windows
         } else {
-            panic!("Unsupported operating system");
+            anyhow::bail!("Unsupported operating system: {}", std::env::consts::OS);
         };
 
         let shell = Self::detect_shell();
 
-        Self { os, shell }
+        Ok(Self { os, shell })
     }
 
     /// Detect current shell from environment
@@ -650,29 +651,34 @@ impl Platform {
 
     /// Get platform-specific config directory
     #[allow(dead_code)]
-    pub fn config_dir(&self) -> PathBuf {
+    pub fn config_dir(&self) -> Result<PathBuf> {
         match self.os {
             OsType::MacOS => {
-                let home = std::env::var("HOME").expect("HOME not set");
-                PathBuf::from(home).join("Library/Application Support/nudge")
+                let home = std::env::var("HOME").context("HOME environment variable not set")?;
+                Ok(PathBuf::from(home).join("Library/Application Support/nudge"))
             }
             OsType::Linux => {
-                let base = std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| {
-                    let home = std::env::var("HOME").expect("HOME not set");
-                    format!("{}/.config", home)
-                });
-                PathBuf::from(base).join("nudge")
+                let base = match std::env::var("XDG_CONFIG_HOME") {
+                    Ok(xdg) => xdg,
+                    Err(_) => {
+                        let home =
+                            std::env::var("HOME").context("HOME environment variable not set")?;
+                        format!("{}/.config", home)
+                    }
+                };
+                Ok(PathBuf::from(base).join("nudge"))
             }
             OsType::Windows => {
-                let appdata = std::env::var("APPDATA").expect("APPDATA not set");
-                PathBuf::from(appdata).join("nudge")
+                let appdata =
+                    std::env::var("APPDATA").context("APPDATA environment variable not set")?;
+                Ok(PathBuf::from(appdata).join("nudge"))
             }
         }
     }
 
     /// Get shell integration script path for current shell
     #[allow(dead_code)]
-    pub fn integration_script_path(&self) -> PathBuf {
+    pub fn integration_script_path(&self) -> Result<PathBuf> {
         let filename = match self.shell {
             ShellType::Bash => "integration.bash",
             ShellType::Zsh => "integration.zsh",
@@ -680,7 +686,7 @@ impl Platform {
             ShellType::Cmd => "integration.cmd",
             ShellType::Unknown => "integration.bash", // fallback
         };
-        self.config_dir().join("shell").join(filename)
+        Ok(self.config_dir()?.join("shell").join(filename))
     }
 
     /// Get shell profile path (for setup command)
