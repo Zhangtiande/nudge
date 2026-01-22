@@ -2,6 +2,46 @@
 
 This document describes all configuration options available in nudge.
 
+## Checking Configuration
+
+Use `nudge info` to view runtime configuration and paths:
+
+```bash
+# Human-readable output
+nudge info
+```
+
+**Output:**
+```
+Nudge Runtime Information
+=========================
+
+Platform:             linux-x86_64
+Config Directory:     /home/user/.config/nudge
+Config File:          /home/user/.config/nudge/config.yaml
+Default Config:       /home/user/.config/nudge/config/config.default.yaml
+Socket Path:          /home/user/.config/nudge/nudge.sock
+Integration Script:   /home/user/.config/nudge/integration.bash
+Daemon Status:        Running (socket exists)
+Shell Type:           bash
+```
+
+```bash
+# JSON output (for scripting)
+nudge info --json
+```
+
+```bash
+# Get specific field
+nudge info --field config_dir
+# Output: /home/user/.config/nudge
+
+nudge info --field shell_type
+# Output: bash
+```
+
+For full CLI reference, see [CLI Reference](cli-reference.md).
+
 ## Configuration File Location
 
 Nudge looks for configuration in the following order:
