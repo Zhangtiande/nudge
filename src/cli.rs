@@ -62,11 +62,23 @@ pub enum Command {
     /// Check daemon status
     Status,
 
-    /// Show configuration paths and status
+    /// Show configuration paths and status (legacy, use 'info' instead)
+    #[deprecated(since = "0.3.0", note = "Use 'info' command instead")]
     Config {
         /// Show full configuration (not just paths)
         #[arg(long, default_value_t = false)]
         show: bool,
+    },
+
+    /// Display runtime information (paths, status, configuration)
+    Info {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Get specific field (config_dir, socket_path, shell_type, etc.)
+        #[arg(long)]
+        field: Option<String>,
     },
 }
 

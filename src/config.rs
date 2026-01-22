@@ -579,6 +579,7 @@ impl Config {
 
 /// Platform detection and OS-specific logic
 /// Foundation module for Phase 1 - methods marked #[allow(dead_code)] until integrated in Phase 2
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct Platform {
     pub os: OsType,
