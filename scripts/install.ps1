@@ -523,25 +523,36 @@ function Uninstall-Nudge {
     }
 
     # Remove shell integration
-    $shellSetupDir = Join-Path $env:TEMP "nudge-shell-uninstall"
-    New-Item -ItemType Directory -Path $shellSetupDir -Force | Out-Null
+    Write-Info "Removing shell integration..."
 
-    try {
-        $baseUrl = "https://raw.githubusercontent.com/$GitHubRepo/main/shell"
-        $setupScriptPath = Join-Path $shellSetupDir "setup-shell.ps1"
+    $profilePath = $PROFILE
+    if (Test-Path $profilePath) {
+        $content = Get-Content $profilePath -Raw
 
-        $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri "$baseUrl/setup-shell.ps1" -OutFile $setupScriptPath -ErrorAction Stop
-        $ProgressPreference = 'Continue'
+        # Remove Nudge integration block (support both old and new format)
+        if ($content -match '# Nudge.*[Ii]ntegration') {
+            # Create backup
+            Copy-Item $profilePath "${profilePath}.bak" -Force
 
-        & $setupScriptPath -Uninstall
-    }
-    catch {
-        Write-Warning "Could not remove shell integration automatically"
-        Write-Info "You may need to remove it manually from your PowerShell profile"
-    }
-    finally {
-        Remove-Item -Path $shellSetupDir -Recurse -Force -ErrorAction SilentlyContinue
+            # Remove integration block between markers
+            # Pattern matches: marker line + everything until end marker + end marker
+            # (?s) enables single-line mode where . matches newlines
+            $pattern = '(?s)(?m)^# [>]{3} Nudge Integration [>]{3}.*?^# [<]{3} Nudge Integration [<]{3}\r?\n?'
+            $newContent = $content -replace $pattern, ''
+
+            # Also handle old format (single line with comment + source line)
+            # This removes lines like "# Nudge integration" followed by a source line
+            $newContent = $newContent -replace '(?m)^# Nudge.*[Ii]ntegration.*\r?\n.*\r?\n?', ''
+
+            if ($newContent -ne $content) {
+                $newContent | Set-Content $profilePath -NoNewline
+                Write-Success "Removed integration from PowerShell profile"
+            }
+            else {
+                Write-Warning "Integration marker found but removal failed"
+                Write-Warning "Backup saved as ${profilePath}.bak"
+            }
+        }
     }
 
     Write-Host ""
