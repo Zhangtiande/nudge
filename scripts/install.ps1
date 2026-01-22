@@ -408,10 +408,8 @@ function Get-ShellIntegrationFiles {
     }
 }
 
-# Setup shell integration
+# Setup shell integration using nudge setup command
 function Setup-ShellIntegration {
-    param([string]$ShellDir)
-
     if ($SkipShell) {
         Write-Info "Skipping shell integration (SkipShell flag)"
         return
@@ -419,14 +417,49 @@ function Setup-ShellIntegration {
 
     Write-Info "Setting up shell integration..."
 
-    $setupScript = Join-Path $ShellDir "shell\setup-shell.ps1"
-
-    if (Test-Path $setupScript) {
-        & $setupScript
+    # Check if nudge binary is accessible
+    $nudgeCmd = Get-Command "nudge" -ErrorAction SilentlyContinue
+    if (-not $nudgeCmd) {
+        Write-ErrorMsg "nudge binary not found in PATH. Cannot run 'nudge setup'."
+        Write-Warning "Please restart your shell and run 'nudge setup powershell' manually."
+        return
     }
-    else {
-        Write-Warning "Shell setup script not found"
-        Write-Info "You can set up shell integration manually later"
+
+    # Run nudge setup to configure PowerShell integration
+    try {
+        & nudge setup powershell
+        Write-Success "Shell integration configured successfully"
+        Write-Host ""
+        Write-Info "Please restart PowerShell or run:"
+        Write-Host "  . `$PROFILE" -ForegroundColor Yellow
+    }
+    catch {
+        Write-ErrorMsg "Failed to configure shell integration: $_"
+        Write-Warning "You can try running 'nudge setup powershell' manually later"
+
+        # Provide fallback configuration setup
+        $configDir = Join-Path $env:APPDATA "nudge"
+        Write-Info "Creating basic configuration manually..."
+        New-Item -ItemType Directory -Force -Path (Join-Path $configDir "config") | Out-Null
+
+        $configFile = Join-Path $configDir "config\config.yaml"
+        if (-not (Test-Path $configFile)) {
+            @"
+# Nudge User Configuration
+#
+# Add your custom settings here. They will override config.default.yaml.
+# This file is preserved across upgrades.
+#
+# Example - To use OpenAI instead of local Ollama:
+#
+# model:
+#   endpoint: "https://api.openai.com/v1"
+#   model_name: "gpt-3.5-turbo"
+#   api_key_env: "OPENAI_API_KEY"
+"@ | Set-Content -Path $configFile -Encoding UTF8
+            Write-Success "Created basic config.yaml"
+            Write-Warning "Please edit $configFile to configure your LLM"
+        }
     }
 }
 
@@ -627,7 +660,7 @@ function Main {
         }
 
         # Setup shell integration
-        Setup-ShellIntegration -ShellDir $shellDir
+        Setup-ShellIntegration
 
         # Cleanup temporary files
         Remove-Item -Path $shellDir -Recurse -Force -ErrorAction SilentlyContinue
