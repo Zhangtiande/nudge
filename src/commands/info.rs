@@ -26,13 +26,13 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
     let integration_script = platform.integration_script_path()?;
 
     // Get shell type from platform
-    let shell_type = format!("{:?}", platform.shell);
+    let shell_type = platform.shell.to_string();
 
     // Check daemon status
     let daemon_status = check_daemon_status(&socket_path);
 
     let info = InfoOutput {
-        platform: format!("{:?}", platform),
+        platform: platform.to_string(),
         config_dir,
         config_file,
         default_config_file,

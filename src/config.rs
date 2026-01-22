@@ -721,3 +721,31 @@ impl Platform {
         }
     }
 }
+
+impl std::fmt::Display for Platform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.os, self.shell)
+    }
+}
+
+impl std::fmt::Display for OsType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OsType::MacOS => write!(f, "macOS"),
+            OsType::Linux => write!(f, "Linux"),
+            OsType::Windows => write!(f, "Windows"),
+        }
+    }
+}
+
+impl std::fmt::Display for ShellType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShellType::Bash => write!(f, "bash"),
+            ShellType::Zsh => write!(f, "zsh"),
+            ShellType::PowerShell => write!(f, "powershell"),
+            ShellType::Cmd => write!(f, "cmd"),
+            ShellType::Unknown => write!(f, "unknown"),
+        }
+    }
+}
