@@ -337,10 +337,22 @@ uninstall() {
     fi
 
     # Remove shell integration
-    for shell_rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
-        if [[ -f "$shell_rc" ]] && grep -q "Nudge integration" "$shell_rc"; then
-            info "Removing integration from $shell_rc"
-            sed -i.bak '/# Nudge integration/,+1d' "$shell_rc"
+    info "Removing shell integration..."
+
+    # Remove integration lines from shell profiles
+    for profile in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [[ -f "$profile" ]]; then
+            # Remove lines between Nudge markers
+            if grep -q "# Nudge shell integration" "$profile"; then
+                # Create backup
+                cp "$profile" "${profile}.bak"
+
+                # Remove Nudge integration block
+                sed -i.tmp '/# Nudge shell integration/,/^$/d' "$profile"
+                rm -f "${profile}.tmp"
+
+                success "Removed integration from $profile"
+            fi
         fi
     done
 
