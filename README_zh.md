@@ -120,6 +120,45 @@ curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/inst
 .\install.ps1 -Uninstall
 ```
 
+### 自动设置（推荐）
+
+安装二进制文件后（通过快速安装或手动安装），您可以使用自动设置命令：
+
+```bash
+nudge setup
+```
+
+这将：
+- ✅ 自动检测您的 Shell（Bash、Zsh 或 PowerShell）
+- ✅ 将集成脚本安装到配置目录
+- ✅ 将 source 行添加到 Shell 配置文件
+- ✅ 如果守护进程未运行，则启动它
+
+然后重启 Shell 或重新加载配置文件：
+
+```bash
+# Bash
+source ~/.bashrc
+
+# Zsh
+source ~/.zshrc
+
+# PowerShell
+. $PROFILE
+```
+
+**设置选项：**
+
+```bash
+# 为特定 Shell 设置
+nudge setup bash
+nudge setup zsh
+nudge setup powershell
+
+# 强制重新安装（覆盖现有集成）
+nudge setup --force
+```
+
 ### 其他安装方式
 
 <details>
@@ -204,22 +243,46 @@ if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
 
 ## 🚀 使用方法
 
-1. **启动守护进程**（支持懒加载自动启动，或手动启动）：
+### 快速开始
+
+1. **设置 Shell 集成**（如果安装时未完成）：
    ```bash
-   nudge daemon --fork
+   nudge setup
    ```
 
-2. **触发补全**：在输入命令时按 `Ctrl+E`
-
-3. **查看状态**：
+2. **重启 Shell** 或重新加载配置文件：
    ```bash
-   nudge status
+   source ~/.bashrc  # 或 ~/.zshrc
    ```
 
-4. **停止守护进程**：
-   ```bash
-   nudge daemon stop
-   ```
+3. **触发补全**：在输入命令时按 `Ctrl+E`
+
+### 常用命令
+
+```bash
+# 启动守护进程
+nudge start
+
+# 查看守护进程状态
+nudge status
+
+# 停止守护进程
+nudge stop
+
+# 重启守护进程（配置更改后）
+nudge restart
+
+# 显示运行时信息
+nudge info
+
+# 以 JSON 格式显示运行时信息
+nudge info --json
+
+# 获取特定字段（在脚本中使用）
+nudge info --field config_dir
+```
+
+完整的 CLI 参考，请参阅 [CLI Reference](docs/cli-reference.md)（英文）。
 
 ## ⚙️ 配置
 

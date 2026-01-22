@@ -106,6 +106,7 @@ impl Suggestion {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_confidence(mut self, confidence: f32) -> Self {
         self.confidence = Some(confidence);
         self
@@ -135,6 +136,7 @@ impl Warning {
         }
     }
 
+    #[allow(dead_code)]
     pub fn irreversible(message: impl Into<String>) -> Self {
         Self {
             warning_type: WarningType::Irreversible,
@@ -142,6 +144,7 @@ impl Warning {
         }
     }
 
+    #[allow(dead_code)]
     pub fn requires_confirmation(message: impl Into<String>) -> Self {
         Self {
             warning_type: WarningType::RequiresConfirmation,
@@ -179,6 +182,7 @@ impl ErrorInfo {
         }
     }
 
+    #[allow(dead_code)]
     pub fn daemon_busy() -> Self {
         Self::new(
             ErrorCode::DaemonBusy,
@@ -195,6 +199,7 @@ impl ErrorInfo {
         Self::new(ErrorCode::LlmTimeout, "LLM request timed out", true)
     }
 
+    #[allow(dead_code)]
     pub fn config_error(msg: impl Into<String>) -> Self {
         Self::new(ErrorCode::ConfigError, msg, false)
     }
@@ -239,4 +244,5 @@ pub struct ContextSummary {
 }
 
 /// Context data from plugins (dynamic JSON structure)
+#[allow(dead_code)]
 pub type PluginContext = HashMap<String, serde_json::Value>;

@@ -6,6 +6,7 @@ use super::context::ContextData;
 
 /// Sanitization event for audit logging
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SanitizationEvent {
     pub pattern_type: String,
     pub original_length: usize,

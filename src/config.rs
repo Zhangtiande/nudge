@@ -7,7 +7,7 @@ use serde_yaml::Value;
 use tracing::{debug, info, warn};
 
 /// Main configuration structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct Config {
     pub model: ModelConfig,
@@ -17,20 +17,6 @@ pub struct Config {
     pub privacy: PrivacyConfig,
     pub log: LogConfig,
     pub system_prompt: Option<String>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            model: ModelConfig::default(),
-            context: ContextConfig::default(),
-            plugins: PluginsConfig::default(),
-            trigger: TriggerConfig::default(),
-            privacy: PrivacyConfig::default(),
-            log: LogConfig::default(),
-            system_prompt: None,
-        }
-    }
 }
 
 /// Model/LLM configuration
@@ -124,22 +110,12 @@ impl Default for PriorityConfig {
 }
 
 /// Plugin settings
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct PluginsConfig {
     pub git: GitPluginConfig,
     pub docker: DockerPluginConfig,
     pub plugin_dir: Option<PathBuf>,
-}
-
-impl Default for PluginsConfig {
-    fn default() -> Self {
-        Self {
-            git: GitPluginConfig::default(),
-            docker: DockerPluginConfig::default(),
-            plugin_dir: None,
-        }
-    }
 }
 
 /// Git plugin configuration
@@ -574,5 +550,178 @@ impl Config {
         summary.push_str(&format!("  API Key: {}", auth_status));
 
         summary
+    }
+}
+
+/// Platform detection and OS-specific logic
+/// Foundation module for Phase 1 - methods marked #[allow(dead_code)] until integrated in Phase 2
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct Platform {
+    pub os: OsType,
+    pub shell: ShellType,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OsType {
+    Linux,
+    MacOS,
+    Windows,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ShellType {
+    Bash,
+    Zsh,
+    PowerShell,
+    Cmd,
+    Unknown,
+}
+
+impl Platform {
+    /// Detect current platform at runtime
+    #[allow(dead_code)]
+    pub fn detect() -> Result<Self> {
+        let os = if cfg!(target_os = "macos") {
+            OsType::MacOS
+        } else if cfg!(target_os = "linux") {
+            OsType::Linux
+        } else if cfg!(target_os = "windows") {
+            OsType::Windows
+        } else {
+            anyhow::bail!("Unsupported operating system: {}", std::env::consts::OS);
+        };
+
+        let shell = Self::detect_shell();
+
+        Ok(Self { os, shell })
+    }
+
+    /// Detect current shell from environment
+    #[allow(dead_code)]
+    fn detect_shell() -> ShellType {
+        // Check SHELL environment variable (Unix)
+        if let Ok(shell_path) = std::env::var("SHELL") {
+            if shell_path.contains("bash") {
+                return ShellType::Bash;
+            } else if shell_path.contains("zsh") {
+                return ShellType::Zsh;
+            }
+        }
+
+        // Check PSModulePath (PowerShell)
+        if std::env::var("PSModulePath").is_ok() {
+            return ShellType::PowerShell;
+        }
+
+        // Check COMSPEC (CMD)
+        if let Ok(comspec) = std::env::var("COMSPEC") {
+            if comspec.to_lowercase().contains("cmd.exe") {
+                return ShellType::Cmd;
+            }
+        }
+
+        ShellType::Unknown
+    }
+
+    /// Get platform-specific config directory
+    #[allow(dead_code)]
+    pub fn config_dir(&self) -> Result<PathBuf> {
+        match self.os {
+            OsType::MacOS => {
+                let home = std::env::var("HOME").context("HOME environment variable not set")?;
+                Ok(PathBuf::from(home).join("Library/Application Support/nudge"))
+            }
+            OsType::Linux => {
+                let base = match std::env::var("XDG_CONFIG_HOME") {
+                    Ok(xdg) => xdg,
+                    Err(_) => {
+                        let home =
+                            std::env::var("HOME").context("HOME environment variable not set")?;
+                        format!("{}/.config", home)
+                    }
+                };
+                Ok(PathBuf::from(base).join("nudge"))
+            }
+            OsType::Windows => {
+                let appdata =
+                    std::env::var("APPDATA").context("APPDATA environment variable not set")?;
+                Ok(PathBuf::from(appdata).join("nudge"))
+            }
+        }
+    }
+
+    /// Get shell integration script path for current shell
+    #[allow(dead_code)]
+    pub fn integration_script_path(&self) -> Result<PathBuf> {
+        let filename = match self.shell {
+            ShellType::Bash => "integration.bash",
+            ShellType::Zsh => "integration.zsh",
+            ShellType::PowerShell => "integration.ps1",
+            ShellType::Cmd => "integration.cmd",
+            ShellType::Unknown => "integration.bash", // fallback
+        };
+        Ok(self.config_dir()?.join("shell").join(filename))
+    }
+
+    /// Get shell profile path (for setup command)
+    #[allow(dead_code)]
+    pub fn shell_profile_path(&self) -> Result<PathBuf> {
+        match self.shell {
+            ShellType::Bash => {
+                let home = std::env::var("HOME")?;
+                Ok(PathBuf::from(home).join(".bashrc"))
+            }
+            ShellType::Zsh => {
+                let home = std::env::var("HOME")?;
+                Ok(PathBuf::from(home).join(".zshrc"))
+            }
+            ShellType::PowerShell => {
+                // Check PROFILE env var first
+                if let Ok(profile) = std::env::var("PROFILE") {
+                    return Ok(PathBuf::from(profile));
+                }
+                // Fallback to default location
+                let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME"))?;
+                Ok(PathBuf::from(home)
+                    .join("Documents/PowerShell/Microsoft.PowerShell_profile.ps1"))
+            }
+            ShellType::Cmd => {
+                anyhow::bail!("CMD does not support profile-based integration")
+            }
+            ShellType::Unknown => {
+                anyhow::bail!("Cannot determine shell profile path for unknown shell")
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Platform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.os, self.shell)
+    }
+}
+
+impl std::fmt::Display for OsType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OsType::MacOS => write!(f, "macOS"),
+            OsType::Linux => write!(f, "Linux"),
+            OsType::Windows => write!(f, "Windows"),
+        }
+    }
+}
+
+impl std::fmt::Display for ShellType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShellType::Bash => write!(f, "bash"),
+            ShellType::Zsh => write!(f, "zsh"),
+            ShellType::PowerShell => write!(f, "powershell"),
+            ShellType::Cmd => write!(f, "cmd"),
+            ShellType::Unknown => write!(f, "unknown"),
+        }
     }
 }

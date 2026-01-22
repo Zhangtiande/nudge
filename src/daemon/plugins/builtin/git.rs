@@ -46,6 +46,7 @@ pub enum GitStatus {
 }
 
 /// Strict timeout for git operations (50ms)
+#[allow(dead_code)]
 const GIT_TIMEOUT_MS: u64 = 50;
 
 /// Collect git context
@@ -90,29 +91,27 @@ async fn collect_git_context(
         ..Default::default()
     };
 
-    let cwd = cwd.to_path_buf();
-
     // Always get branch and status (light)
-    context.branch = get_branch(&cwd).await;
-    context.status = get_status(&cwd).await;
+    context.branch = get_branch(cwd).await;
+    context.status = get_status(cwd).await;
 
     // Standard and detailed: get staged files and commits
     if matches!(depth, GitDepth::Standard | GitDepth::Detailed) {
-        context.staged = get_staged_files(&cwd).await;
-        context.recent_commits = get_recent_commits(&cwd, recent_commits_count).await;
+        context.staged = get_staged_files(cwd).await;
+        context.recent_commits = get_recent_commits(cwd, recent_commits_count).await;
     }
 
     // Detailed only: get unstaged files
     if depth == GitDepth::Detailed {
-        context.unstaged = get_unstaged_files(&cwd).await;
+        context.unstaged = get_unstaged_files(cwd).await;
     }
 
     Ok(context)
 }
 
 /// Get current branch name
-async fn get_branch(cwd: &std::path::PathBuf) -> Option<String> {
-    let cwd = cwd.clone();
+async fn get_branch(cwd: &Path) -> Option<String> {
+    let cwd = cwd.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let output = Command::new("git")
             .args(["branch", "--show-current"])
@@ -137,8 +136,8 @@ async fn get_branch(cwd: &std::path::PathBuf) -> Option<String> {
 }
 
 /// Get repository status (clean/dirty)
-async fn get_status(cwd: &std::path::PathBuf) -> GitStatus {
-    let cwd = cwd.clone();
+async fn get_status(cwd: &Path) -> GitStatus {
+    let cwd = cwd.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let output = Command::new("git")
             .args(["status", "--porcelain"])
@@ -162,8 +161,8 @@ async fn get_status(cwd: &std::path::PathBuf) -> GitStatus {
 }
 
 /// Get staged files
-async fn get_staged_files(cwd: &std::path::PathBuf) -> Vec<String> {
-    let cwd = cwd.clone();
+async fn get_staged_files(cwd: &Path) -> Vec<String> {
+    let cwd = cwd.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let output = Command::new("git")
             .args(["diff", "--cached", "--name-only"])
@@ -184,8 +183,8 @@ async fn get_staged_files(cwd: &std::path::PathBuf) -> Vec<String> {
 }
 
 /// Get unstaged files
-async fn get_unstaged_files(cwd: &std::path::PathBuf) -> Vec<String> {
-    let cwd = cwd.clone();
+async fn get_unstaged_files(cwd: &Path) -> Vec<String> {
+    let cwd = cwd.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let output = Command::new("git")
             .args(["diff", "--name-only"])
@@ -206,8 +205,8 @@ async fn get_unstaged_files(cwd: &std::path::PathBuf) -> Vec<String> {
 }
 
 /// Get recent commits
-async fn get_recent_commits(cwd: &std::path::PathBuf, count: usize) -> Vec<String> {
-    let cwd = cwd.clone();
+async fn get_recent_commits(cwd: &Path, count: usize) -> Vec<String> {
+    let cwd = cwd.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let output = Command::new("git")
             .args(["log", "--oneline", &format!("-{}", count)])
@@ -221,7 +220,10 @@ async fn get_recent_commits(cwd: &std::path::PathBuf, count: usize) -> Vec<Strin
                     .filter(|l| !l.is_empty())
                     .map(|l| {
                         // Extract just the commit message (remove hash)
-                        l.splitn(2, ' ').nth(1).unwrap_or(l).to_string()
+                        l.split_once(' ')
+                            .map(|(_, msg)| msg)
+                            .unwrap_or(l)
+                            .to_string()
                     })
                     .collect()
             }

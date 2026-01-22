@@ -1,48 +1,47 @@
 #!/usr/bin/env zsh
 # Nudge - Zsh Integration
-# Source this file from your .zshrc
+# Installed by: nudge setup zsh
 
-# Detect platform and set config directory
-_nudge_get_config_dir() {
+# Get configuration from nudge CLI
+NUDGE_CONFIG_DIR=$(nudge info --field config_dir 2>/dev/null)
+NUDGE_SOCKET=$(nudge info --field socket_path 2>/dev/null)
+
+# Fallback if nudge binary not in PATH
+if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
     case "$(uname -s)" in
         Darwin)
-            print "$HOME/Library/Application Support/nudge"
+            NUDGE_CONFIG_DIR="$HOME/Library/Application Support/nudge"
             ;;
         *)
-            print "${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+            NUDGE_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
             ;;
     esac
-}
+    NUDGE_SOCKET="$NUDGE_CONFIG_DIR/nudge.sock"
+fi
 
-# Configuration
-NUDGE_HOTKEY="${NUDGE_HOTKEY:-^E}"
-NUDGE_CONFIG_DIR="${NUDGE_CONFIG_DIR:-$(_nudge_get_config_dir)}"
-NUDGE_SOCKET="${NUDGE_SOCKET:-$NUDGE_CONFIG_DIR/nudge.sock}"
 NUDGE_LOCK="/tmp/nudge.lock"
 
 # Capture last exit code
-typeset -g _nudge_last_exit=0
+_nudge_last_exit=0
 _nudge_capture_exit() {
     _nudge_last_exit=$?
 }
 precmd_functions+=(_nudge_capture_exit)
 
-# Ensure daemon is running (lazy load)
+# Ensure daemon is running
 _nudge_ensure_daemon() {
     if [[ ! -S "$NUDGE_SOCKET" ]]; then
         # Use zsystem flock to prevent concurrent daemon starts
         if zsystem flock -t 0 "$NUDGE_LOCK" 2>/dev/null; then
-            nudge daemon --fork 2>/dev/null
+            nudge start 2>/dev/null
         fi
     fi
 }
 
 # Main completion widget
 _nudge_complete() {
-    # Ensure daemon is running
     _nudge_ensure_daemon
 
-    # Call nudge with --format plain
     local suggestion
     suggestion=$(nudge complete --format plain \
         --buffer "$BUFFER" \
@@ -51,20 +50,18 @@ _nudge_complete() {
         --session "zsh-$$" \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
-    # Update buffer if we got a suggestion
     if [[ $? -eq 0 && -n "$suggestion" ]]; then
         BUFFER="$suggestion"
         CURSOR=${#BUFFER}
-        zle redisplay
     fi
 }
 
-# Register widget and bind hotkey
-zle -N nudge-complete _nudge_complete
-bindkey "$NUDGE_HOTKEY" nudge-complete
+# Register widget and bind key
+zle -N _nudge_complete
+bindkey '^E' _nudge_complete
 
 # Print success message on first load
 if [[ -z "$_NUDGE_LOADED" ]]; then
     export _NUDGE_LOADED=1
-    print "Nudge loaded. Press Ctrl+E to trigger completion."
+    echo "Nudge loaded. Press Ctrl+E to trigger completion."
 fi

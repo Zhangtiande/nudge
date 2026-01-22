@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # Nudge - Bash Integration
-# Source this file from your .bashrc
+# Installed by: nudge setup bash
 
-# Detect platform and set config directory
-_nudge_get_config_dir() {
+# Get configuration from nudge CLI
+NUDGE_CONFIG_DIR=$(nudge info --field config_dir 2>/dev/null)
+NUDGE_SOCKET=$(nudge info --field socket_path 2>/dev/null)
+
+# Fallback if nudge binary not in PATH
+if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
     case "$(uname -s)" in
         Darwin)
-            echo "$HOME/Library/Application Support/nudge"
+            NUDGE_CONFIG_DIR="$HOME/Library/Application Support/nudge"
             ;;
         *)
-            echo "${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+            NUDGE_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
             ;;
     esac
-}
+    NUDGE_SOCKET="$NUDGE_CONFIG_DIR/nudge.sock"
+fi
 
-# Configuration
-NUDGE_HOTKEY="${NUDGE_HOTKEY:-\\C-e}"
-NUDGE_CONFIG_DIR="${NUDGE_CONFIG_DIR:-$(_nudge_get_config_dir)}"
-NUDGE_SOCKET="${NUDGE_SOCKET:-$NUDGE_CONFIG_DIR/nudge.sock}"
+# Lock file for daemon startup
 NUDGE_LOCK="/tmp/nudge.lock"
 
 # Capture last exit code before any command
@@ -33,17 +35,15 @@ _nudge_ensure_daemon() {
         # Use flock to prevent concurrent daemon starts
         (
             flock -n 200 2>/dev/null || exit 0
-            nudge daemon --fork 2>/dev/null
+            nudge start 2>/dev/null
         ) 200>"$NUDGE_LOCK"
     fi
 }
 
 # Main completion function
 _nudge_complete() {
-    # Ensure daemon is running
     _nudge_ensure_daemon
 
-    # Call nudge with --format plain
     local suggestion
     suggestion=$(nudge complete --format plain \
         --buffer "$READLINE_LINE" \
@@ -52,15 +52,14 @@ _nudge_complete() {
         --session "bash-$$" \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
-    # Update buffer if we got a suggestion
     if [[ $? -eq 0 && -n "$suggestion" ]]; then
         READLINE_LINE="$suggestion"
         READLINE_POINT=${#READLINE_LINE}
     fi
 }
 
-# Bind the hotkey
-bind -x "\"$NUDGE_HOTKEY\": _nudge_complete"
+# Bind Ctrl+E hotkey
+bind -x '"\C-e": _nudge_complete'
 
 # Print success message on first load
 if [[ -z "$_NUDGE_LOADED" ]]; then

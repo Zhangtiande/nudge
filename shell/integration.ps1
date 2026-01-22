@@ -1,13 +1,23 @@
 # Nudge - PowerShell Integration
-# Add this to your $PROFILE to enable Nudge completion
-# . "path\to\integration.ps1"
+# Installed by: nudge setup powershell
 
-# Configuration
-$script:NudgeHotkey = if ($env:NUDGE_HOTKEY) { $env:NUDGE_HOTKEY } else { "Ctrl+e" }
+# Get configuration from nudge CLI
+$script:NudgeInfo = @{}
+try {
+    $infoJson = nudge info --json 2>$null | ConvertFrom-Json
+    $script:NudgeInfo = $infoJson
+} catch {
+    # Fallback if nudge not in PATH
+    $script:NudgeInfo = @{
+        config_dir = Join-Path $env:APPDATA "nudge"
+        socket_path = "\\.\pipe\nudge_$env:USERNAME"
+    }
+}
+
 $script:NudgeLastExitCode = 0
 
-# Capture last exit code after each command
-$script:NudgePromptHook = {
+# Capture exit codes
+function global:Invoke-NudgeCaptureExitCode {
     $script:NudgeLastExitCode = $LASTEXITCODE
 }
 
@@ -16,64 +26,36 @@ if (-not $global:NudgePromptHookRegistered) {
     $existingPrompt = Get-Content Function:\prompt -ErrorAction SilentlyContinue
     if ($existingPrompt) {
         $newPrompt = @"
-`$script:NudgeLastExitCode = `$LASTEXITCODE
+Invoke-NudgeCaptureExitCode
 $existingPrompt
 "@
-        Set-Content Function:\prompt -Value $newPrompt
+        Set-Content Function:\prompt -Value ([scriptblock]::Create($newPrompt))
     }
     $global:NudgePromptHookRegistered = $true
 }
 
 # Ensure daemon is running
-function global:Start-NudgeDaemon {
-    # Check if daemon is running by verifying PID file and process
-    $configDir = if ($env:APPDATA) {
-        Join-Path $env:APPDATA "nudge"
-    } else {
-        Join-Path $env:USERPROFILE ".config\nudge"
-    }
-    $pidPath = Join-Path $configDir "nudge.pid"
-
-    $daemonRunning = $false
-
-    if (Test-Path $pidPath) {
-        try {
-            $pid = Get-Content $pidPath -ErrorAction SilentlyContinue
-            if ($pid) {
-                $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
-                if ($process) {
-                    $daemonRunning = $true
-                }
-            }
+function global:Start-NudgeDaemonIfNeeded {
+    try {
+        $status = nudge status 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Start-Process -FilePath "nudge" -ArgumentList "start" -WindowStyle Hidden -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 100
         }
-        catch {
-            # PID file exists but process is not running
-        }
-    }
-
-    if (-not $daemonRunning) {
-        # Start daemon in background using 'nudge start' command
-        Start-Process -FilePath "nudge" -ArgumentList "start" -WindowStyle Hidden -ErrorAction SilentlyContinue
-        # Give it a moment to start
-        Start-Sleep -Milliseconds 100
+    } catch {
+        # Silently ignore errors
     }
 }
 
 # Main completion function
 function global:Invoke-NudgeComplete {
-    # Ensure daemon is running
-    Start-NudgeDaemon
-    
-    # Get current buffer state
-    $buffer = $null
-    $cursor = $null
+    Start-NudgeDaemonIfNeeded
+
+    $buffer = $cursor = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$buffer, [ref]$cursor)
-    
-    if ([string]::IsNullOrEmpty($buffer)) {
-        return
-    }
-    
-    # Call nudge CLI
+
+    if ([string]::IsNullOrEmpty($buffer)) { return }
+
     try {
         $suggestion = & nudge complete `
             --format plain `
@@ -83,25 +65,18 @@ function global:Invoke-NudgeComplete {
             --session "pwsh-$PID" `
             --last-exit-code $script:NudgeLastExitCode `
             2>$null
-        
+
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty($suggestion)) {
-            # Replace buffer with suggestion
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert($suggestion)
         }
-    }
-    catch {
+    } catch {
         # Silently ignore errors
     }
 }
 
-# Register the key handler
-Set-PSReadLineKeyHandler -Chord $script:NudgeHotkey -ScriptBlock {
-    Invoke-NudgeComplete
-}
+# Register key handler
+Set-PSReadLineKeyHandler -Chord "Ctrl+e" -ScriptBlock { Invoke-NudgeComplete }
 
-# Print success message on first load
-if (-not $global:NudgeLoaded) {
-    $global:NudgeLoaded = $true
-    Write-Host "Nudge loaded. Press $script:NudgeHotkey to trigger completion." -ForegroundColor Green
-}
+# Print success message
+Write-Host "Nudge loaded. Press Ctrl+E to trigger completion." -ForegroundColor Green

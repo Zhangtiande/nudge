@@ -36,6 +36,7 @@ pub struct ContainerInfo {
 }
 
 /// Docker plugin timeout (100ms - slightly longer than git due to daemon communication)
+#[allow(dead_code)]
 const DOCKER_TIMEOUT_MS: u64 = 100;
 
 pub struct DockerPlugin {

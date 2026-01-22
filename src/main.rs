@@ -1,5 +1,6 @@
 mod cli;
 mod client;
+mod commands;
 mod config;
 mod daemon;
 mod protocol;
@@ -73,8 +74,15 @@ async fn main() -> Result<()> {
         Command::Status => {
             daemon::status().await?;
         }
+        #[allow(deprecated)]
         Command::Config { show } => {
             show_config(show)?;
+        }
+        Command::Info { json, field } => {
+            commands::info::run_info(json, field)?;
+        }
+        Command::Setup { shell, force } => {
+            commands::setup::run_setup(shell, force)?;
         }
     }
 

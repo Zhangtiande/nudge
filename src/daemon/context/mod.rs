@@ -16,7 +16,7 @@ use crate::protocol::CompletionRequest;
 use system::SystemInfo;
 
 /// Aggregated context data
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextData {
     /// Recent command history
     pub history: Vec<String>,
@@ -35,21 +35,6 @@ pub struct ContextData {
     pub plugins: HashMap<String, Value>,
     /// Estimated token count
     pub estimated_tokens: usize,
-}
-
-impl Default for ContextData {
-    fn default() -> Self {
-        Self {
-            history: Vec::new(),
-            similar_commands: Vec::new(),
-            files: Vec::new(),
-            last_exit_code: None,
-            git: None,
-            system: SystemInfo::default(),
-            plugins: HashMap::new(),
-            estimated_tokens: 0,
-        }
-    }
 }
 
 impl ContextData {
@@ -169,7 +154,7 @@ fn estimate_tokens(context: &ContextData) -> usize {
     }
 
     // Plugin context: estimate based on JSON size (rough approximation)
-    for (_plugin_id, data) in &context.plugins {
+    for data in context.plugins.values() {
         // Conservative estimate: JSON string length / 4 characters per token
         let json_str = serde_json::to_string(data).unwrap_or_default();
         total += json_str.len() / 4;

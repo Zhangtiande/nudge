@@ -120,6 +120,45 @@ curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/inst
 .\install.ps1 -Uninstall
 ```
 
+### Automatic Setup (Recommended)
+
+After installing the binary (via quick install or manual installation), you can use the automatic setup command:
+
+```bash
+nudge setup
+```
+
+This will:
+- ✅ Auto-detect your shell (Bash, Zsh, or PowerShell)
+- ✅ Install the integration script to your config directory
+- ✅ Add the source line to your shell profile
+- ✅ Start the daemon if not already running
+
+Then restart your shell or source your profile:
+
+```bash
+# Bash
+source ~/.bashrc
+
+# Zsh
+source ~/.zshrc
+
+# PowerShell
+. $PROFILE
+```
+
+**Setup Options:**
+
+```bash
+# Setup for specific shell
+nudge setup bash
+nudge setup zsh
+nudge setup powershell
+
+# Force reinstall (overwrites existing integration)
+nudge setup --force
+```
+
 ### Alternative Installation Methods
 
 <details>
@@ -204,22 +243,46 @@ if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
 
 ## 🚀 Usage
 
-1. **Start the Daemon** (automatic with lazy-loading, or manually):
+### Quick Start
+
+1. **Setup Shell Integration** (if not done during installation):
    ```bash
-   nudge daemon --fork
+   nudge setup
    ```
 
-2. **Trigger Completion**: Press `Ctrl+E` while typing a command
-
-3. **Check Status**:
+2. **Restart your shell** or source your profile:
    ```bash
-   nudge status
+   source ~/.bashrc  # or ~/.zshrc
    ```
 
-4. **Stop Daemon**:
-   ```bash
-   nudge daemon stop
-   ```
+3. **Trigger Completion**: Press `Ctrl+E` while typing a command
+
+### Common Commands
+
+```bash
+# Start daemon
+nudge start
+
+# Check daemon status
+nudge status
+
+# Stop daemon
+nudge stop
+
+# Restart daemon (after config changes)
+nudge restart
+
+# Show runtime information
+nudge info
+
+# Show runtime information as JSON
+nudge info --json
+
+# Get specific field (useful in scripts)
+nudge info --field config_dir
+```
+
+For a complete CLI reference, see [CLI Reference](docs/cli-reference.md).
 
 ## ⚙️ Configuration
 

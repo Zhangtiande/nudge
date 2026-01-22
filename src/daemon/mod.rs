@@ -298,3 +298,23 @@ fn is_running_with_cleanup() -> (bool, u32) {
 fn is_running() -> bool {
     is_running_with_cleanup().0
 }
+
+/// Check if daemon is running (non-async version for setup command)
+/// Returns Ok(()) if running, Err if not
+pub fn check_status() -> Result<()> {
+    let pid_path = Config::pid_path();
+
+    if !pid_path.exists() {
+        anyhow::bail!("Daemon is not running (no PID file)");
+    }
+
+    // Check if PID is still alive
+    let pid_str = fs::read_to_string(&pid_path).context("Failed to read PID file")?;
+    let pid: u32 = pid_str.trim().parse().context("Invalid PID in PID file")?;
+
+    if is_process_alive(pid) {
+        Ok(())
+    } else {
+        anyhow::bail!("Daemon is not running (stale PID file)")
+    }
+}

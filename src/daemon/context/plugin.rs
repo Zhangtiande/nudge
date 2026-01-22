@@ -8,6 +8,7 @@ use serde_json::Value;
 
 /// Context plugin trait
 #[async_trait]
+#[allow(dead_code)]
 pub trait ContextPlugin: Send + Sync {
     /// Plugin identifier
     fn id(&self) -> &str;
@@ -38,6 +39,7 @@ pub struct PluginContextData {
 }
 
 impl PluginContextData {
+    #[allow(dead_code)]
     pub fn new(plugin_id: &str, display_name: &str, data: Value) -> Self {
         Self {
             plugin_id: plugin_id.to_string(),
@@ -48,11 +50,13 @@ impl PluginContextData {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_priority(mut self, priority: u8) -> Self {
         self.priority = priority;
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_collection_time(mut self, ms: u64) -> Self {
         self.collection_time_ms = ms;
         self
