@@ -426,15 +426,15 @@ function Setup-ShellIntegration {
     }
 
     # Run nudge setup to configure PowerShell integration
-    try {
-        & nudge setup powershell
+    & nudge setup powershell
+    if ($LASTEXITCODE -eq 0) {
         Write-Success "Shell integration configured successfully"
         Write-Host ""
         Write-Info "Please restart PowerShell or run:"
         Write-Host "  . `$PROFILE" -ForegroundColor Yellow
     }
-    catch {
-        Write-ErrorMsg "Failed to configure shell integration: $_"
+    else {
+        Write-ErrorMsg "Failed to configure shell integration (exit code: $LASTEXITCODE)"
         Write-Warning "You can try running 'nudge setup powershell' manually later"
 
         # Provide fallback configuration setup
