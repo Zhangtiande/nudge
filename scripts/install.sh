@@ -252,7 +252,7 @@ setup_shell_integration() {
     if ! command -v nudge &> /dev/null; then
         error "nudge binary not found in PATH. Cannot run 'nudge setup'."
         warning "Please add nudge to your PATH and run 'nudge setup' manually."
-        return 1
+        return 0
     fi
 
     # Run nudge setup to configure shell integration
@@ -272,7 +272,38 @@ setup_shell_integration() {
     else
         error "Failed to configure shell integration"
         warning "You can try running 'nudge setup' manually later"
-        return 1
+
+        # Provide fallback configuration setup
+        local config_dir=""
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            config_dir="$HOME/Library/Application Support/nudge"
+        else
+            config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
+        fi
+
+        info "Creating basic configuration manually..."
+        mkdir -p "$config_dir/config"
+
+        # Create basic config files if they don't exist
+        if [[ ! -f "$config_dir/config/config.yaml" ]]; then
+            cat > "$config_dir/config/config.yaml" << 'EOF'
+# Nudge User Configuration
+#
+# Add your custom settings here. They will override config.default.yaml.
+# This file is preserved across upgrades.
+#
+# Example - To use OpenAI instead of local Ollama:
+#
+# model:
+#   endpoint: "https://api.openai.com/v1"
+#   model_name: "gpt-3.5-turbo"
+#   api_key_env: "OPENAI_API_KEY"
+EOF
+            success "Created basic config.yaml"
+            warning "Please edit $config_dir/config/config.yaml to configure your LLM"
+        fi
+
+        return 0
     fi
 }
 
