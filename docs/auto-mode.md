@@ -41,7 +41,7 @@ $ git status|                    # After pressing Tab
 
 ## Shell Support
 
-### Zsh (Recommended)
+### Zsh (Recommended for Unix)
 
 Zsh has excellent support for auto mode through its ZLE (Zsh Line Editor):
 
@@ -58,6 +58,39 @@ Bash's readline has limited support for inline preview:
 - Buffer change detection is less reliable
 - For better auto mode support in Bash, consider using [ble.sh](https://github.com/akinomyoga/ble.sh)
 
+### PowerShell 7.2+ (Windows)
+
+PowerShell 7.2+ has native support for auto mode through PSReadLine's predictor API:
+
+- Uses the `NudgePredictor` module implementing `ICommandPredictor`
+- Native inline prediction display (no ANSI hacks needed)
+- Tab accepts full suggestion
+- Right Arrow accepts word-by-word
+- Ctrl+Right Arrow accepts next word
+
+**Requirements:**
+- PowerShell 7.2 or later
+- PSReadLine 2.2.0 or later (bundled with PowerShell 7.2+)
+
+**Installation:**
+The `NudgePredictor` module is automatically installed during Nudge installation. If you need to install it manually:
+
+```powershell
+# Copy module to PowerShell modules directory
+Copy-Item -Path "path\to\NudgePredictor" -Destination "$HOME\Documents\PowerShell\Modules\NudgePredictor" -Recurse
+
+# Import and configure
+Import-Module NudgePredictor
+Set-NudgePredictionOptions -ViewStyle InlineView
+```
+
+### PowerShell 5.1 (Windows - Manual Mode Only)
+
+PowerShell 5.1 does not support the predictor API, so only manual mode is available:
+
+- Press `Ctrl+E` to trigger completion
+- Auto mode is not supported
+
 ## Configuration Options
 
 | Option | Type | Default | Description |
@@ -68,13 +101,19 @@ Bash's readline has limited support for inline preview:
 
 ## Key Bindings
 
-### Manual Mode
+### Manual Mode (All Platforms)
 - `Ctrl+E`: Trigger completion
 
-### Auto Mode
+### Auto Mode (Unix - Bash/Zsh)
 - `Tab`: Accept full suggestion
 - `Right Arrow`: Accept next word (Zsh only)
 - `Ctrl+E`: Force trigger completion (bypasses debounce)
+
+### Auto Mode (Windows - PowerShell 7.2+)
+- `Tab`: Accept full suggestion
+- `Right Arrow`: Move cursor forward
+- `Ctrl+Right Arrow`: Accept next word
+- `Ctrl+E`: Force trigger completion (bypasses predictor)
 
 ## Troubleshooting
 
@@ -95,11 +134,40 @@ Bash's readline has limited support for inline preview:
    nudge info --field auto_delay_ms
    ```
 
-### Preview not displaying correctly
+### Preview not displaying correctly (Unix)
 
 - Ensure your terminal supports ANSI escape codes
 - Try a different terminal emulator
 - In Bash, consider switching to Zsh for better support
+
+### PowerShell auto mode not working
+
+1. Check PowerShell version (requires 7.2+):
+   ```powershell
+   $PSVersionTable.PSVersion
+   ```
+
+2. Check PSReadLine version (requires 2.2.0+):
+   ```powershell
+   Get-Module PSReadLine | Select-Object Version
+   ```
+
+3. Verify NudgePredictor module is loaded:
+   ```powershell
+   Get-Module NudgePredictor
+   ```
+
+4. Check if predictor is registered:
+   ```powershell
+   Get-PSSubsystem -Kind CommandPredictor
+   ```
+
+5. Manually register the predictor:
+   ```powershell
+   Import-Module NudgePredictor
+   Register-NudgePredictor
+   Set-NudgePredictionOptions
+   ```
 
 ### High latency
 
