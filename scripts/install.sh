@@ -19,6 +19,8 @@ VERSION=""
 INSTALL_PREFIX=""
 SKIP_SHELL=false
 UNINSTALL=false
+LOCAL_MODE=false
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Colors
 RED='\033[0;31m'
@@ -286,20 +288,39 @@ setup_shell_integration() {
 
         # Create basic config files if they don't exist
         if [[ ! -f "$config_dir/config/config.yaml" ]]; then
-            cat > "$config_dir/config/config.yaml" << 'EOF'
-# Nudge User Configuration
-#
-# Add your custom settings here. They will override config.default.yaml.
-# This file is preserved across upgrades.
-#
-# Example - To use OpenAI instead of local Ollama:
-#
-# model:
-#   endpoint: "https://api.openai.com/v1"
-#   model_name: "gpt-3.5-turbo"
-#   api_key_env: "OPENAI_API_KEY"
-EOF
-            success "Created basic config.yaml"
+            local config_file="$config_dir/config/config.yaml"
+
+            if [[ "$LOCAL_MODE" == true ]]; then
+                # Use local template file
+                local local_template="$SCRIPT_DIR/../config/config.user.yaml.template"
+                if [[ -f "$local_template" ]]; then
+                    info "Using local config template..."
+                    cp "$local_template" "$config_file"
+                    success "Created config.yaml from local template"
+                else
+                    error "Local template not found: $local_template"
+                fi
+            else
+                # Download user config template from GitHub
+                local template_url="https://raw.githubusercontent.com/$GITHUB_REPO/main/config/config.user.yaml.template"
+
+                info "Downloading user config template..."
+                if command -v curl &> /dev/null; then
+                    if curl -fsSL "$template_url" -o "$config_file" 2>/dev/null; then
+                        success "Created config.yaml from template"
+                    else
+                        error "Failed to download config template"
+                    fi
+                elif command -v wget &> /dev/null; then
+                    if wget -q "$template_url" -O "$config_file" 2>/dev/null; then
+                        success "Created config.yaml from template"
+                    else
+                        error "Failed to download config template"
+                    fi
+                else
+                    error "Neither curl nor wget found. Cannot download config template."
+                fi
+            fi
             warning "Please edit $config_dir/config/config.yaml to configure your LLM"
         fi
 
@@ -393,6 +414,10 @@ parse_args() {
                 UNINSTALL=true
                 shift
                 ;;
+            --local)
+                LOCAL_MODE=true
+                shift
+                ;;
             --help)
                 echo "Nudge Installation Script"
                 echo ""
@@ -403,6 +428,7 @@ parse_args() {
                 echo "  --prefix PATH        Install to PATH/bin (default: interactive)"
                 echo "  --skip-shell         Skip shell integration setup"
                 echo "  --uninstall          Remove Nudge"
+                echo "  --local              Use local files instead of downloading from GitHub"
                 echo "  --help               Show this help message"
                 exit 0
                 ;;
@@ -432,13 +458,33 @@ main() {
 
     detect_platform
 
-    if [[ -z "$VERSION" ]]; then
-        get_latest_version
+    if [[ "$LOCAL_MODE" == true ]]; then
+        info "Using local mode - installing from local build"
+        VERSION="local"
+
+        # Check for local binary
+        local local_binary="$SCRIPT_DIR/../target/release/nudge"
+        if [[ ! -f "$local_binary" ]]; then
+            local_binary="$SCRIPT_DIR/../target/debug/nudge"
+        fi
+
+        if [[ ! -f "$local_binary" ]]; then
+            error "Local binary not found. Please run 'cargo build --release' first."
+            exit 1
+        fi
+
+        BINARY_PATH="$local_binary"
+        info "Using local binary: $BINARY_PATH"
     else
-        info "Using specified version: $VERSION"
+        if [[ -z "$VERSION" ]]; then
+            get_latest_version
+        else
+            info "Using specified version: $VERSION"
+        fi
+
+        download_and_extract
     fi
 
-    download_and_extract
     choose_install_location
     install_binary
     setup_shell_integration

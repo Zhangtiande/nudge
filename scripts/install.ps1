@@ -11,12 +11,14 @@
 #   .\install.ps1 -InstallDir "C:\Tools\nudge"
 #   .\install.ps1 -SkipShell
 #   .\install.ps1 -Uninstall
+#   .\install.ps1 -Local
 
 param(
     [string]$Version = "",
     [string]$InstallDir = "",
     [switch]$SkipShell,
-    [switch]$Uninstall
+    [switch]$Uninstall,
+    [switch]$Local
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,6 +26,7 @@ $ErrorActionPreference = "Stop"
 # Configuration
 $GitHubRepo = "Zhangtiande/nudge"
 $DefaultInstallDir = Join-Path $env:LOCALAPPDATA "nudge"
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # Color output functions
 function Write-Info {
@@ -368,8 +371,22 @@ $apiKeyLine
     Write-Success "User configuration created: $ConfigFile"
 }
 
-# Download shell integration files
+# Download shell integration files (or use local files in local mode)
 function Get-ShellIntegrationFiles {
+    if ($Local) {
+        Write-Info "Using local shell integration files..."
+
+        # Return the project root directory
+        $projectRoot = Join-Path $ScriptDir ".."
+        if (Test-Path (Join-Path $projectRoot "config\config.default.yaml.template")) {
+            Write-Success "Local shell integration files found"
+            return $projectRoot
+        } else {
+            Write-ErrorMsg "Local shell integration files not found at: $projectRoot"
+            return $null
+        }
+    }
+
     Write-Info "Downloading shell integration files..."
 
     $baseUrl = "https://raw.githubusercontent.com/$GitHubRepo/main"
@@ -491,20 +508,30 @@ function Setup-ShellIntegration {
 
         $configFile = Join-Path $configDir "config\config.yaml"
         if (-not (Test-Path $configFile)) {
-            @"
-# Nudge User Configuration
-#
-# Add your custom settings here. They will override config.default.yaml.
-# This file is preserved across upgrades.
-#
-# Example - To use OpenAI instead of local Ollama:
-#
-# model:
-#   endpoint: "https://api.openai.com/v1"
-#   model_name: "gpt-3.5-turbo"
-#   api_key_env: "OPENAI_API_KEY"
-"@ | Set-Content -Path $configFile -Encoding UTF8
-            Write-Success "Created basic config.yaml"
+            if ($Local) {
+                # Use local template file
+                $localTemplate = Join-Path $ScriptDir "..\config\config.user.yaml.template"
+                if (Test-Path $localTemplate) {
+                    Write-Info "Using local config template..."
+                    Copy-Item -Path $localTemplate -Destination $configFile -Force
+                    Write-Success "Created config.yaml from local template"
+                } else {
+                    Write-ErrorMsg "Local template not found: $localTemplate"
+                }
+            } else {
+                # Download user config template from GitHub
+                $templateUrl = "https://raw.githubusercontent.com/$GitHubRepo/main/config/config.user.yaml.template"
+                Write-Info "Downloading user config template..."
+                try {
+                    $ProgressPreference = 'SilentlyContinue'
+                    Invoke-WebRequest -Uri $templateUrl -OutFile $configFile -ErrorAction Stop
+                    $ProgressPreference = 'Continue'
+                    Write-Success "Created config.yaml from template"
+                }
+                catch {
+                    Write-ErrorMsg "Failed to download config template: $_"
+                }
+            }
             Write-Warning "Please edit $configFile to configure your LLM"
         }
     }
@@ -628,14 +655,6 @@ function Main {
     $arch = Get-SystemArchitecture
     Write-Info "Detected architecture: $arch"
 
-    # Get version
-    if ([string]::IsNullOrEmpty($Version)) {
-        $Version = Get-LatestVersion
-    }
-    else {
-        Write-Info "Using specified version: $Version"
-    }
-
     # Determine install directory
     if ([string]::IsNullOrEmpty($InstallDir)) {
         $InstallDir = $DefaultInstallDir
@@ -643,8 +662,42 @@ function Main {
 
     Write-Info "Install directory: $InstallDir"
 
-    # Download and install binary
-    $binDir = Install-Binary -Version $Version -Architecture $arch -InstallPath $InstallDir
+    if ($Local) {
+        Write-Info "Using local mode - installing from local build"
+        $Version = "local"
+
+        # Check for local binary
+        $localBinary = Join-Path $ScriptDir "..\target\release\nudge.exe"
+        if (-not (Test-Path $localBinary)) {
+            $localBinary = Join-Path $ScriptDir "..\target\debug\nudge.exe"
+        }
+
+        if (-not (Test-Path $localBinary)) {
+            Write-ErrorMsg "Local binary not found. Please run 'cargo build --release' first."
+            exit 1
+        }
+
+        Write-Info "Using local binary: $localBinary"
+
+        # Create bin directory and copy binary
+        $binDir = Join-Path $InstallDir "bin"
+        if (-not (Test-Path $binDir)) {
+            New-Item -ItemType Directory -Path $binDir -Force | Out-Null
+        }
+        Copy-Item -Path $localBinary -Destination (Join-Path $binDir "nudge.exe") -Force
+        Write-Success "Binary installed successfully"
+    } else {
+        # Get version
+        if ([string]::IsNullOrEmpty($Version)) {
+            $Version = Get-LatestVersion
+        }
+        else {
+            Write-Info "Using specified version: $Version"
+        }
+
+        # Download and install binary
+        $binDir = Install-Binary -Version $Version -Architecture $arch -InstallPath $InstallDir
+    }
 
     # Add to PATH
     Add-ToPath -Directory $binDir
@@ -693,23 +746,30 @@ function Main {
                     Write-Success "User configuration file created from template: $userConfigFile"
                 } else {
                     Write-Warning "User config template not found at: $templateUserConfig"
-                    Write-Info "Creating minimal user config..."
-                    # Fallback: create minimal user config inline
-                    $minimalUserConfig = @"
-# Nudge User Configuration
-#
-# Add your custom settings here. They will override config.default.yaml.
-# This file is preserved across upgrades.
-#
-# Example - To use OpenAI instead of local Ollama:
-#
-# model:
-#   endpoint: "https://api.openai.com/v1"
-#   model_name: "gpt-3.5-turbo"
-#   api_key_env: "OPENAI_API_KEY"
-"@
-                    Set-Content -Path $userConfigFile -Value $minimalUserConfig -Encoding UTF8
-                    Write-Success "User configuration file created: $userConfigFile"
+                    if ($Local) {
+                        # Use local template file
+                        $localTemplate = Join-Path $ScriptDir "..\config\config.user.yaml.template"
+                        if (Test-Path $localTemplate) {
+                            Write-Info "Using local config template..."
+                            Copy-Item -Path $localTemplate -Destination $userConfigFile -Force
+                            Write-Success "User configuration file created from local template: $userConfigFile"
+                        } else {
+                            Write-ErrorMsg "Local template not found: $localTemplate"
+                        }
+                    } else {
+                        Write-Info "Downloading user config template from GitHub..."
+                        # Fallback: download template from GitHub
+                        $templateUrl = "https://raw.githubusercontent.com/$GitHubRepo/main/config/config.user.yaml.template"
+                        try {
+                            $ProgressPreference = 'SilentlyContinue'
+                            Invoke-WebRequest -Uri $templateUrl -OutFile $userConfigFile -ErrorAction Stop
+                            $ProgressPreference = 'Continue'
+                            Write-Success "User configuration file created from GitHub template: $userConfigFile"
+                        }
+                        catch {
+                            Write-ErrorMsg "Failed to download config template: $_"
+                        }
+                    }
                 }
                 Write-Warning "Please edit $userConfigFile to customize your LLM settings"
             }
@@ -723,12 +783,16 @@ function Main {
         # Install NudgePredictor module for auto mode (PowerShell 7.2+)
         Install-NudgePredictorModule -SourceDir $shellDir
 
-        # Cleanup temporary files
-        Remove-Item -Path $shellDir -Recurse -Force -ErrorAction SilentlyContinue
+        # Cleanup temporary files (only if not in local mode)
+        if (-not $Local) {
+            Remove-Item -Path $shellDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
     } else {
         Write-ErrorMsg "Failed to download shell integration files"
         Write-ErrorMsg "Installation cannot proceed without configuration templates."
-        Write-ErrorMsg "Please check your internet connection and try again."
+        if (-not $Local) {
+            Write-ErrorMsg "Please check your internet connection and try again."
+        }
         exit 1
     }
 
