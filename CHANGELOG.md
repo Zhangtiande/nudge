@@ -7,10 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-23
+
 ### Added
-- Integration tests for completion flow, sanitizer, and git plugin
-- Test fixtures for bash and zsh history files
-- Configuration documentation
+- **Auto Mode**: Ghost text suggestions as you type (like GitHub Copilot)
+  - Zsh: Native POSTDISPLAY integration
+  - Bash: ANSI escape code preview
+  - PowerShell 7.2+: PSReadLine predictor API
+- **FFI Layer** (Unix only): Dynamic library for lower latency
+  - `libnudge.so` (Linux) / `libnudge.dylib` (macOS)
+  - Direct function calls instead of CLI invocation
+  - Embedded Tokio runtime for async operations
+- **NudgePredictor PowerShell Module**: Native PSReadLine integration
+  - Throttling and caching for optimal performance
+  - Automatic registration with SubsystemManager
+- **New Documentation**:
+  - Auto mode guide (`docs/auto-mode.md`)
+  - Migration guide (`docs/migration-guide.md`)
+  - Troubleshooting guide (`docs/troubleshooting.md`)
+  - Installation guide (`docs/installation.md`)
+  - FFI API documentation (`docs/ffi-api.md`)
+  - Release notes (`docs/RELEASE_NOTES_v0.3.0.md`)
+
+### Changed
+- Shell integration scripts updated for auto mode support
+- Installation scripts now install NudgePredictor module on Windows
+- README simplified with link to detailed installation guide
+- CI workflow updated with FFI feature tests
+
+### Configuration
+New trigger options:
+```yaml
+trigger:
+  mode: "auto"          # "manual" or "auto"
+  auto_delay_ms: 500    # Debounce delay for auto mode
+```
+
+## [0.2.3] - 2026-01-20
+
+### Added
+- Plugin system with Git and Docker plugins
+- `nudge info` command with JSON output
+- `nudge setup` command for shell integration
+- Centralized platform detection in Rust
+
+### Changed
+- Shell integration scripts now use `nudge info` for paths
+- Installation scripts use `nudge setup` for configuration
+
+## [0.2.2] - 2026-01-19
+
+### Added
+- Layered configuration system (default + user config)
+- Similar command search (like Ctrl+R)
+- System info context (OS, architecture, shell, user)
+
+### Changed
+- Configuration file organization improved
+- Better error messages for config loading
+
+## [0.2.1] - 2026-01-18
+
+### Added
+- Windows support (PowerShell and CMD)
+- Named Pipe IPC for Windows
+- Cross-platform path handling
+
+### Fixed
+- Various Windows compatibility issues
+
+## [0.2.0] - 2026-01-16
+
+### Added
+- Cross-platform refactoring
+- Windows Named Pipe support
+- PowerShell integration script
+- CMD integration script
+
+### Changed
+- IPC abstraction for Unix/Windows
+- Platform-specific path handling
 
 ## [0.1.0] - 2026-01-13
 
@@ -65,5 +141,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README_zh.md with Chinese documentation
 - Configuration reference documentation
 
-[Unreleased]: https://github.com/user/nudge/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/user/nudge/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Zhangtiande/nudge/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Zhangtiande/nudge/compare/v0.2.3...v0.3.0
+[0.2.3]: https://github.com/Zhangtiande/nudge/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/Zhangtiande/nudge/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/Zhangtiande/nudge/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/Zhangtiande/nudge/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Zhangtiande/nudge/releases/tag/v0.1.0

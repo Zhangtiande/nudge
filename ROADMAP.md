@@ -124,48 +124,34 @@
 
 ---
 
-### 2. 🎯 跨平台幽灵文字 (Cross-Platform Ghost Text)
+### 2. ✅ 跨平台幽灵文字 (Cross-Platform Ghost Text) - v0.3.0 已实现
 
 **目标**: 在用户输入时实时显示 AI 建议，而不干扰当前输入，类似 IDE 的内联补全。
 
-#### 功能特性
-- **实时建议**: 用户输入时即时显示 AI 预测
-- **非侵入式**: 建议以灰色/半透明形式显示在光标后
-- **快捷接受**:
+**已实现功能**:
+- ✅ **实时建议**: 用户输入时即时显示 AI 预测
+- ✅ **非侵入式**: 建议以灰色/半透明形式显示在光标后
+- ✅ **快捷接受**:
   - `Tab` 键接受整个建议
-  - `Ctrl+→` 接受下一个单词
-  - `Esc` 忽略建议
-- **增量流式**: 支持 LLM 流式响应，逐字显示
+  - `Right Arrow` 接受下一个单词 (Zsh/PowerShell)
+  - `Ctrl+E` 强制触发
+- ✅ **防抖动**: 可配置的延迟时间 (默认 500ms)
 
-#### 技术挑战
-- **终端能力检测**:
-  - 需支持 ANSI 转义序列
-  - 检测 true color 支持（24-bit）
-  - 检测光标定位能力
-- **Shell 集成**:
-  - Bash: `PROMPT_COMMAND` 或 `DEBUG` trap
-  - Zsh: `precmd`/`preexec` hooks
-  - PowerShell: `PSReadLine` module 集成
-  - CMD: 受限（可能需要 ConPTY）
-- **性能优化**:
-  - 去抖动（debounce）输入事件
-  - 本地缓存高频命令
-  - 流式响应渲染
+**平台支持**:
+| Shell | 实现方式 | 状态 |
+|-------|---------|------|
+| Zsh | POSTDISPLAY | ✅ 完成 |
+| Bash | ANSI 转义序列 | ✅ 完成 |
+| PowerShell 7.2+ | PSReadLine Predictor | ✅ 完成 |
+| PowerShell 5.1 | 仅手动模式 | ✅ 完成 |
+| CMD | 仅手动模式 | ✅ 完成 |
 
-#### 实现阶段
-1. **Phase 1**: Unix shells (Bash/Zsh) 支持，使用 ANSI 转义序列
-2. **Phase 2**: PowerShell 集成，通过 `PSReadLine` API
-3. **Phase 3**: Windows CMD 探索（可能需要第三方工具）
-4. **Phase 4**: 终端兼容性适配（Alacritty, iTerm2, Windows Terminal 等）
-
-#### 配置选项
+**配置选项**:
 ```yaml
-ghost_text:
-  enabled: true
-  color: "gray" # 或 RGB: [128, 128, 128]
-  trigger_delay_ms: 200 # 输入停止后的延迟
-  min_input_length: 3 # 触发建议的最小输入长度
-  accept_key: "tab" # 可选: tab, right, ctrl-e
+trigger:
+  mode: auto              # "manual" 或 "auto"
+  hotkey: "\C-e"          # 手动模式快捷键
+  auto_delay_ms: 500      # 自动模式防抖延迟
 ```
 
 ---
@@ -339,6 +325,17 @@ Run a fix: nudge apply-fix <number>
 
 ## 质量与工程
 
+### 🎯 演示与推广
+- 录制 Auto Mode 演示 GIF/视频
+- 创建交互式教程
+- 撰写博客文章介绍新功能
+
+### 🎯 性能基准测试
+- 手动模式 vs 自动模式延迟对比
+- 不同 LLM 后端性能对比
+- 内存占用分析
+- 建立持续性能监控
+
 ### 测试覆盖率提升 🔄
 - 目标: 达到 80% 以上的代码覆盖率
 - 增加集成测试
@@ -361,29 +358,29 @@ Run a fix: nudge apply-fix <number>
 
 ## 发布计划
 
-### v0.2.0 - 项目感知 (Q1 2026)
-- ✅ Git 插件扩展
+### ✅ v0.3.0 - 自动模式 (2026-01-23 已发布)
+- ✅ 跨平台幽灵文字 (Auto Mode)
+- ✅ Unix FFI 层 (libnudge.so/dylib)
+- ✅ PowerShell PSReadLine 集成
+- ✅ 完善的文档和迁移指南
+
+### v0.4.0 - 项目感知 (Q1 2026)
 - 🎯 Docker 插件
 - 🎯 Node.js 插件
 - 🎯 Python 插件
 - 🎯 Rust 插件
 
-### v0.3.0 - 错误诊断 (Q2 2026)
+### v0.5.0 - 错误诊断 (Q2 2026)
 - 🎯 错误现场还原
 - 🎯 智能修复建议
 - 🎯 交互式修复
 
-### v0.4.0 - 幽灵文字 (Q3 2026)
-- 🎯 Unix shells 幽灵文字
-- 🎯 PowerShell 幽灵文字
-- 🎯 流式响应
-
-### v0.5.0 - 社区生态 (Q4 2026)
+### v0.6.0 - 社区生态 (Q3 2026)
 - 🎯 插件系统
 - 🎯 自定义提示词模板
 - 🎯 用户习惯学习
 
-### v1.0.0 - 稳定版 (Q1 2027)
+### v1.0.0 - 稳定版 (Q4 2026)
 - 完整功能集
 - 生产环境就绪
 - 完善的文档
@@ -412,4 +409,4 @@ Run a fix: nudge apply-fix <number>
 
 ---
 
-*Last updated: 2026-01-20*
+*Last updated: 2026-01-23*

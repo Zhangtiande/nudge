@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, feat/* ]
+    branches: [ main, feat/*, feature/* ]
   pull_request:
     branches: [ main ]
 
@@ -49,6 +49,10 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose
+
+      - name: Run tests with FFI feature (Unix only)
+        if: runner.os != 'Windows'
+        run: cargo test --all-features --verbose
 
       - name: Run tests (release mode)
         run: cargo test --release --verbose
@@ -139,3 +143,19 @@ jobs:
 
       - name: Build release
         run: cargo build --release --verbose
+
+      - name: Build with FFI feature (Unix only)
+        if: runner.os != 'Windows'
+        run: cargo build --release --features ffi --verbose
+
+      - name: Verify dynamic library exists (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          ls -la target/release/libnudge.so
+          file target/release/libnudge.so
+
+      - name: Verify dynamic library exists (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          ls -la target/release/libnudge.dylib
+          file target/release/libnudge.dylib
