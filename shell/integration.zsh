@@ -26,9 +26,10 @@ fi
 NUDGE_LOCK="/tmp/nudge.lock"
 
 # Auto mode state
-_nudge_auto_suggestion=""
-_nudge_auto_timer_pid=""
-_nudge_last_buffer=""
+typeset -g _nudge_auto_suggestion=""
+typeset -g _nudge_timer_fd=""
+typeset -g _nudge_last_buffer=""
+typeset -g _nudge_pending_buffer=""
 
 # Capture last exit code
 _nudge_last_exit=0
@@ -73,10 +74,14 @@ _nudge_complete() {
 
 # Cancel any pending auto completion
 _nudge_auto_cancel() {
-    if [[ -n "$_nudge_auto_timer_pid" ]]; then
-        kill "$_nudge_auto_timer_pid" 2>/dev/null
-        _nudge_auto_timer_pid=""
+    if [[ -n "$_nudge_timer_fd" ]]; then
+        # Unregister the fd handler
+        zle -F "$_nudge_timer_fd" 2>/dev/null
+        # Close the fd
+        exec {_nudge_timer_fd}<&- 2>/dev/null
+        _nudge_timer_fd=""
     fi
+    _nudge_pending_buffer=""
     _nudge_auto_suggestion=""
 }
 
@@ -92,24 +97,36 @@ _nudge_auto_fetch() {
         --session "zsh-$$" \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
-    if [[ $? -eq 0 && -n "$suggestion" ]]; then
+    local exit_code=$?
+
+    if [[ $exit_code -eq 0 && -n "$suggestion" ]]; then
         # Only update if buffer hasn't changed
         if [[ "$BUFFER" == "$_nudge_last_buffer" ]]; then
             _nudge_auto_suggestion="$suggestion"
-            zle -R  # Redraw to show preview
         fi
     fi
 }
 
 # Display inline preview (gray text after cursor)
 _nudge_auto_display_preview() {
+    # Ensure POSTDISPLAY is writable
+    typeset -g POSTDISPLAY
+
     if [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
         # Calculate the preview text (suggestion minus current buffer)
         local preview="${_nudge_auto_suggestion:${#BUFFER}}"
         if [[ -n "$preview" ]]; then
-            # Display gray preview text
-            # \e[90m = gray, \e[0m = reset
-            POSTDISPLAY=$'\e[90m'"$preview"$'\e[0m'
+            # Set POSTDISPLAY to the preview text
+            POSTDISPLAY="$preview"
+
+            # Use region_highlight to color it gray
+            # Format: "start end style"
+            # Start is after BUFFER, end is after BUFFER + preview length
+            local start=${#BUFFER}
+            local end=$((start + ${#preview}))
+
+            # fg=8 is gray (bright black)
+            region_highlight+=("$start $end fg=8")
         else
             POSTDISPLAY=""
         fi
@@ -124,7 +141,8 @@ _nudge_auto_accept() {
         BUFFER="$_nudge_auto_suggestion"
         CURSOR=${#BUFFER}
         _nudge_auto_suggestion=""
-        POSTDISPLAY=""
+        typeset -g POSTDISPLAY=""
+        region_highlight=("${(@)region_highlight:#*}")
         zle -R
     else
         # Fall back to default Tab behavior (completion)
@@ -160,28 +178,67 @@ _nudge_auto_trigger() {
 
     # Don't trigger for empty or very short input
     if [[ ${#BUFFER} -lt 2 ]]; then
-        POSTDISPLAY=""
+        typeset -g POSTDISPLAY=""
         return
     fi
 
-    # Save current buffer for comparison
-    _nudge_last_buffer="$BUFFER"
+    # Save buffer for comparison
+    _nudge_pending_buffer="$BUFFER"
 
-    # Start debounce timer in background
+    # Calculate delay in seconds
+    local delay_sec
+    delay_sec=$(printf "%.3f" "$(echo "scale=3; $NUDGE_AUTO_DELAY / 1000" | bc)")
+
+    # Create an anonymous pipe and start background sleep process
+    # The process will write to the pipe after delay
     {
-        sleep $(echo "scale=3; $NUDGE_AUTO_DELAY / 1000" | bc)
-        # Signal parent to fetch completion
-        kill -USR1 $$ 2>/dev/null
-    } &
-    _nudge_auto_timer_pid=$!
+        # Open anonymous pipe for reading
+        exec {_nudge_timer_fd}< <(
+            setopt LOCAL_OPTIONS NO_NOTIFY NO_MONITOR
+            sleep "$delay_sec"
+            echo "ready"
+        )
+
+        # Register fd handler - this will call our widget when pipe is readable
+        zle -F "$_nudge_timer_fd" _nudge_auto_on_timer_ready
+    } 2>/dev/null
 }
 
-# Handle USR1 signal (debounce timer expired)
-_nudge_auto_on_timer() {
-    _nudge_auto_timer_pid=""
-    _nudge_auto_fetch
-    _nudge_auto_display_preview
-    zle -R
+# This is called by zle -F when the timer fd becomes readable
+# It's NOT a widget, so we need to trigger a real widget
+_nudge_auto_on_timer_ready() {
+    local fd=$1
+
+    # Read and discard the message
+    local dummy
+    IFS= read -r -u "$fd" dummy 2>/dev/null
+
+    # Clean up fd
+    zle -F "$fd" 2>/dev/null
+    exec {fd}<&- 2>/dev/null
+    _nudge_timer_fd=""
+
+    # Trigger the actual widget that can call zle -R
+    zle _nudge_auto_update_display
+}
+
+# This is the actual widget that updates the display
+# Because it's a widget, zle -R works here
+_nudge_auto_update_display() {
+    # Only update if buffer hasn't changed
+    if [[ "$BUFFER" == "$_nudge_pending_buffer" && -n "$_nudge_pending_buffer" ]]; then
+        _nudge_last_buffer="$BUFFER"
+        _nudge_pending_buffer=""
+
+        # Fetch completion
+        _nudge_auto_fetch
+
+        # Display preview
+        _nudge_auto_display_preview
+
+        # Force redraw (this works because we're in a widget)
+        zle -R
+    fi
 }
 
 # Hook into line editing (called on every buffer change)
@@ -189,7 +246,9 @@ _nudge_auto_line_change() {
     if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
         # Clear preview if buffer changed
         if [[ "$BUFFER" != "$_nudge_last_buffer" ]]; then
-            POSTDISPLAY=""
+            typeset -g POSTDISPLAY=""
+            # Clear region_highlight
+            region_highlight=("${(@)region_highlight:#*}")
             _nudge_auto_trigger
         fi
     fi
@@ -203,14 +262,15 @@ _nudge_auto_line_change() {
 zle -N _nudge_complete
 zle -N _nudge_auto_accept
 zle -N _nudge_auto_accept_word
+zle -N _nudge_auto_update_display  # Register the update display widget
 
 # Bind manual mode hotkey
 bindkey '^E' _nudge_complete
 
 # Setup auto mode if enabled
 if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
-    # Set up signal handler for debounce timer
-    trap '_nudge_auto_on_timer' USR1
+    # Disable job notifications for background processes
+    setopt NO_NOTIFY NO_MONITOR
 
     # Hook into line editing
     # Use zle-line-pre-redraw for buffer change detection
