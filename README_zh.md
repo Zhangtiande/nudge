@@ -29,6 +29,12 @@ Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上�
 | ⚡ **响应迅速** | 本地 LLM 响应时间 <200ms |
 | 👻 **自动模式** | 输入时实时显示幽灵文字建议（类似 GitHub Copilot） |
 
+## 🎬 演示
+
+**Zsh 自动模式** - 输入时实时显示幽灵文字建议：
+
+https://github.com/Zhangtiande/nudge/raw/main/zsh_demo.mp4
+
 ## 📋 前置要求
 
 - **Rust**（从源码构建）
@@ -56,11 +62,13 @@ Nudge 为多个平台提供预构建的二进制文件。构建状态和可用�
 
 | Shell | Linux | macOS | Windows | 自动模式 | 集成脚本 |
 |-------|-------|-------|---------|----------|---------|
-| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | ✅ (ANSI) | `integration.bash` |
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | 🚧 (计划中) | `integration.bash` |
 | Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (POSTDISPLAY) | `integration.zsh` |
-| PowerShell 7.2+ | ❌ | ❌ | ✅ | ✅ (PSReadLine) | `integration.ps1` |
+| PowerShell 7.2+ | ❌ | ❌ | ✅ | 🚧 (计划中) | `integration.ps1` |
 | PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (仅手动模式) | `integration.ps1` |
 | CMD | ❌ | ❌ | ✅ | ❌ (仅手动模式) | `integration.cmd` |
+
+> **注意**: 自动模式目前仅在 **Zsh** 中完全支持。Bash 和 PowerShell 的支持正在开发中。
 
 ## 📦 安装
 

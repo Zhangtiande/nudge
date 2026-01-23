@@ -29,6 +29,12 @@ Nudge uses Large Language Models to predict and complete command-line inputs bas
 | ⚡ **Fast** | <200ms response time with local LLMs |
 | 👻 **Auto Mode** | Ghost text suggestions as you type (like GitHub Copilot) |
 
+## 🎬 Demo
+
+**Zsh Auto Mode** - Ghost text suggestions appear as you type:
+
+https://github.com/Zhangtiande/nudge/raw/main/zsh_demo.mp4
+
 ## 📋 Prerequisites
 
 - **Rust** (for building from source)
@@ -56,11 +62,13 @@ Nudge provides pre-built binaries for multiple platforms. The build status and a
 
 | Shell | Linux | macOS | Windows | Auto Mode | Integration |
 |-------|-------|-------|---------|-----------|-------------|
-| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | ✅ (ANSI) | `integration.bash` |
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | 🚧 (Planned) | `integration.bash` |
 | Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (POSTDISPLAY) | `integration.zsh` |
-| PowerShell 7.2+ | ❌ | ❌ | ✅ | ✅ (PSReadLine) | `integration.ps1` |
+| PowerShell 7.2+ | ❌ | ❌ | ✅ | 🚧 (Planned) | `integration.ps1` |
 | PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.ps1` |
 | CMD | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.cmd` |
+
+> **Note**: Auto Mode is currently only fully supported in **Zsh**. Support for Bash and PowerShell is planned.
 
 ## 📦 Installation
 
