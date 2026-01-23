@@ -8,6 +8,14 @@ repository = "https://github.com/user/nudge"
 keywords = ["cli", "completion", "llm", "shell", "ai"]
 categories = ["command-line-utilities"]
 
+[lib]
+name = "nudge"
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+ffi = ["libc"]
+
 [dependencies]
 # CLI parsing
 clap = { version = "4.5", features = ["derive"] }
@@ -60,6 +68,7 @@ sysinfo = "0.31"
 # Unix process control
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29", features = ["signal", "process"] }
+libc = { version = "0.2", optional = true }
 
 # Windows process control
 [target.'cfg(windows)'.dependencies]

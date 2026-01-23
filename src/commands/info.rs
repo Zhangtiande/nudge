@@ -1,4 +1,4 @@
-use crate::config::Platform;
+use crate::config::{Config, Platform, TriggerMode};
 use anyhow::Result;
 use serde::Serialize;
 use std::fs;
@@ -14,6 +14,12 @@ pub struct InfoOutput {
     pub integration_script: PathBuf,
     pub daemon_status: String,
     pub shell_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lib_path: Option<PathBuf>,
+    // Trigger configuration
+    pub trigger_mode: String,
+    pub trigger_hotkey: String,
+    pub auto_delay_ms: u64,
 }
 
 /// Run the info command
@@ -28,8 +34,20 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
     // Get shell type from platform
     let shell_type = platform.shell.to_string();
 
+    // Get library path (FFI mode, Unix only)
+    let lib_path = platform.lib_path();
+
     // Check daemon status
     let daemon_status = check_daemon_status(&socket_path);
+
+    // Load config for trigger settings
+    let config = Config::load().unwrap_or_default();
+    let trigger_mode = match config.trigger.mode {
+        TriggerMode::Manual => "manual".to_string(),
+        TriggerMode::Auto => "auto".to_string(),
+    };
+    let trigger_hotkey = config.trigger.hotkey.clone();
+    let auto_delay_ms = config.trigger.auto_delay_ms;
 
     let info = InfoOutput {
         platform: platform.to_string(),
@@ -40,6 +58,10 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
         integration_script,
         daemon_status,
         shell_type,
+        lib_path,
+        trigger_mode,
+        trigger_hotkey,
+        auto_delay_ms,
     };
 
     if let Some(field_name) = field {
@@ -53,6 +75,14 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
             "integration_script" => info.integration_script.display().to_string(),
             "daemon_status" => info.daemon_status.clone(),
             "shell_type" => info.shell_type.clone(),
+            "lib_path" => info
+                .lib_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "N/A".to_string()),
+            "trigger_mode" => info.trigger_mode.clone(),
+            "trigger_hotkey" => info.trigger_hotkey.clone(),
+            "auto_delay_ms" => info.auto_delay_ms.to_string(),
             _ => anyhow::bail!("Unknown field: {}", field_name),
         };
         println!("{}", value);
@@ -79,6 +109,15 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
         );
         println!("Daemon Status:        {}", info.daemon_status);
         println!("Shell Type:           {}", info.shell_type);
+        if let Some(ref lib_path) = info.lib_path {
+            println!("Library Path:         {}", lib_path.display());
+        }
+        println!();
+        println!("Trigger Configuration");
+        println!("---------------------");
+        println!("Mode:                 {}", info.trigger_mode);
+        println!("Hotkey:               {}", info.trigger_hotkey);
+        println!("Auto Delay:           {}ms", info.auto_delay_ms);
     }
 
     Ok(())

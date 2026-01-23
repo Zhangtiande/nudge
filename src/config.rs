@@ -696,6 +696,21 @@ impl Platform {
             }
         }
     }
+
+    /// Get the path to the dynamic library for FFI mode
+    ///
+    /// Returns the platform-specific library path:
+    /// - macOS: `<config_dir>/lib/libnudge.dylib`
+    /// - Linux: `<config_dir>/lib/libnudge.so`
+    /// - Windows: None (FFI not supported on Windows)
+    #[allow(dead_code)]
+    pub fn lib_path(&self) -> Option<PathBuf> {
+        match self.os {
+            OsType::MacOS => self.config_dir().ok().map(|d| d.join("lib/libnudge.dylib")),
+            OsType::Linux => self.config_dir().ok().map(|d| d.join("lib/libnudge.so")),
+            OsType::Windows => None, // FFI not supported on Windows
+        }
+    }
 }
 
 impl std::fmt::Display for Platform {
