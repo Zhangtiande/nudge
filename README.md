@@ -27,6 +27,7 @@ Nudge uses Large Language Models to predict and complete command-line inputs bas
 | 🐚 **Multi-Shell Support** | Works with Bash, Zsh, PowerShell, and CMD |
 | 🌐 **Cross-Platform** | Supports Linux, macOS, and Windows |
 | ⚡ **Fast** | <200ms response time with local LLMs |
+| 👻 **Auto Mode** | Ghost text suggestions as you type (like GitHub Copilot) |
 
 ## 📋 Prerequisites
 
@@ -53,12 +54,13 @@ Nudge provides pre-built binaries for multiple platforms. The build status and a
 
 ### Shell Support
 
-| Shell | Linux | macOS | Windows | Integration |
-|-------|-------|-------|---------|-------------|
-| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | `integration.bash` |
-| Zsh | ✅ | ✅ | ✅ (WSL) | `integration.zsh` |
-| PowerShell | ❌ | ❌ | ✅ | `integration.ps1` |
-| CMD | ❌ | ❌ | ✅ | `integration.cmd` |
+| Shell | Linux | macOS | Windows | Auto Mode | Integration |
+|-------|-------|-------|---------|-----------|-------------|
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | ✅ (ANSI) | `integration.bash` |
+| Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (POSTDISPLAY) | `integration.zsh` |
+| PowerShell 7.2+ | ❌ | ❌ | ✅ | ✅ (PSReadLine) | `integration.ps1` |
+| PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.ps1` |
+| CMD | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.cmd` |
 
 ## 📦 Installation
 
@@ -160,6 +162,29 @@ nudge setup
 
 After installation, the daemon should be running automatically. Simply press `Ctrl+E` while typing a command to trigger completion.
 
+### Trigger Modes
+
+Nudge supports two trigger modes:
+
+**Manual Mode** (default): Press `Ctrl+E` to trigger completion on demand.
+
+**Auto Mode**: Suggestions appear automatically as you type, displayed as ghost text (gray text after your cursor).
+
+```yaml
+# Enable auto mode in config.yaml
+trigger:
+  mode: auto              # "manual" or "auto"
+  auto_delay_ms: 500      # Debounce delay before triggering
+```
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+E` | Trigger completion (both modes) |
+| `Tab` | Accept full suggestion (auto mode) |
+| `Right Arrow` | Accept next word (Zsh/PowerShell) |
+
+For detailed auto mode documentation, see [Auto Mode Guide](docs/auto-mode.md).
+
 If you need to manually configure shell integration:
 
 ```bash
@@ -229,6 +254,12 @@ context:
   similar_commands_max: 5         # Return up to 5 similar commands
   max_files_in_listing: 50
   max_total_tokens: 4000
+
+# Trigger Settings
+trigger:
+  mode: "manual"            # "manual" or "auto"
+  hotkey: "\C-e"            # Ctrl+E
+  auto_delay_ms: 500        # Debounce delay for auto mode
 
 # Git Plugin
 plugins:
@@ -340,7 +371,6 @@ Nudge is actively evolving with exciting features planned. Here's a glimpse of w
 | Feature | Description | Status |
 |---------|-------------|--------|
 | **Project-Aware Context** | Auto-activate plugins based on command keywords (docker, npm, etc.) to provide deep project context | 🎯 Planned |
-| **Cross-Platform Ghost Text** | Real-time inline AI suggestions while typing, similar to IDE autocompletion | 🎯 Planned |
 | **Error Context Recovery** | Automatically collect error context and provide intelligent fix suggestions when commands fail | 🎯 Planned |
 | **Smart History Analytics** | Analyze command patterns and suggest aliases for frequently used commands | 🎯 Planned |
 | **Community Plugin System** | WASM-based plugin marketplace for custom context providers | 🎯 Planned |

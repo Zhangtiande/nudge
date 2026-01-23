@@ -27,6 +27,7 @@ Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上�
 | 🐚 **多 Shell 支持** | 支持 Bash、Zsh、PowerShell 和 CMD |
 | 🌐 **跨平台** | 支持 Linux、macOS 和 Windows |
 | ⚡ **响应迅速** | 本地 LLM 响应时间 <200ms |
+| 👻 **自动模式** | 输入时实时显示幽灵文字建议（类似 GitHub Copilot） |
 
 ## 📋 前置要求
 
@@ -53,12 +54,13 @@ Nudge 为多个平台提供预构建的二进制文件。构建状态和可用�
 
 ### Shell 支持
 
-| Shell | Linux | macOS | Windows | 集成脚本 |
-|-------|-------|-------|---------|---------|
-| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | `integration.bash` |
-| Zsh | ✅ | ✅ | ✅ (WSL) | `integration.zsh` |
-| PowerShell | ❌ | ❌ | ✅ | `integration.ps1` |
-| CMD | ❌ | ❌ | ✅ | `integration.cmd` |
+| Shell | Linux | macOS | Windows | 自动模式 | 集成脚本 |
+|-------|-------|-------|---------|----------|---------|
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | ✅ (ANSI) | `integration.bash` |
+| Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (POSTDISPLAY) | `integration.zsh` |
+| PowerShell 7.2+ | ❌ | ❌ | ✅ | ✅ (PSReadLine) | `integration.ps1` |
+| PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (仅手动模式) | `integration.ps1` |
+| CMD | ❌ | ❌ | ✅ | ❌ (仅手动模式) | `integration.cmd` |
 
 ## 📦 安装
 
@@ -221,6 +223,29 @@ if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
 
 安装完成后，守护进程应该会自动运行。只需在输入命令时按 `Ctrl+E` 即可触发补全。
 
+### 触发模式
+
+Nudge 支持两种触发模式：
+
+**手动模式**（默认）：按 `Ctrl+E` 按需触发补全。
+
+**自动模式**：输入时自动显示建议，以幽灵文字（光标后的灰色文字）形式呈现。
+
+```yaml
+# 在 config.yaml 中启用自动模式
+trigger:
+  mode: auto              # "manual" 或 "auto"
+  auto_delay_ms: 500      # 触发前的防抖延迟
+```
+
+| 按键 | 操作 |
+|------|------|
+| `Ctrl+E` | 触发补全（两种模式） |
+| `Tab` | 接受完整建议（自动模式） |
+| `Right Arrow` | 接受下一个单词（Zsh/PowerShell） |
+
+详细的自动模式文档，请参阅 [Auto Mode Guide](docs/auto-mode.md)（英文）。
+
 如果需要手动配置 Shell 集成：
 
 ```bash
@@ -290,6 +315,12 @@ context:
   similar_commands_max: 5         # 最多返回 5 条相似命令
   max_files_in_listing: 50        # 最大文件数
   max_total_tokens: 4000          # 最大 token 数
+
+# 触发设置
+trigger:
+  mode: "manual"            # "manual" 或 "auto"
+  hotkey: "\C-e"            # Ctrl+E
+  auto_delay_ms: 500        # 自动模式的防抖延迟
 
 # Git 插件
 plugins:
@@ -405,7 +436,6 @@ Nudge 正在积极发展，许多激动人心的功能已在规划中。以下�
 | 功能 | 描述 | 状态 |
 |------|------|------|
 | **项目级感知** | 根据命令关键词（docker、npm 等）自动激活插件，提供深度项目上下文 | 🎯 计划中 |
-| **跨平台幽灵文字** | 输入时实时显示 AI 内联建议，类似 IDE 自动补全 | 🎯 计划中 |
 | **错误现场还原** | 命令失败时自动收集错误上下文并提供智能修复建议 | 🎯 计划中 |
 | **智能历史分析** | 分析命令模式，为高频命令推荐别名 | 🎯 计划中 |
 | **社区插件系统** | 基于 WASM 的插件市场，支持自定义上下文提供器 | 🎯 计划中 |

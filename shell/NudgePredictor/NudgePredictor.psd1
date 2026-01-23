@@ -6,7 +6,7 @@
     RootModule = 'NudgePredictor.psm1'
 
     # Version number
-    ModuleVersion = '0.2.1'
+    ModuleVersion = '0.3.0'
 
     # Unique identifier
     GUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
