@@ -381,6 +381,8 @@ function Get-ShellIntegrationFiles {
             "shell/setup-shell.ps1",
             "shell/integration.ps1",
             "shell/integration.cmd",
+            "shell/NudgePredictor/NudgePredictor.psm1",
+            "shell/NudgePredictor/NudgePredictor.psd1",
             "config/config.default.yaml.template",
             "config/config.user.yaml.template"
         )
@@ -405,6 +407,51 @@ function Get-ShellIntegrationFiles {
     catch {
         Write-ErrorMsg "Failed to download shell integration files: $_"
         return $null
+    }
+}
+
+# Install NudgePredictor module for PowerShell 7.2+ auto mode
+function Install-NudgePredictorModule {
+    param([string]$SourceDir)
+
+    Write-Info "Installing NudgePredictor module for auto mode..."
+
+    # Check if PowerShell 7.2+ is available
+    if ($PSVersionTable.PSVersion.Major -lt 7 -or
+        ($PSVersionTable.PSVersion.Major -eq 7 -and $PSVersionTable.PSVersion.Minor -lt 2)) {
+        Write-Info "PowerShell 7.2+ not detected. Skipping NudgePredictor module installation."
+        Write-Info "Auto mode will not be available. Manual mode (Ctrl+E) will still work."
+        return
+    }
+
+    try {
+        # Install to nudge config directory
+        $configDir = Join-Path $env:APPDATA "nudge"
+        $modulesDir = Join-Path $configDir "modules\NudgePredictor"
+
+        # Create modules directory
+        New-Item -ItemType Directory -Path $modulesDir -Force | Out-Null
+
+        # Copy module files
+        $sourceModuleDir = Join-Path $SourceDir "shell\NudgePredictor"
+        if (Test-Path $sourceModuleDir) {
+            Copy-Item -Path (Join-Path $sourceModuleDir "*") -Destination $modulesDir -Force
+            Write-Success "NudgePredictor module installed to: $modulesDir"
+        } else {
+            Write-Warning "NudgePredictor module source not found. Auto mode may not work."
+        }
+
+        # Optionally install to user's PowerShell modules directory
+        $userModulesDir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "PowerShell\Modules\NudgePredictor"
+        if (-not (Test-Path $userModulesDir)) {
+            New-Item -ItemType Directory -Path $userModulesDir -Force | Out-Null
+            Copy-Item -Path (Join-Path $sourceModuleDir "*") -Destination $userModulesDir -Force
+            Write-Info "Also installed to user modules: $userModulesDir"
+        }
+    }
+    catch {
+        Write-Warning "Failed to install NudgePredictor module: $_"
+        Write-Info "Auto mode may not work. Manual mode (Ctrl+E) will still be available."
     }
 }
 
@@ -672,6 +719,9 @@ function Main {
 
         # Setup shell integration
         Setup-ShellIntegration
+
+        # Install NudgePredictor module for auto mode (PowerShell 7.2+)
+        Install-NudgePredictorModule -SourceDir $shellDir
 
         # Cleanup temporary files
         Remove-Item -Path $shellDir -Recurse -Force -ErrorAction SilentlyContinue

@@ -11,10 +11,13 @@ try {
     $script:NudgeInfo = @{
         config_dir = Join-Path $env:APPDATA "nudge"
         socket_path = "\\.\pipe\nudge_$env:USERNAME"
+        trigger_mode = "manual"
+        auto_delay_ms = 500
     }
 }
 
 $script:NudgeLastExitCode = 0
+$script:NudgeTriggerMode = if ($script:NudgeInfo.trigger_mode) { $script:NudgeInfo.trigger_mode } else { "manual" }
 
 # Capture exit codes
 function global:Invoke-NudgeCaptureExitCode {
@@ -47,7 +50,7 @@ function global:Start-NudgeDaemonIfNeeded {
     }
 }
 
-# Main completion function
+# Main completion function (manual mode)
 function global:Invoke-NudgeComplete {
     Start-NudgeDaemonIfNeeded
 
@@ -75,8 +78,109 @@ function global:Invoke-NudgeComplete {
     }
 }
 
-# Register key handler
+# ============================================================================
+# Auto Mode Setup (PowerShell 7.2+ only)
+# ============================================================================
+
+function Test-NudgeAutoModeSupport {
+    # Check PowerShell version
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        return $false
+    }
+    if ($PSVersionTable.PSVersion.Major -eq 7 -and $PSVersionTable.PSVersion.Minor -lt 2) {
+        return $false
+    }
+
+    # Check PSReadLine version
+    $psrl = Get-Module PSReadLine -ErrorAction SilentlyContinue
+    if (-not $psrl) {
+        $psrl = Get-Module PSReadLine -ListAvailable | Select-Object -First 1
+    }
+    if (-not $psrl -or $psrl.Version -lt [Version]'2.2.0') {
+        return $false
+    }
+
+    return $true
+}
+
+function Initialize-NudgeAutoMode {
+    [CmdletBinding()]
+    param()
+
+    # Find NudgePredictor module
+    $modulePath = $null
+
+    # Check in nudge config directory
+    $configDir = if ($script:NudgeInfo.config_dir) { $script:NudgeInfo.config_dir } else { Join-Path $env:APPDATA "nudge" }
+    $nudgePredictorPath = Join-Path $configDir "modules\NudgePredictor"
+    if (Test-Path (Join-Path $nudgePredictorPath "NudgePredictor.psd1")) {
+        $modulePath = $nudgePredictorPath
+    }
+
+    # Check in PSModulePath
+    if (-not $modulePath) {
+        $existingModule = Get-Module NudgePredictor -ListAvailable -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($existingModule) {
+            $modulePath = Split-Path $existingModule.Path -Parent
+        }
+    }
+
+    # Check in script directory (for development)
+    if (-not $modulePath) {
+        $scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent -ErrorAction SilentlyContinue
+        if ($scriptDir) {
+            $devPath = Join-Path $scriptDir "NudgePredictor"
+            if (Test-Path (Join-Path $devPath "NudgePredictor.psd1")) {
+                $modulePath = $devPath
+            }
+        }
+    }
+
+    if (-not $modulePath) {
+        Write-Warning "NudgePredictor module not found. Auto mode disabled."
+        Write-Warning "Install the module or use manual mode (Ctrl+E)."
+        return $false
+    }
+
+    try {
+        # Import the module
+        Import-Module $modulePath -Force -ErrorAction Stop
+
+        # Configure PSReadLine for predictions
+        Set-NudgePredictionOptions -ViewStyle InlineView
+
+        return $true
+    } catch {
+        Write-Warning "Failed to initialize auto mode: $_"
+        return $false
+    }
+}
+
+# ============================================================================
+# Key Bindings
+# ============================================================================
+
+# Register manual mode key handler (always available)
 Set-PSReadLineKeyHandler -Chord "Ctrl+e" -ScriptBlock { Invoke-NudgeComplete }
 
+# ============================================================================
+# Initialization
+# ============================================================================
+
+$autoModeEnabled = $false
+
+if ($script:NudgeTriggerMode -eq "auto") {
+    if (Test-NudgeAutoModeSupport) {
+        $autoModeEnabled = Initialize-NudgeAutoMode
+    } else {
+        Write-Warning "Auto mode requires PowerShell 7.2+ with PSReadLine 2.2.0+"
+        Write-Warning "Falling back to manual mode. Press Ctrl+E to trigger completion."
+    }
+}
+
 # Print success message
-Write-Host "Nudge loaded. Press Ctrl+E to trigger completion." -ForegroundColor Green
+if ($autoModeEnabled) {
+    Write-Host "Nudge loaded (auto mode). Suggestions appear as you type. Press Tab to accept." -ForegroundColor Green
+} else {
+    Write-Host "Nudge loaded. Press Ctrl+E to trigger completion." -ForegroundColor Green
+}
