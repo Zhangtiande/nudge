@@ -33,7 +33,7 @@ Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上�
 
 **Zsh 自动模式** - 输入时实时显示幽灵文字建议：
 
-https://github.com/user-attachments/assets/2a625752-d047-4688-9252-3dc9c1cebed4
+https://github.com/user-attachments/assets/766247e1-1cf2-47da-96e7-045415ede013
 
 ## 📋 前置要求
 
