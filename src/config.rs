@@ -140,18 +140,13 @@ impl Default for GitPluginConfig {
 }
 
 /// Git context depth level
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum GitDepth {
     Light,
+    #[default]
     Standard,
     Detailed,
-}
-
-impl Default for GitDepth {
-    fn default() -> Self {
-        Self::Standard
-    }
 }
 
 /// Docker plugin configuration
@@ -203,17 +198,12 @@ impl Default for TriggerConfig {
 }
 
 /// Trigger mode
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TriggerMode {
+    #[default]
     Manual,
     Auto,
-}
-
-impl Default for TriggerMode {
-    fn default() -> Self {
-        Self::Manual
-    }
 }
 
 /// Privacy settings
