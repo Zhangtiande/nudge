@@ -64,7 +64,7 @@ Nudge 为多个平台提供预构建的二进制文件。构建状态和可用�
 
 ## 📦 安装
 
-### 一键安装（推荐）
+### 快速安装
 
 **Linux/macOS:**
 ```bash
@@ -76,146 +76,9 @@ curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/inst
 irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1 | iex
 ```
 
-安装脚本会自动：
-1. 下载最新的预构建二进制文件
-2. 安装到 `~/.local/bin`（Unix）或 `%LOCALAPPDATA%\nudge\bin`（Windows）
-3. 添加到 PATH
-4. 运行 `nudge setup` 配置 Shell 集成
-5. 启动守护进程
+安装脚本会自动下载二进制文件、添加到 PATH、配置 Shell 集成并启动守护进程。
 
-#### 安装选项
-
-**指定版本：**
-```bash
-# Unix/Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --version 0.1.0
-
-# Windows
-irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1 | iex -Command "& { $_ -Version '0.1.0' }"
-```
-
-**自定义安装位置：**
-```bash
-# Unix/Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --prefix ~/.local
-
-# Windows（先下载脚本）
-.\install.ps1 -InstallDir "C:\Tools\nudge"
-```
-
-**跳过 Shell 集成：**
-```bash
-# Unix/Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --skip-shell
-
-# Windows
-.\install.ps1 -SkipShell
-```
-
-**卸载：**
-```bash
-# Unix/Linux/macOS
-curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash -s -- --uninstall
-
-# Windows
-.\install.ps1 -Uninstall
-```
-
-### 手动安装
-
-如果您更喜欢手动安装或一键安装脚本不适用于您的环境：
-
-1. 从 [Releases 页面](https://github.com/Zhangtiande/nudge/releases)下载适合您平台的二进制文件
-2. 解压并移动到 PATH 中的目录（例如 Unix 上的 `/usr/local/bin` 或 Windows 上的 `%LOCALAPPDATA%\nudge\bin`）
-3. 运行 `nudge setup` 配置 Shell 集成
-4. 重启 Shell 或重新加载配置文件
-
-<details>
-<summary><b>从预构建二进制文件手动安装</b></summary>
-
-从 [Releases 页面](https://github.com/Zhangtiande/nudge/releases/latest)下载适合您平台的最新版本。
-
-**Linux/macOS:**
-```bash
-# 下载并解压（替换为您平台的二进制文件）
-curl -L https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz | tar xz
-
-# 移动到 PATH
-sudo mv nudge /usr/local/bin/
-
-# 配置 Shell 集成
-nudge setup
-
-# 重启 Shell 或重新加载配置文件
-```
-
-**Windows (PowerShell):**
-```powershell
-# 从 releases 页面下载并解压
-# 手动添加到 PATH
-
-# 配置 Shell 集成
-nudge setup
-
-# 重启 Shell 或重新加载配置文件
-```
-
-</details>
-
-<details>
-<summary><b>从源码构建</b></summary>
-
-```bash
-# 克隆仓库
-git clone https://github.com/Zhangtiande/nudge.git
-cd nudge
-
-# 构建发布版本
-cargo build --release
-
-# 安装二进制文件到 PATH
-# Unix/Linux/macOS:
-sudo cp target/release/nudge /usr/local/bin/
-
-# Windows PowerShell:
-# 将 target\release\nudge.exe 复制到 PATH 中的目录
-
-# 配置 Shell 集成
-nudge setup
-
-# 重启 Shell 或重新加载配置文件
-```
-
-</details>
-
-<details>
-<summary><b>手动配置 Shell 集成</b></summary>
-
-如果您希望手动设置 Shell 集成，请将相应的行添加到您的 Shell 配置文件：
-
-**Bash** (`~/.bashrc`):
-```bash
-[ -f "$HOME/.config/nudge/integration.bash" ] && source "$HOME/.config/nudge/integration.bash"
-```
-
-**Zsh** (`~/.zshrc`):
-```zsh
-[ -f "$HOME/.config/nudge/integration.zsh" ] && source "$HOME/.config/nudge/integration.zsh"
-```
-
-**PowerShell**（添加到 `$PROFILE`）：
-```powershell
-if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
-    . "$env:APPDATA\nudge\integration.ps1"
-}
-```
-
-**CMD**（添加到 AutoRun 注册表键 `HKCU:\Software\Microsoft\Command Processor`）：
-```cmd
-"%APPDATA%\nudge\integration.cmd"
-```
-
-</details>
+手动安装、自定义选项或从源码构建，请参阅 [安装指南](docs/installation.md)（英文）。
 
 ## 🚀 使用方法
 
