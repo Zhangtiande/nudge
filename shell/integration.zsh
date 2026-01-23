@@ -5,6 +5,8 @@
 # Get configuration from nudge CLI
 NUDGE_CONFIG_DIR=$(nudge info --field config_dir 2>/dev/null)
 NUDGE_SOCKET=$(nudge info --field socket_path 2>/dev/null)
+NUDGE_TRIGGER_MODE=$(nudge info --field trigger_mode 2>/dev/null)
+NUDGE_AUTO_DELAY=$(nudge info --field auto_delay_ms 2>/dev/null)
 
 # Fallback if nudge binary not in PATH
 if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
@@ -17,9 +19,16 @@ if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
             ;;
     esac
     NUDGE_SOCKET="$NUDGE_CONFIG_DIR/nudge.sock"
+    NUDGE_TRIGGER_MODE="manual"
+    NUDGE_AUTO_DELAY="500"
 fi
 
 NUDGE_LOCK="/tmp/nudge.lock"
+
+# Auto mode state
+_nudge_auto_suggestion=""
+_nudge_auto_timer_pid=""
+_nudge_last_buffer=""
 
 # Capture last exit code
 _nudge_last_exit=0
@@ -38,7 +47,7 @@ _nudge_ensure_daemon() {
     fi
 }
 
-# Main completion widget
+# Main completion widget (manual mode)
 _nudge_complete() {
     _nudge_ensure_daemon
 
@@ -53,15 +62,182 @@ _nudge_complete() {
     if [[ $? -eq 0 && -n "$suggestion" ]]; then
         BUFFER="$suggestion"
         CURSOR=${#BUFFER}
+        # Clear any auto suggestion
+        _nudge_auto_suggestion=""
     fi
 }
 
-# Register widget and bind key
+# ============================================================================
+# Auto Mode Functions
+# ============================================================================
+
+# Cancel any pending auto completion
+_nudge_auto_cancel() {
+    if [[ -n "$_nudge_auto_timer_pid" ]]; then
+        kill "$_nudge_auto_timer_pid" 2>/dev/null
+        _nudge_auto_timer_pid=""
+    fi
+    _nudge_auto_suggestion=""
+}
+
+# Fetch completion in background
+_nudge_auto_fetch() {
+    _nudge_ensure_daemon
+
+    local suggestion
+    suggestion=$(nudge complete --format plain \
+        --buffer "$BUFFER" \
+        --cursor "$CURSOR" \
+        --cwd "$PWD" \
+        --session "zsh-$$" \
+        --last-exit-code "$_nudge_last_exit" 2>/dev/null)
+
+    if [[ $? -eq 0 && -n "$suggestion" ]]; then
+        # Only update if buffer hasn't changed
+        if [[ "$BUFFER" == "$_nudge_last_buffer" ]]; then
+            _nudge_auto_suggestion="$suggestion"
+            zle -R  # Redraw to show preview
+        fi
+    fi
+}
+
+# Display inline preview (gray text after cursor)
+_nudge_auto_display_preview() {
+    if [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
+        # Calculate the preview text (suggestion minus current buffer)
+        local preview="${_nudge_auto_suggestion:${#BUFFER}}"
+        if [[ -n "$preview" ]]; then
+            # Display gray preview text
+            # \e[90m = gray, \e[0m = reset
+            POSTDISPLAY=$'\e[90m'"$preview"$'\e[0m'
+        else
+            POSTDISPLAY=""
+        fi
+    else
+        POSTDISPLAY=""
+    fi
+}
+
+# Accept auto suggestion
+_nudge_auto_accept() {
+    if [[ -n "$_nudge_auto_suggestion" ]]; then
+        BUFFER="$_nudge_auto_suggestion"
+        CURSOR=${#BUFFER}
+        _nudge_auto_suggestion=""
+        POSTDISPLAY=""
+        zle -R
+    else
+        # Fall back to default Tab behavior (completion)
+        zle expand-or-complete
+    fi
+}
+
+# Accept partial suggestion (word by word)
+_nudge_auto_accept_word() {
+    if [[ -n "$_nudge_auto_suggestion" ]]; then
+        # Get the next word from suggestion
+        local remaining="${_nudge_auto_suggestion:${#BUFFER}}"
+        local next_word="${remaining%% *}"
+        if [[ "$remaining" == "$next_word" ]]; then
+            # No space found, accept all
+            BUFFER="$_nudge_auto_suggestion"
+        else
+            BUFFER="$BUFFER$next_word "
+        fi
+        CURSOR=${#BUFFER}
+        _nudge_auto_display_preview
+        zle -R
+    else
+        # Fall back to default Right Arrow behavior
+        zle forward-char
+    fi
+}
+
+# Trigger auto completion after debounce
+_nudge_auto_trigger() {
+    # Cancel previous timer
+    _nudge_auto_cancel
+
+    # Don't trigger for empty or very short input
+    if [[ ${#BUFFER} -lt 2 ]]; then
+        POSTDISPLAY=""
+        return
+    fi
+
+    # Save current buffer for comparison
+    _nudge_last_buffer="$BUFFER"
+
+    # Start debounce timer in background
+    {
+        sleep $(echo "scale=3; $NUDGE_AUTO_DELAY / 1000" | bc)
+        # Signal parent to fetch completion
+        kill -USR1 $$ 2>/dev/null
+    } &
+    _nudge_auto_timer_pid=$!
+}
+
+# Handle USR1 signal (debounce timer expired)
+_nudge_auto_on_timer() {
+    _nudge_auto_timer_pid=""
+    _nudge_auto_fetch
+    _nudge_auto_display_preview
+    zle -R
+}
+
+# Hook into line editing (called on every buffer change)
+_nudge_auto_line_change() {
+    if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+        # Clear preview if buffer changed
+        if [[ "$BUFFER" != "$_nudge_last_buffer" ]]; then
+            POSTDISPLAY=""
+            _nudge_auto_trigger
+        fi
+    fi
+}
+
+# ============================================================================
+# Widget Registration
+# ============================================================================
+
+# Register widgets
 zle -N _nudge_complete
+zle -N _nudge_auto_accept
+zle -N _nudge_auto_accept_word
+
+# Bind manual mode hotkey
 bindkey '^E' _nudge_complete
+
+# Setup auto mode if enabled
+if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+    # Set up signal handler for debounce timer
+    trap '_nudge_auto_on_timer' USR1
+
+    # Hook into line editing
+    # Use zle-line-pre-redraw for buffer change detection
+    _nudge_zle_line_pre_redraw() {
+        _nudge_auto_line_change
+    }
+    zle -N zle-line-pre-redraw _nudge_zle_line_pre_redraw
+
+    # Bind Tab to accept suggestion
+    bindkey '^I' _nudge_auto_accept
+
+    # Bind Right Arrow to accept word
+    bindkey '^[[C' _nudge_auto_accept_word
+
+    # Clean up on exit
+    _nudge_cleanup() {
+        _nudge_auto_cancel
+    }
+    zshexit_functions+=(_nudge_cleanup)
+fi
 
 # Print success message on first load
 if [[ -z "$_NUDGE_LOADED" ]]; then
     export _NUDGE_LOADED=1
-    echo "Nudge loaded. Press Ctrl+E to trigger completion."
+    if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+        echo "Nudge loaded (auto mode). Suggestions appear as you type. Press Tab to accept."
+    else
+        echo "Nudge loaded. Press Ctrl+E to trigger completion."
+    fi
 fi
