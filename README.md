@@ -33,7 +33,7 @@ Nudge uses Large Language Models to predict and complete command-line inputs bas
 
 **Zsh Auto Mode** - Ghost text suggestions appear as you type:
 
-https://github.com/Zhangtiande/nudge/raw/main/zsh_demo.mp4
+https://github.com/user-attachments/assets/2a625752-d047-4688-9252-3dc9c1cebed4
 
 ## 📋 Prerequisites
 
