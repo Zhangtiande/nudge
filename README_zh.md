@@ -75,12 +75,11 @@ irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1
 ```
 
 安装脚本会自动：
-- ✅ 检测您的操作系统和架构
-- ✅ 从 GitHub Releases 下载最新的预构建二进制文件
-- ✅ 安装到您选择的位置（Unix 上可选 `/usr/local/bin` 或 `~/.local/bin`）
-- ✅ 设置 Shell 集成（Bash/Zsh/PowerShell/CMD）
-- ✅ **运行交互式配置向导**设置您的 LLM 提供商
-- ✅ 根据您的选择创建配置文件
+1. 下载最新的预构建二进制文件
+2. 安装到 `~/.local/bin`（Unix）或 `%LOCALAPPDATA%\nudge\bin`（Windows）
+3. 添加到 PATH
+4. 运行 `nudge setup` 配置 Shell 集成
+5. 启动守护进程
 
 #### 安装选项
 
@@ -120,46 +119,14 @@ curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/inst
 .\install.ps1 -Uninstall
 ```
 
-### 自动设置（推荐）
+### 手动安装
 
-安装二进制文件后（通过快速安装或手动安装），您可以使用自动设置命令：
+如果您更喜欢手动安装或一键安装脚本不适用于您的环境：
 
-```bash
-nudge setup
-```
-
-这将：
-- ✅ 自动检测您的 Shell（Bash、Zsh 或 PowerShell）
-- ✅ 将集成脚本安装到配置目录
-- ✅ 将 source 行添加到 Shell 配置文件
-- ✅ 如果守护进程未运行，则启动它
-
-然后重启 Shell 或重新加载配置文件：
-
-```bash
-# Bash
-source ~/.bashrc
-
-# Zsh
-source ~/.zshrc
-
-# PowerShell
-. $PROFILE
-```
-
-**设置选项：**
-
-```bash
-# 为特定 Shell 设置
-nudge setup bash
-nudge setup zsh
-nudge setup powershell
-
-# 强制重新安装（覆盖现有集成）
-nudge setup --force
-```
-
-### 其他安装方式
+1. 从 [Releases 页面](https://github.com/Zhangtiande/nudge/releases)下载适合您平台的二进制文件
+2. 解压并移动到 PATH 中的目录（例如 Unix 上的 `/usr/local/bin` 或 Windows 上的 `%LOCALAPPDATA%\nudge\bin`）
+3. 运行 `nudge setup` 配置 Shell 集成
+4. 重启 Shell 或重新加载配置文件
 
 <details>
 <summary><b>从预构建二进制文件手动安装</b></summary>
@@ -174,17 +141,21 @@ curl -L https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linu
 # 移动到 PATH
 sudo mv nudge /usr/local/bin/
 
-# 设置 Shell 集成
-cd /path/to/nudge/repo
-./shell/setup-shell.sh
+# 配置 Shell 集成
+nudge setup
+
+# 重启 Shell 或重新加载配置文件
 ```
 
 **Windows (PowerShell):**
 ```powershell
 # 从 releases 页面下载并解压
-# 手动添加到 PATH 或使用安装脚本
-# 设置 Shell 集成
-.\shell\setup-shell.ps1
+# 手动添加到 PATH
+
+# 配置 Shell 集成
+nudge setup
+
+# 重启 Shell 或重新加载配置文件
 ```
 
 </details>
@@ -200,14 +171,17 @@ cd nudge
 # 构建发布版本
 cargo build --release
 
-# 安装（Unix）
+# 安装二进制文件到 PATH
+# Unix/Linux/macOS:
 sudo cp target/release/nudge /usr/local/bin/
-./shell/setup-shell.sh
 
-# 安装（Windows PowerShell）
+# Windows PowerShell:
 # 将 target\release\nudge.exe 复制到 PATH 中的目录
-# 然后运行：
-.\shell\setup-shell.ps1
+
+# 配置 Shell 集成
+nudge setup
+
+# 重启 Shell 或重新加载配置文件
 ```
 
 </details>
@@ -245,17 +219,26 @@ if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
 
 ### 快速开始
 
-1. **设置 Shell 集成**（如果安装时未完成）：
-   ```bash
-   nudge setup
-   ```
+安装完成后，守护进程应该会自动运行。只需在输入命令时按 `Ctrl+E` 即可触发补全。
 
-2. **重启 Shell** 或重新加载配置文件：
-   ```bash
-   source ~/.bashrc  # 或 ~/.zshrc
-   ```
+如果需要手动配置 Shell 集成：
 
-3. **触发补全**：在输入命令时按 `Ctrl+E`
+```bash
+nudge setup
+```
+
+然后重启 Shell 或重新加载配置文件：
+
+```bash
+# Bash
+source ~/.bashrc
+
+# Zsh
+source ~/.zshrc
+
+# PowerShell
+. $PROFILE
+```
 
 ### 常用命令
 

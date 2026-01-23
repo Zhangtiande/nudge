@@ -1,3 +1,11 @@
+# DEPRECATED: This script is deprecated in favor of 'nudge setup' command.
+# It is kept for backward compatibility but will be removed in a future version.
+#
+# Please use: nudge setup powershell
+
+Write-Warning "setup-shell.ps1 is deprecated. Please use 'nudge setup powershell' instead."
+Write-Host ""
+
 # Nudge - Windows Shell Integration Setup Script
 # This script sets up shell integration for Nudge.
 # It assumes that the 'nudge' binary is already installed and in PATH.

@@ -62,9 +62,9 @@ Nudge provides pre-built binaries for multiple platforms. The build status and a
 
 ## 📦 Installation
 
-### Quick Install (Recommended)
+### One-Click Installation (Recommended)
 
-**Linux/macOS:**
+**Unix/Linux/macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash
 ```
@@ -74,13 +74,12 @@ curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/inst
 irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1 | iex
 ```
 
-The install script will:
-- ✅ Automatically detect your OS and architecture
-- ✅ Download the latest pre-built binary from GitHub Releases
-- ✅ Install to your preferred location (`/usr/local/bin` or `~/.local/bin` on Unix)
-- ✅ Set up shell integration (Bash/Zsh/PowerShell/CMD)
-- ✅ **Run interactive configuration wizard** to set up your LLM provider
-- ✅ Create configuration file with your preferences
+The installation script will:
+1. Download the latest release binary
+2. Install to `~/.local/bin` (Unix) or `%LOCALAPPDATA%\nudge\bin` (Windows)
+3. Add to PATH
+4. Run `nudge setup` to configure shell integration
+5. Start the daemon
 
 #### Installation Options
 
@@ -120,19 +119,52 @@ curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/inst
 .\install.ps1 -Uninstall
 ```
 
-### Automatic Setup (Recommended)
+### Manual Installation
 
-After installing the binary (via quick install or manual installation), you can use the automatic setup command:
+If you prefer manual installation or the one-click installer doesn't work for your setup:
+
+1. Download the binary for your platform from [Releases](https://github.com/Zhangtiande/nudge/releases)
+2. Extract and move to a directory in your PATH (e.g., `/usr/local/bin` on Unix or `%LOCALAPPDATA%\nudge\bin` on Windows)
+3. Run `nudge setup` to configure shell integration
+4. Restart your shell or source your profile
+
+<details>
+<summary><b>Build from source</b></summary>
+
+```bash
+# Clone the repository
+git clone https://github.com/Zhangtiande/nudge.git
+cd nudge
+
+# Build release binary
+cargo build --release
+
+# Install binary to PATH
+# Unix/Linux/macOS:
+sudo cp target/release/nudge /usr/local/bin/
+
+# Windows PowerShell:
+# Copy target\release\nudge.exe to a directory in your PATH
+
+# Configure shell integration
+nudge setup
+
+# Restart your shell or source your profile
+```
+
+</details>
+
+## 🚀 Usage
+
+### Quick Start
+
+After installation, the daemon should be running automatically. Simply press `Ctrl+E` while typing a command to trigger completion.
+
+If you need to manually configure shell integration:
 
 ```bash
 nudge setup
 ```
-
-This will:
-- ✅ Auto-detect your shell (Bash, Zsh, or PowerShell)
-- ✅ Install the integration script to your config directory
-- ✅ Add the source line to your shell profile
-- ✅ Start the daemon if not already running
 
 Then restart your shell or source your profile:
 
@@ -146,116 +178,6 @@ source ~/.zshrc
 # PowerShell
 . $PROFILE
 ```
-
-**Setup Options:**
-
-```bash
-# Setup for specific shell
-nudge setup bash
-nudge setup zsh
-nudge setup powershell
-
-# Force reinstall (overwrites existing integration)
-nudge setup --force
-```
-
-### Alternative Installation Methods
-
-<details>
-<summary><b>Manual installation from pre-built binaries</b></summary>
-
-Download the latest release for your platform from the [Releases page](https://github.com/Zhangtiande/nudge/releases/latest).
-
-**Linux/macOS:**
-```bash
-# Download and extract (replace with your platform's binary)
-curl -L https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz | tar xz
-
-# Move to PATH
-sudo mv nudge /usr/local/bin/
-
-# Setup shell integration
-cd /path/to/nudge/repo
-./shell/setup-shell.sh
-```
-
-**Windows (PowerShell):**
-```powershell
-# Download from releases page and extract
-# Add to PATH manually or use install script
-# Setup shell integration
-.\shell\setup-shell.ps1
-```
-
-</details>
-
-<details>
-<summary><b>Build from source</b></summary>
-
-```bash
-# Clone the repository
-git clone https://github.com/Zhangtiande/nudge.git
-cd nudge
-
-# Build release binary
-cargo build --release
-
-# Install (Unix)
-sudo cp target/release/nudge /usr/local/bin/
-./shell/setup-shell.sh
-
-# Install (Windows PowerShell)
-# Copy target\release\nudge.exe to a directory in your PATH
-# Then run:
-.\shell\setup-shell.ps1
-```
-
-</details>
-
-<details>
-<summary><b>Manual shell integration</b></summary>
-
-If you prefer to set up shell integration manually, add the appropriate line to your shell RC file:
-
-**Bash** (`~/.bashrc`):
-```bash
-[ -f "$HOME/.config/nudge/integration.bash" ] && source "$HOME/.config/nudge/integration.bash"
-```
-
-**Zsh** (`~/.zshrc`):
-```zsh
-[ -f "$HOME/.config/nudge/integration.zsh" ] && source "$HOME/.config/nudge/integration.zsh"
-```
-
-**PowerShell** (add to `$PROFILE`):
-```powershell
-if (Test-Path "$env:APPDATA\nudge\integration.ps1") {
-    . "$env:APPDATA\nudge\integration.ps1"
-}
-```
-
-**CMD** (add to AutoRun registry key `HKCU:\Software\Microsoft\Command Processor`):
-```cmd
-"%APPDATA%\nudge\integration.cmd"
-```
-
-</details>
-
-## 🚀 Usage
-
-### Quick Start
-
-1. **Setup Shell Integration** (if not done during installation):
-   ```bash
-   nudge setup
-   ```
-
-2. **Restart your shell** or source your profile:
-   ```bash
-   source ~/.bashrc  # or ~/.zshrc
-   ```
-
-3. **Trigger Completion**: Press `Ctrl+E` while typing a command
 
 ### Common Commands
 

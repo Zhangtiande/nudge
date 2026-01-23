@@ -408,10 +408,8 @@ function Get-ShellIntegrationFiles {
     }
 }
 
-# Setup shell integration
+# Setup shell integration using nudge setup command
 function Setup-ShellIntegration {
-    param([string]$ShellDir)
-
     if ($SkipShell) {
         Write-Info "Skipping shell integration (SkipShell flag)"
         return
@@ -419,14 +417,49 @@ function Setup-ShellIntegration {
 
     Write-Info "Setting up shell integration..."
 
-    $setupScript = Join-Path $ShellDir "shell\setup-shell.ps1"
+    # Check if nudge binary is accessible
+    $nudgeCmd = Get-Command "nudge" -ErrorAction SilentlyContinue
+    if (-not $nudgeCmd) {
+        Write-ErrorMsg "nudge binary not found in PATH. Cannot run 'nudge setup'."
+        Write-Warning "Please restart your shell and run 'nudge setup powershell' manually."
+        return
+    }
 
-    if (Test-Path $setupScript) {
-        & $setupScript
+    # Run nudge setup to configure PowerShell integration
+    & nudge setup powershell
+    if ($LASTEXITCODE -eq 0) {
+        Write-Success "Shell integration configured successfully"
+        Write-Host ""
+        Write-Info "Please restart PowerShell or run:"
+        Write-Host "  . `$PROFILE" -ForegroundColor Yellow
     }
     else {
-        Write-Warning "Shell setup script not found"
-        Write-Info "You can set up shell integration manually later"
+        Write-ErrorMsg "Failed to configure shell integration (exit code: $LASTEXITCODE)"
+        Write-Warning "You can try running 'nudge setup powershell' manually later"
+
+        # Provide fallback configuration setup
+        $configDir = Join-Path $env:APPDATA "nudge"
+        Write-Info "Creating basic configuration manually..."
+        New-Item -ItemType Directory -Force -Path (Join-Path $configDir "config") | Out-Null
+
+        $configFile = Join-Path $configDir "config\config.yaml"
+        if (-not (Test-Path $configFile)) {
+            @"
+# Nudge User Configuration
+#
+# Add your custom settings here. They will override config.default.yaml.
+# This file is preserved across upgrades.
+#
+# Example - To use OpenAI instead of local Ollama:
+#
+# model:
+#   endpoint: "https://api.openai.com/v1"
+#   model_name: "gpt-3.5-turbo"
+#   api_key_env: "OPENAI_API_KEY"
+"@ | Set-Content -Path $configFile -Encoding UTF8
+            Write-Success "Created basic config.yaml"
+            Write-Warning "Please edit $configFile to configure your LLM"
+        }
     }
 }
 
@@ -490,25 +523,36 @@ function Uninstall-Nudge {
     }
 
     # Remove shell integration
-    $shellSetupDir = Join-Path $env:TEMP "nudge-shell-uninstall"
-    New-Item -ItemType Directory -Path $shellSetupDir -Force | Out-Null
+    Write-Info "Removing shell integration..."
 
-    try {
-        $baseUrl = "https://raw.githubusercontent.com/$GitHubRepo/main/shell"
-        $setupScriptPath = Join-Path $shellSetupDir "setup-shell.ps1"
+    $profilePath = $PROFILE
+    if (Test-Path $profilePath) {
+        $content = Get-Content $profilePath -Raw
 
-        $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri "$baseUrl/setup-shell.ps1" -OutFile $setupScriptPath -ErrorAction Stop
-        $ProgressPreference = 'Continue'
+        # Remove Nudge integration block (support both old and new format)
+        if ($content -match '# Nudge.*[Ii]ntegration') {
+            # Create backup
+            Copy-Item $profilePath "${profilePath}.bak" -Force
 
-        & $setupScriptPath -Uninstall
-    }
-    catch {
-        Write-Warning "Could not remove shell integration automatically"
-        Write-Info "You may need to remove it manually from your PowerShell profile"
-    }
-    finally {
-        Remove-Item -Path $shellSetupDir -Recurse -Force -ErrorAction SilentlyContinue
+            # Remove integration block between markers
+            # Pattern matches: marker line + everything until end marker + end marker
+            # (?s) enables single-line mode where . matches newlines
+            $pattern = '(?s)(?m)^# [>]{3} Nudge Integration [>]{3}.*?^# [<]{3} Nudge Integration [<]{3}\r?\n?'
+            $newContent = $content -replace $pattern, ''
+
+            # Also handle old format (single line with comment + source line)
+            # This removes lines like "# Nudge integration" followed by a source line
+            $newContent = $newContent -replace '(?m)^# Nudge.*[Ii]ntegration.*\r?\n.*\r?\n?', ''
+
+            if ($newContent -ne $content) {
+                $newContent | Set-Content $profilePath -NoNewline
+                Write-Success "Removed integration from PowerShell profile"
+            }
+            else {
+                Write-Warning "Integration marker found but removal failed"
+                Write-Warning "Backup saved as ${profilePath}.bak"
+            }
+        }
     }
 
     Write-Host ""
@@ -627,7 +671,7 @@ function Main {
         }
 
         # Setup shell integration
-        Setup-ShellIntegration -ShellDir $shellDir
+        Setup-ShellIntegration
 
         # Cleanup temporary files
         Remove-Item -Path $shellDir -Recurse -Force -ErrorAction SilentlyContinue

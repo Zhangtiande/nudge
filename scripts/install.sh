@@ -238,7 +238,7 @@ install_binary() {
     fi
 }
 
-# Setup shell integration
+# Setup shell integration using nudge setup command
 setup_shell_integration() {
     if [[ "$SKIP_SHELL" == true ]]; then
         info "Skipping shell integration (--skip-shell flag)"
@@ -248,57 +248,30 @@ setup_shell_integration() {
     echo ""
     info "Setting up shell integration..."
 
-    # Determine where the setup script is
-    local setup_script=""
-
-    # Check if running from repository
-    if [[ -f "$(dirname "$0")/../shell/setup-shell.sh" ]]; then
-        setup_script="$(cd "$(dirname "$0")/../shell" && pwd)/setup-shell.sh"
-    # Check if running from a cloned repo
-    elif [[ -f "./shell/setup-shell.sh" ]]; then
-        setup_script="$(cd "./shell" && pwd)/setup-shell.sh"
-    else
-        # Download shell integration files
-        local tmpdir
-        tmpdir=$(mktemp -d)
-        trap "rm -rf $tmpdir" EXIT
-
-        info "Downloading shell integration files..."
-
-        local base_url="https://raw.githubusercontent.com/$GITHUB_REPO/main"
-
-        # Create directory structure matching repository layout
-        # setup-shell.sh expects: $SCRIPT_DIR/../config/*.template
-        mkdir -p "$tmpdir/shell"
-        mkdir -p "$tmpdir/config"
-
-        for file in setup-shell.sh integration.bash integration.zsh; do
-            local url="$base_url/shell/$file"
-            if command -v curl &> /dev/null; then
-                curl -fsSL "$url" -o "$tmpdir/shell/$file"
-            else
-                wget -q "$url" -O "$tmpdir/shell/$file"
-            fi
-        done
-
-        # Download config templates to proper location
-        for template in config.default.yaml.template config.user.yaml.template; do
-            if command -v curl &> /dev/null; then
-                curl -fsSL "$base_url/config/$template" -o "$tmpdir/config/$template"
-            else
-                wget -q "$base_url/config/$template" -O "$tmpdir/config/$template"
-            fi
-        done
-
-        setup_script="$tmpdir/shell/setup-shell.sh"
-        chmod +x "$setup_script"
+    # Check if nudge binary is accessible
+    if ! command -v nudge &> /dev/null; then
+        error "nudge binary not found in PATH. Cannot run 'nudge setup'."
+        warning "Please add nudge to your PATH and run 'nudge setup' manually."
+        return 0
     fi
 
-    if [[ -f "$setup_script" ]]; then
-        bash "$setup_script"
+    # Run nudge setup to configure shell integration
+    if nudge setup; then
+        success "Shell integration configured successfully"
+        echo ""
+        info "Please restart your shell or run:"
+
+        # Detect shell and show appropriate command
+        if [[ -n "$BASH_VERSION" ]]; then
+            echo "  source ~/.bashrc"
+        elif [[ -n "$ZSH_VERSION" ]]; then
+            echo "  source ~/.zshrc"
+        else
+            echo "  source your shell profile"
+        fi
     else
-        warning "Shell setup script not found. You'll need to set up shell integration manually."
-        echo "See: https://github.com/$GITHUB_REPO#installation"
+        error "Failed to configure shell integration"
+        warning "You can try running 'nudge setup' manually later"
 
         # Provide fallback configuration setup
         local config_dir=""
@@ -329,6 +302,8 @@ EOF
             success "Created basic config.yaml"
             warning "Please edit $config_dir/config/config.yaml to configure your LLM"
         fi
+
+        return 0
     fi
 }
 
@@ -362,10 +337,26 @@ uninstall() {
     fi
 
     # Remove shell integration
-    for shell_rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
-        if [[ -f "$shell_rc" ]] && grep -q "Nudge integration" "$shell_rc"; then
-            info "Removing integration from $shell_rc"
-            sed -i.bak '/# Nudge integration/,+1d' "$shell_rc"
+    info "Removing shell integration..."
+
+    # Remove integration lines from shell profiles
+    for profile in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [[ -f "$profile" ]]; then
+            # Remove lines between Nudge markers (support both old and new format)
+            if grep -q "# Nudge.*integration" "$profile"; then
+                # Create backup
+                cp "$profile" "${profile}.bak"
+
+                # Remove Nudge integration block (marker + source line only)
+                # This removes the marker line and the immediately following line
+                if sed -i.tmp '/# Nudge.*integration/{N;d;}' "$profile"; then
+                    rm -f "${profile}.tmp"
+                    success "Removed integration from $profile"
+                else
+                    error "Failed to remove integration from $profile"
+                    warning "Backup saved as ${profile}.bak"
+                fi
+            fi
         fi
     done
 

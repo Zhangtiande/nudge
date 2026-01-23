@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+# DEPRECATED: This script is deprecated in favor of 'nudge setup' command.
+# It is kept for backward compatibility but will be removed in a future version.
+#
+# Please use: nudge setup bash
+# Or: nudge setup zsh
+
+echo "WARNING: setup-shell.sh is deprecated. Please use 'nudge setup' instead." >&2
+echo "Example: nudge setup bash" >&2
+echo "" >&2
+
 # Nudge Shell Integration Setup Script
 # This script sets up shell integration for Nudge.
 # It assumes that the 'nudge' binary is already installed and in PATH.
