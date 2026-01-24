@@ -7,7 +7,7 @@ use std::path::Path;
 const MARKER_COMMENT: &str = "# Nudge shell integration";
 
 /// Run the setup command
-pub fn run_setup(shell: Option<String>, force: bool) -> Result<()> {
+pub async fn run_setup(shell: Option<String>, force: bool) -> Result<()> {
     let platform = Platform::detect()?;
 
     // Determine which shell to set up
@@ -40,7 +40,7 @@ pub fn run_setup(shell: Option<String>, force: bool) -> Result<()> {
     }
 
     // Start daemon if needed
-    start_daemon_if_needed()?;
+    start_daemon_if_needed().await?;
 
     println!();
     println!("✓ Setup complete!");
@@ -297,7 +297,7 @@ fn parse_shell_type(shell: &str) -> Result<ShellType> {
 }
 
 /// Start daemon if not already running
-fn start_daemon_if_needed() -> Result<()> {
+async fn start_daemon_if_needed() -> Result<()> {
     // Check if daemon is running using synchronous check
     if crate::daemon::check_status().is_ok() {
         println!("✓ Daemon is already running");
@@ -306,10 +306,8 @@ fn start_daemon_if_needed() -> Result<()> {
 
     println!("Starting Nudge daemon...");
 
-    // Start daemon using async runtime
-    let runtime = tokio::runtime::Runtime::new().context("Failed to create Tokio runtime")?;
-
-    runtime.block_on(async { crate::daemon::start().await })?;
+    // Start daemon directly using the existing async runtime
+    crate::daemon::start().await?;
 
     Ok(())
 }

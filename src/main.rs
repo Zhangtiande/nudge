@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
             commands::info::run_info(json, field)?;
         }
         Command::Setup { shell, force } => {
-            commands::setup::run_setup(shell, force)?;
+            commands::setup::run_setup(shell, force).await?;
         }
     }
 
