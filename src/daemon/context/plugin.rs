@@ -65,6 +65,7 @@ impl PluginContextData {
 
 /// Plugin manifest for third-party plugins
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct PluginManifest {
     /// Unique plugin identifier
     pub id: String,
@@ -83,6 +84,7 @@ pub struct PluginManifest {
 /// Permission types for plugins
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
+#[allow(dead_code)]
 pub enum Permission {
     /// Read files in current working directory
     ReadCwd,
