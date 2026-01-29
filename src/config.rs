@@ -689,11 +689,33 @@ impl Platform {
                 Ok(PathBuf::from(home).join(".zshrc"))
             }
             ShellType::PowerShell => {
-                // Check PROFILE env var first
+                // Try to get actual $PROFILE path from PowerShell
+                #[cfg(windows)]
+                {
+                    use std::process::Command;
+
+                    // Try PowerShell 7 first (pwsh), then fall back to Windows PowerShell
+                    for shell in ["pwsh", "powershell"] {
+                        if let Ok(output) = Command::new(shell)
+                            .args(["-NoProfile", "-NonInteractive", "-Command", "Write-Output $PROFILE"])
+                            .output()
+                        {
+                            if output.status.success() {
+                                let profile_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                                if !profile_path.is_empty() {
+                                    return Ok(PathBuf::from(profile_path));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Fallback: Check PROFILE env var
                 if let Ok(profile) = std::env::var("PROFILE") {
                     return Ok(PathBuf::from(profile));
                 }
-                // Fallback to default location
+
+                // Last resort: Default location
                 let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME"))?;
                 Ok(PathBuf::from(home)
                     .join("Documents/PowerShell/Microsoft.PowerShell_profile.ps1"))

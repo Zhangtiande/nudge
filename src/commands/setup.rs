@@ -8,7 +8,7 @@ const MARKER_COMMENT: &str = "# Nudge shell integration";
 
 /// Run the setup command
 pub async fn run_setup(shell: Option<String>, force: bool) -> Result<()> {
-    let platform = Platform::detect()?;
+    let mut platform = Platform::detect()?;
 
     // Determine which shell to set up
     let target_shell = if let Some(shell_name) = shell {
@@ -27,6 +27,9 @@ pub async fn run_setup(shell: Option<String>, force: bool) -> Result<()> {
             "CMD does not support automatic shell integration. Please use PowerShell instead."
         );
     }
+
+    // Override detected shell with target shell for setup operations
+    platform.shell = target_shell;
 
     println!("Setting up Nudge for {}...", target_shell);
     println!();
