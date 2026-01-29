@@ -697,11 +697,17 @@ impl Platform {
                     // Try PowerShell 7 first (pwsh), then fall back to Windows PowerShell
                     for shell in ["pwsh", "powershell"] {
                         if let Ok(output) = Command::new(shell)
-                            .args(["-NoProfile", "-NonInteractive", "-Command", "Write-Output $PROFILE"])
+                            .args([
+                                "-NoProfile",
+                                "-NonInteractive",
+                                "-Command",
+                                "Write-Output $PROFILE",
+                            ])
                             .output()
                         {
                             if output.status.success() {
-                                let profile_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                                let profile_path =
+                                    String::from_utf8_lossy(&output.stdout).trim().to_string();
                                 if !profile_path.is_empty() {
                                     return Ok(PathBuf::from(profile_path));
                                 }
