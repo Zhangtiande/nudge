@@ -62,15 +62,17 @@ Nudge provides pre-built binaries for multiple platforms. The build status and a
 
 | Shell | Linux | macOS | Windows | Auto Mode | Integration |
 |-------|-------|-------|---------|-----------|-------------|
-| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | 🚧 (Planned) | `integration.bash` |
-| Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (POSTDISPLAY) | `integration.zsh` |
-| PowerShell 7.2+ | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.ps1` |
-| PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.ps1` |
-| CMD | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.cmd` |
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | ❌ (Readline limitation) | `integration.bash` |
+| Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (Recommended) | `integration.zsh` |
+| PowerShell 7.2+ | ❌ | ❌ | ✅ | ❌ (PSReadLine timeout) | `integration.ps1` |
+| PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (Not supported) | `integration.ps1` |
+| CMD | ❌ | ❌ | ✅ | ❌ (Not supported) | `integration.cmd` |
 
-> **Note**: Auto Mode is currently only fully supported in **Zsh**. Support for Bash is planned.
+> **Auto Mode Support**:
 >
-> **PowerShell Auto Mode**: PSReadLine's predictor API has a strict ~20ms timeout ([Microsoft Docs](https://learn.microsoft.com/en-us/powershell/scripting/dev-cross-plat/create-cmdline-predictor)), which is incompatible with LLM response times (typically 200ms+). Use **manual mode** (`Ctrl+E`) on PowerShell.
+> - **Zsh** (Recommended): Full support with ghost text suggestions. Use `Ctrl+E` for manual trigger or enable auto mode for automatic suggestions.
+> - **Bash**: Manual mode only (`Ctrl+E`). Bash readline doesn't support the async event hooks required for auto mode. If you need auto mode in Bash, consider switching to **Zsh** (macOS Catalina+ uses Zsh by default).
+> - **PowerShell**: Manual mode only (`Ctrl+E`). PSReadLine's predictor API has a strict ~20ms timeout ([Microsoft Docs](https://learn.microsoft.com/en-us/powershell/scripting/dev-cross-plat/create-cmdline-predictor)), incompatible with typical LLM response times (200ms+).
 
 ## 📦 Installation
 

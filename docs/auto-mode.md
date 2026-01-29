@@ -41,24 +41,35 @@ $ git status|                    # After pressing Tab
 
 ## Shell Support
 
-### Zsh (Recommended for Unix)
+### Zsh (Recommended)
 
 Zsh has excellent support for auto mode through its ZLE (Zsh Line Editor):
 
 - Full inline preview with `POSTDISPLAY`
-- Smooth buffer change detection via `zle-line-pre-redraw`
+- Smooth buffer change detection via `zle-line-pre-redraw` hook
+- Async background completion with `zle -F` file descriptor monitoring
 - Tab accepts full suggestion
 - Right Arrow accepts word-by-word
 
-### Bash (Limited)
+**Recommendation**: If you want auto mode, use Zsh. It's the default shell on macOS Catalina and later.
 
-Bash's readline has limited support for inline preview:
+### Bash (Manual Mode Only)
 
-- Preview display uses ANSI escape codes (may not work in all terminals)
-- Buffer change detection is less reliable
-- For better auto mode support in Bash, consider using [ble.sh](https://github.com/akinomyoga/ble.sh)
+**Auto mode is not supported in Bash.** This is a fundamental limitation of Bash readline, not a technical oversight:
 
-### PowerShell 7.2+ (Windows - Manual Mode Only)
+**Why?** Bash readline lacks the async architecture needed for auto mode:
+1. **No buffer change detection hook**: Bash readline doesn't trigger events when the user types. Zsh has `zle-line-pre-redraw` for this.
+2. **No async completion**: Bash readline is fully synchronous. Zsh can run completions in the background with `zle -F` and update the display when done.
+3. **No inline preview display**: Bash readline has no mechanism like Zsh's `POSTDISPLAY` to show ghost text without modifying the actual buffer.
+
+These are architectural choices in Bash's readline library and cannot be worked around in a shell script.
+
+**What you can do:**
+- Use **manual mode** (`Ctrl+E`) in Bash - this works perfectly
+- **Switch to Zsh** for auto mode - it's now the default shell on macOS
+- Consider alternatives like `ble.sh` (though this is another tool to maintain and has its own limitations)
+
+### PowerShell (Manual Mode Only)
 
 PowerShell 7.2+ has a native predictor API through PSReadLine, but **it is not compatible with LLM-based completion**.
 
@@ -117,11 +128,15 @@ PowerShell 5.1 does not support the predictor API, so only manual mode is availa
    nudge info --field auto_delay_ms
    ```
 
-### Preview not displaying correctly (Unix)
+### Preview not displaying correctly (Zsh)
 
 - Ensure your terminal supports ANSI escape codes
 - Try a different terminal emulator
-- In Bash, consider switching to Zsh for better support
+- Check that you're using Zsh (not Bash)
+
+### Bash: Auto mode not supported
+
+This is expected behavior. Bash readline doesn't support the async event hooks required for auto mode. Use manual mode (`Ctrl+E`) instead, or switch to Zsh for auto mode support.
 
 ### PowerShell auto mode not working
 

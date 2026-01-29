@@ -62,15 +62,17 @@ Nudge 为多个平台提供预构建的二进制文件。构建状态和可用�
 
 | Shell | Linux | macOS | Windows | 自动模式 | 集成脚本 |
 |-------|-------|-------|---------|----------|---------|
-| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | 🚧 (计划中) | `integration.bash` |
-| Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (POSTDISPLAY) | `integration.zsh` |
-| PowerShell 7.2+ | ❌ | ❌ | ✅ | ❌ (仅手动模式) | `integration.ps1` |
-| PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (仅手动模式) | `integration.ps1` |
-| CMD | ❌ | ❌ | ✅ | ❌ (仅手动模式) | `integration.cmd` |
+| Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | ❌ (Readline 限制) | `integration.bash` |
+| Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (推荐) | `integration.zsh` |
+| PowerShell 7.2+ | ❌ | ❌ | ✅ | ❌ (PSReadLine 超时) | `integration.ps1` |
+| PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (不支持) | `integration.ps1` |
+| CMD | ❌ | ❌ | ✅ | ❌ (不支持) | `integration.cmd` |
 
-> **注意**: 自动模式目前仅在 **Zsh** 中完全支持。Bash 的支持正在开发中。
+> **自动模式支持说明**:
 >
-> **PowerShell 自动模式**: PSReadLine 的预测器 API 有严格的约 20ms 超时限制（[微软文档](https://learn.microsoft.com/en-us/powershell/scripting/dev-cross-plat/create-cmdline-predictor)），与 LLM 响应时间（通常 200ms+）不兼容。请在 PowerShell 中使用**手动模式**（`Ctrl+E`）。
+> - **Zsh** (推荐): 完全支持幽灵文字建议。按 `Ctrl+E` 手动触发或启用自动模式获得自动建议。
+> - **Bash**: 仅支持手动模式（`Ctrl+E`）。Bash readline 不支持异步模式所需的事件钩子。如果需要自动模式，推荐使用 **Zsh**（macOS Catalina 之后默认使用 Zsh）。
+> - **PowerShell**: 仅支持手动模式（`Ctrl+E`）。PSReadLine 的预测器 API 有严格的约 20ms 超时限制（[微软文档](https://learn.microsoft.com/en-us/powershell/scripting/dev-cross-plat/create-cmdline-predictor)），与 LLM 响应时间（通常 200ms+）不兼容。
 
 ## 📦 安装
 
