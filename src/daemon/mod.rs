@@ -68,12 +68,15 @@ fn fork_daemon() -> Result<()> {
 
     #[cfg(unix)]
     {
+        use std::os::unix::process::CommandExt;
+
         Command::new(exe)
             .arg("daemon")
             .arg("--foreground")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
+            .process_group(0) // Create new process group to avoid terminal signals (SIGINT, etc.)
             .spawn()
             .context("Failed to fork daemon")?;
     }
