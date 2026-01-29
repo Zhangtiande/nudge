@@ -14,6 +14,19 @@ if ($PSVersionTable.PSVersion.Major -lt 7 -or
     return
 }
 
+# Helper to create suggestion package (workaround for namespace issues in classes)
+function New-NudgeSuggestionPackage {
+    param([string]$Suggestion)
+    if ([string]::IsNullOrEmpty($Suggestion)) {
+        # Return default struct value - equivalent to C# "return default;"
+        return [Activator]::CreateInstance([System.Management.Automation.Subsystem.Prediction.SuggestionPackage])
+    }
+    $list = [System.Collections.Generic.List[System.Management.Automation.Subsystem.Prediction.PredictiveSuggestion]]::new()
+    $list.Add([System.Management.Automation.Subsystem.Prediction.PredictiveSuggestion]::new($Suggestion))
+    return [System.Management.Automation.Subsystem.Prediction.SuggestionPackage]::new($list)
+}
+$script:NewSuggestionPackageFunc = ${function:New-NudgeSuggestionPackage}
+
 # NudgePredictor class implementing ICommandPredictor
 class NudgePredictor : ICommandPredictor {
     # Unique identifier for this predictor
@@ -42,6 +55,7 @@ class NudgePredictor : ICommandPredictor {
     }
 
     # Main prediction method - called by PSReadLine
+    # NOTE: PSReadLine has ~20ms timeout. For slow LLM backends, use manual mode (Ctrl+E) instead.
     [SuggestionPackage] GetSuggestion(
         [PredictionClient] $client,
         [PredictionContext] $context,
@@ -53,32 +67,32 @@ class NudgePredictor : ICommandPredictor {
 
             # Skip if input is too short
             if ([string]::IsNullOrWhiteSpace($input) -or $input.Length -lt 2) {
-                return [SuggestionPackage]::new()
+                return (& $script:NewSuggestionPackageFunc)
+            }
+
+            # Check cache first
+            if ($this.Cache.ContainsKey($input)) {
+                return (& $script:NewSuggestionPackageFunc -Suggestion $this.Cache[$input])
+            }
+
+            # Check if any cached result starts with current input (prefix match)
+            foreach ($key in $this.Cache.Keys) {
+                $cachedValue = $this.Cache[$key]
+                if ($cachedValue.StartsWith($input) -and $cachedValue -ne $input) {
+                    return (& $script:NewSuggestionPackageFunc -Suggestion $cachedValue)
+                }
             }
 
             # Throttle requests
             $now = [DateTime]::Now
             if (($now - $this.LastPredictionTime).TotalMilliseconds -lt $this.ThrottleMs) {
-                # Return cached result if available
-                if ($this.Cache.ContainsKey($input)) {
-                    $cached = $this.Cache[$input]
-                    $suggestion = [PredictiveSuggestion]::new($cached)
-                    return [SuggestionPackage]::new(@($suggestion))
-                }
-                return [SuggestionPackage]::new()
+                return (& $script:NewSuggestionPackageFunc)
             }
             $this.LastPredictionTime = $now
 
-            # Check cache first
-            if ($this.Cache.ContainsKey($input)) {
-                $cached = $this.Cache[$input]
-                $suggestion = [PredictiveSuggestion]::new($cached)
-                return [SuggestionPackage]::new(@($suggestion))
-            }
-
             # Check for cancellation
             if ($cancellationToken.IsCancellationRequested) {
-                return [SuggestionPackage]::new()
+                return (& $script:NewSuggestionPackageFunc)
             }
 
             # Call nudge complete
@@ -95,27 +109,26 @@ class NudgePredictor : ICommandPredictor {
                     --session $this.SessionId `
                     2>$null | ConvertFrom-Json
             } catch {
-                return [SuggestionPackage]::new()
+                return (& $script:NewSuggestionPackageFunc)
             }
 
             # Check if we got a valid suggestion
-            if ($null -ne $result -and -not [string]::IsNullOrEmpty($result.suggestion)) {
-                $suggestionText = $result.suggestion
+            # API returns: { "suggestions": [{ "text": "..." }], ... }
+            if ($null -ne $result -and $null -ne $result.suggestions -and $result.suggestions.Count -gt 0) {
+                $suggestionText = $result.suggestions[0].text
 
-                # Only return if suggestion is different from input
-                if ($suggestionText -ne $input -and $suggestionText.StartsWith($input)) {
-                    # Cache the result
+                # Only return if suggestion starts with input
+                if (-not [string]::IsNullOrEmpty($suggestionText) -and $suggestionText -ne $input -and $suggestionText.StartsWith($input)) {
                     $this.AddToCache($input, $suggestionText)
-
-                    $suggestion = [PredictiveSuggestion]::new($suggestionText)
-                    return [SuggestionPackage]::new(@($suggestion))
+                    return (& $script:NewSuggestionPackageFunc -Suggestion $suggestionText)
                 }
             }
+
         } catch {
             # Silently fail - don't interrupt user's workflow
         }
 
-        return [SuggestionPackage]::new()
+        return (& $script:NewSuggestionPackageFunc)
     }
 
     # Add to cache with size limit

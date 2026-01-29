@@ -58,31 +58,17 @@ Bash's readline has limited support for inline preview:
 - Buffer change detection is less reliable
 - For better auto mode support in Bash, consider using [ble.sh](https://github.com/akinomyoga/ble.sh)
 
-### PowerShell 7.2+ (Windows)
+### PowerShell 7.2+ (Windows - Manual Mode Only)
 
-PowerShell 7.2+ has native support for auto mode through PSReadLine's predictor API:
+PowerShell 7.2+ has a native predictor API through PSReadLine, but **it is not compatible with LLM-based completion**.
 
-- Uses the `NudgePredictor` module implementing `ICommandPredictor`
-- Native inline prediction display (no ANSI hacks needed)
-- Tab accepts full suggestion
-- Right Arrow accepts word-by-word
-- Ctrl+Right Arrow accepts next word
+> ⚠️ **Why Auto Mode Doesn't Work**: PSReadLine's predictor API has a strict **~20ms timeout** ([Microsoft Docs](https://learn.microsoft.com/en-us/powershell/scripting/dev-cross-plat/create-cmdline-predictor)). LLM responses typically take 200ms+ (even with local models like Ollama), making auto mode unusable.
 
-**Requirements:**
-- PowerShell 7.2 or later
-- PSReadLine 2.2.0 or later (bundled with PowerShell 7.2+)
+**Use Manual Mode Instead:**
+- Press `Ctrl+E` to trigger completion on demand
+- This bypasses the PSReadLine predictor timeout and works reliably with any LLM backend
 
-**Installation:**
-The `NudgePredictor` module is automatically installed during Nudge installation. If you need to install it manually:
-
-```powershell
-# Copy module to PowerShell modules directory
-Copy-Item -Path "path\to\NudgePredictor" -Destination "$HOME\Documents\PowerShell\Modules\NudgePredictor" -Recurse
-
-# Import and configure
-Import-Module NudgePredictor
-Set-NudgePredictionOptions -ViewStyle InlineView
-```
+The `NudgePredictor` module is still installed for potential future optimizations, but manual mode is the recommended approach.
 
 ### PowerShell 5.1 (Windows - Manual Mode Only)
 
@@ -109,11 +95,8 @@ PowerShell 5.1 does not support the predictor API, so only manual mode is availa
 - `Right Arrow`: Accept next word (Zsh only)
 - `Ctrl+E`: Force trigger completion (bypasses debounce)
 
-### Auto Mode (Windows - PowerShell 7.2+)
-- `Tab`: Accept full suggestion
-- `Right Arrow`: Move cursor forward
-- `Ctrl+Right Arrow`: Accept next word
-- `Ctrl+E`: Force trigger completion (bypasses predictor)
+### Windows (PowerShell/CMD - Manual Mode Only)
+- `Ctrl+E`: Trigger completion
 
 ## Troubleshooting
 
@@ -142,32 +125,17 @@ PowerShell 5.1 does not support the predictor API, so only manual mode is availa
 
 ### PowerShell auto mode not working
 
-1. Check PowerShell version (requires 7.2+):
-   ```powershell
-   $PSVersionTable.PSVersion
-   ```
+**This is expected behavior.** PSReadLine's predictor API has a ~20ms timeout, which is incompatible with LLM response times (200ms+).
 
-2. Check PSReadLine version (requires 2.2.0+):
-   ```powershell
-   Get-Module PSReadLine | Select-Object Version
-   ```
+**Solution: Use manual mode (`Ctrl+E`)** - this is the recommended approach for PowerShell.
 
-3. Verify NudgePredictor module is loaded:
-   ```powershell
-   Get-Module NudgePredictor
-   ```
+If you want to verify the technical limitation:
 
-4. Check if predictor is registered:
+1. Check your LLM response time:
    ```powershell
-   Get-PSSubsystem -Kind CommandPredictor
+   Measure-Command { nudge complete --format json --buffer "git " --cursor 4 --cwd . --session test }
    ```
-
-5. Manually register the predictor:
-   ```powershell
-   Import-Module NudgePredictor
-   Register-NudgePredictor
-   Set-NudgePredictionOptions
-   ```
+   Any response time over 20ms will not work with PSReadLine's predictor API.
 
 ### High latency
 

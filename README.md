@@ -64,11 +64,13 @@ Nudge provides pre-built binaries for multiple platforms. The build status and a
 |-------|-------|-------|---------|-----------|-------------|
 | Bash | ✅ | ✅ | ✅ (WSL/Git Bash) | 🚧 (Planned) | `integration.bash` |
 | Zsh | ✅ | ✅ | ✅ (WSL) | ✅ (POSTDISPLAY) | `integration.zsh` |
-| PowerShell 7.2+ | ❌ | ❌ | ✅ | 🚧 (Planned) | `integration.ps1` |
+| PowerShell 7.2+ | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.ps1` |
 | PowerShell 5.1 | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.ps1` |
 | CMD | ❌ | ❌ | ✅ | ❌ (Manual only) | `integration.cmd` |
 
-> **Note**: Auto Mode is currently only fully supported in **Zsh**. Support for Bash and PowerShell is planned.
+> **Note**: Auto Mode is currently only fully supported in **Zsh**. Support for Bash is planned.
+>
+> **PowerShell Auto Mode**: PSReadLine's predictor API has a strict ~20ms timeout ([Microsoft Docs](https://learn.microsoft.com/en-us/powershell/scripting/dev-cross-plat/create-cmdline-predictor)), which is incompatible with LLM response times (typically 200ms+). Use **manual mode** (`Ctrl+E`) on PowerShell.
 
 ## 📦 Installation
 
