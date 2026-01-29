@@ -23,16 +23,16 @@
 
 **计划插件** (v0.4.0 - v0.5.0):
 
-| 插件 | 触发条件 | 提供上下文 |
-|------|---------|-----------|
-| **Git** | `git` 命令 | 分支、commit 历史、diff、冲突文件 |
-| **Docker** | `docker*` 命令 | Dockerfile、compose、容器/镜像列表 |
-| **Node.js** | `npm/yarn` 或 `package.json` | package.json、scripts、依赖树 |
-| **Python** | `python/pip/poetry` | requirements、虚拟环境、版本 |
-| **Rust** | `cargo` 或 `Cargo.toml` | 依赖、workspace、编译目标 |
-| **Kubernetes** | `kubectl/helm` | 当前 context、pods、配置文件 |
-| **Terraform** | `terraform` 或 `*.tf` | 资源定义、workspace、state |
-| **Database** | `psql/mysql/mongo` | 版本、数据库列表、连接配置 |
+| 插件 | 触发条件 | 提供上下文 | 状态 |
+|------|---------|-----------| ---- |
+| **Git** | `git` 命令 | 分支、commit 历史、diff、冲突文件 | ✅ 已完成 |
+| **Docker** | `docker*` 命令 | Dockerfile、compose、容器/镜像列表 | ✅ 已完成 |
+| **Node.js** | `npm/yarn/pnpm` 或 `package.json` | package.json、scripts、依赖树 | ✅ 已完成 |
+| **Python** | `uv/python/pip` 或 `pyproject.toml` | pyproject.toml、依赖、虚拟环境 | ✅ 已完成 |
+| **Rust** | `cargo` 或 `Cargo.toml` | 依赖、workspace、编译目标 | ✅ 已完成 |
+| **Kubernetes** | `kubectl/helm` | 当前 context、pods、配置文件 | 🎯 计划中 |
+| **Terraform** | `terraform` 或 `*.tf` | 资源定义、workspace、state | 🎯 计划中 |
+| **Database** | `psql/mysql/mongo` | 版本、数据库列表、连接配置 | 🎯 计划中 |
 
 ---
 
