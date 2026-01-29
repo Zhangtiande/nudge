@@ -42,7 +42,7 @@ cargo clippy
 
 ## Pre-Commit Quality Checks
 
-**IMPORTANT**: Before any code changes are committed, you MUST run the following checks to ensure code quality and prevent CI failures. These checks mirror the GitHub Actions workflows defined in `.github/workflows/`.
+**IMPORTANT**: When user ask to check code, you MUST run the following checks to ensure code quality and prevent CI failures. These checks mirror the GitHub Actions workflows defined in `.github/workflows/`.
 
 ### Required Checks (Run in sequence)
 
@@ -61,12 +61,8 @@ cargo test --verbose
 ```
 
 ### When to Run These Checks
+- User ask to check code.
 
-- **Always**: After making ANY code changes (fixes, features, refactors)
-- **Before**: Asking the user to commit or create a pull request
-- **After**: Resolving merge conflicts or updating dependencies
-
-But always run the full check suite before final commit.
 
 ### Cross-Platform Considerations
 
