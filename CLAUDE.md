@@ -66,22 +66,6 @@ cargo test --verbose
 - **Before**: Asking the user to commit or create a pull request
 - **After**: Resolving merge conflicts or updating dependencies
 
-### Handling Check Failures
-
-If any check fails:
-1. **DO NOT** proceed with commit/push
-2. Fix the issues reported by the failing check
-3. Re-run all checks from the beginning
-4. Only proceed when ALL checks pass
-
-### Quick Check (Faster alternative for iterative development)
-
-For rapid iteration during development, you can use:
-```bash
-# Fast validation (skips tests)
-cargo check --all-targets && cargo clippy --all-targets -- -D warnings
-```
-
 But always run the full check suite before final commit.
 
 ### Cross-Platform Considerations
