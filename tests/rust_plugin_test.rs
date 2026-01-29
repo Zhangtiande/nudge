@@ -48,7 +48,10 @@ fn test_parse_cargo_toml() {
     let cargo: toml::Value = toml::from_str(&content).unwrap();
 
     let package = cargo.get("package").unwrap();
-    assert_eq!(package.get("name").unwrap().as_str().unwrap(), "test-project");
+    assert_eq!(
+        package.get("name").unwrap().as_str().unwrap(),
+        "test-project"
+    );
     assert_eq!(package.get("version").unwrap().as_str().unwrap(), "0.1.0");
 }
 

@@ -85,7 +85,10 @@ async fn collect_node_context(cwd: &Path, config: &NodePluginConfig) -> Result<N
 
     // Extract basic info
     context.name = pkg.get("name").and_then(|v| v.as_str()).map(String::from);
-    context.version = pkg.get("version").and_then(|v| v.as_str()).map(String::from);
+    context.version = pkg
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     // Detect package manager from lock files
     context.package_manager = detect_package_manager(cwd);

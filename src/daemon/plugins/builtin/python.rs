@@ -74,10 +74,10 @@ impl ContextPlugin for PythonPlugin {
 
 /// Collect Python project context
 async fn collect_python_context(cwd: &Path, config: &PythonPluginConfig) -> Result<PythonContext> {
-    let mut context = PythonContext::default();
-
-    // Detect package manager
-    context.package_manager = detect_python_package_manager(cwd);
+    let mut context = PythonContext {
+        package_manager: detect_python_package_manager(cwd),
+        ..Default::default()
+    };
 
     // Try to read pyproject.toml first
     let pyproject_path = cwd.join("pyproject.toml");
@@ -98,7 +98,11 @@ async fn collect_python_context(cwd: &Path, config: &PythonPluginConfig) -> Resu
 
     // Read dev requirements if exists
     if context.dev_dependencies.is_empty() {
-        for dev_file in ["requirements-dev.txt", "requirements_dev.txt", "dev-requirements.txt"] {
+        for dev_file in [
+            "requirements-dev.txt",
+            "requirements_dev.txt",
+            "dev-requirements.txt",
+        ] {
             if let Ok(content) = tokio::fs::read_to_string(cwd.join(dev_file)).await {
                 context.dev_dependencies = parse_requirements(&content, config.max_dependencies);
                 break;
@@ -144,19 +148,22 @@ fn parse_pyproject(context: &mut PythonContext, pyproject: &Value, max_deps: usi
             context.dependencies = deps
                 .iter()
                 .filter_map(|d| d.as_str())
-                .map(|s| extract_package_name(s))
+                .map(extract_package_name)
                 .take(max_deps)
                 .collect();
             context.dependencies.sort();
         }
 
         // Extract optional dependencies (often used for dev deps)
-        if let Some(optional) = project.get("optional-dependencies").and_then(|v| v.as_table()) {
+        if let Some(optional) = project
+            .get("optional-dependencies")
+            .and_then(|v| v.as_table())
+        {
             if let Some(dev) = optional.get("dev").and_then(|v| v.as_array()) {
                 context.dev_dependencies = dev
                     .iter()
                     .filter_map(|d| d.as_str())
-                    .map(|s| extract_package_name(s))
+                    .map(extract_package_name)
                     .take(max_deps)
                     .collect();
                 context.dev_dependencies.sort();
@@ -240,7 +247,7 @@ fn parse_requirements(content: &str, max_deps: usize) -> Vec<String> {
 fn extract_package_name(dep: &str) -> String {
     // Find first occurrence of version specifier characters
     let name_end = dep
-        .find(|c| c == '>' || c == '<' || c == '=' || c == '!' || c == '~' || c == '[' || c == ';')
+        .find(['>', '<', '=', '!', '~', '[', ';'])
         .unwrap_or(dep.len());
     dep[..name_end].trim().to_string()
 }

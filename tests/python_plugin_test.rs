@@ -182,7 +182,10 @@ mycli = "poetry_project:main"
 
     let tool = pyproject_val.get("tool").unwrap();
     let poetry = tool.get("poetry").unwrap();
-    assert_eq!(poetry.get("name").unwrap().as_str().unwrap(), "poetry-project");
+    assert_eq!(
+        poetry.get("name").unwrap().as_str().unwrap(),
+        "poetry-project"
+    );
 }
 
 #[test]
