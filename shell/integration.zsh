@@ -78,12 +78,8 @@ _nudge_diagnosis_precmd() {
         _nudge_last_command=""
     }
 
-    # Only proceed if diagnosis enabled and command failed
+    # Only proceed if diagnosis enabled
     if [[ "$NUDGE_DIAGNOSIS_ENABLED" != "true" ]]; then
-        _nudge_diagnosis_cleanup
-        return
-    fi
-    if [[ $exit_code -eq 0 ]]; then
         _nudge_diagnosis_cleanup
         return
     fi
@@ -92,7 +88,18 @@ _nudge_diagnosis_precmd() {
         return
     fi
 
-    # Check if stderr file has content
+    # Always output original stderr first (for progress output like cargo build)
+    if [[ -s "$_nudge_stderr_file" ]]; then
+        cat "$_nudge_stderr_file" >&2
+    fi
+
+    # Only run diagnosis if command failed
+    if [[ $exit_code -eq 0 ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
+
+    # Check if stderr file has content for diagnosis
     if [[ -s "$_nudge_stderr_file" ]]; then
         _nudge_ensure_daemon
 
@@ -111,7 +118,8 @@ _nudge_diagnosis_precmd() {
             local message="${diagnosis%%$'\n'*}"
             local suggestion="${diagnosis#*$'\n'}"
 
-            # Print diagnosis message (replaces stderr)
+            # Print diagnosis with visual separator
+            echo -e "\n\033[90m── nudge ──────────────────────────────────────\033[0m"
             if [[ -n "$message" ]]; then
                 echo "$message"
             fi
@@ -122,6 +130,7 @@ _nudge_diagnosis_precmd() {
                 # Print suggestion with visual hint
                 echo -e "\033[90m💡 Suggested fix: \033[0m\033[1m$suggestion\033[0m \033[90m(press Tab to accept)\033[0m"
             fi
+            echo -e "\033[90m───────────────────────────────────────────────\033[0m"
         fi
     fi
 

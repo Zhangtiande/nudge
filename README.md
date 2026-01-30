@@ -124,6 +124,9 @@ diagnosis:
   enabled: true
 ```
 
+> [!CAUTION]
+> When error diagnosis is enabled, stderr is temporarily captured during command execution. This means progress output from tools like `cargo build`, `npm install`, or `docker pull` will appear **after** the command completes rather than in real-time. If you need real-time stderr output, disable diagnosis with `diagnosis.enabled: false`.
+
 ## Project-Aware Context
 
 Nudge automatically detects your project type and provides relevant context to the LLM:

@@ -124,6 +124,9 @@ diagnosis:
   enabled: true
 ```
 
+> [!CAUTION]
+> 启用错误诊断时，命令执行期间 stderr 会被临时捕获。这意味着 `cargo build`、`npm install`、`docker pull` 等工具的进度输出会在命令**完成后**才显示，而非实时显示。如需实时查看 stderr 输出，请设置 `diagnosis.enabled: false` 禁用诊断功能。
+
 ## 项目感知上下文
 
 Nudge 自动检测项目类型并为 LLM 提供相关上下文：
