@@ -246,3 +246,97 @@ pub struct ContextSummary {
 /// Context data from plugins (dynamic JSON structure)
 #[allow(dead_code)]
 pub type PluginContext = HashMap<String, serde_json::Value>;
+
+/// Request for error diagnosis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagnosisRequest {
+    /// Unique identifier for the shell session
+    pub session_id: String,
+    /// ISO 8601 timestamp when request was created
+    pub timestamp: DateTime<Utc>,
+    /// The failed command text
+    pub command: String,
+    /// Exit code of the failed command
+    pub exit_code: i32,
+    /// Captured stderr output (Zsh)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stderr_output: Option<String>,
+    /// PowerShell ErrorRecord as JSON
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_record: Option<serde_json::Value>,
+    /// Current working directory absolute path
+    pub cwd: PathBuf,
+}
+
+impl DiagnosisRequest {
+    pub fn new(session_id: String, command: String, exit_code: i32, cwd: PathBuf) -> Self {
+        Self {
+            session_id,
+            timestamp: Utc::now(),
+            command,
+            exit_code,
+            stderr_output: None,
+            error_record: None,
+            cwd,
+        }
+    }
+
+    pub fn with_stderr(mut self, stderr: String) -> Self {
+        self.stderr_output = Some(stderr);
+        self
+    }
+
+    pub fn with_error_record(mut self, record: serde_json::Value) -> Self {
+        self.error_record = Some(record);
+        self
+    }
+}
+
+/// Response with diagnosis and suggested fix
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagnosisResponse {
+    /// Unique identifier for this request
+    pub request_id: String,
+    /// Human-readable diagnosis message
+    pub message: String,
+    /// Suggested fix command (single best option)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+    /// Confidence score (0.0 to 1.0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f32>,
+    /// Processing time in milliseconds
+    pub processing_time_ms: u64,
+    /// Error if diagnosis failed
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<ErrorInfo>,
+}
+
+impl DiagnosisResponse {
+    pub fn success(
+        request_id: String,
+        message: String,
+        suggestion: Option<String>,
+        processing_time_ms: u64,
+    ) -> Self {
+        Self {
+            request_id,
+            message,
+            suggestion,
+            confidence: None,
+            processing_time_ms,
+            error: None,
+        }
+    }
+
+    pub fn error(request_id: String, error: ErrorInfo, processing_time_ms: u64) -> Self {
+        Self {
+            request_id,
+            message: String::new(),
+            suggestion: None,
+            confidence: None,
+            processing_time_ms,
+            error: Some(error),
+        }
+    }
+}
