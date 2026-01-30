@@ -388,6 +388,11 @@ if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
     preexec_functions+=(_nudge_diagnosis_preexec)
     # Insert at beginning to capture exit code first
     precmd_functions=(_nudge_diagnosis_precmd "${precmd_functions[@]}")
+
+    # Bind Tab to accept diagnosis suggestion (if not already bound by auto mode)
+    if [[ "$NUDGE_TRIGGER_MODE" != "auto" ]]; then
+        bindkey '^I' _nudge_auto_accept
+    fi
 fi
 
 # Print success message on first load
