@@ -214,6 +214,50 @@ log:
   file_enabled: false  # Enable for daily-rotated file logs
 ```
 
+## 🩺 Error Diagnosis (v0.5.0+)
+
+Nudge can automatically analyze failed commands and suggest fixes.
+
+### Enable Error Diagnosis
+
+Add to your `config.yaml`:
+
+```yaml
+diagnosis:
+  enabled: true
+```
+
+### How It Works
+
+**Zsh:**
+```
+$ gti status
+❌ Command not found: 'gti'
+💡 Typo: did you mean 'git'?
+
+git status          ← gray text, Tab to accept
+$ █
+```
+
+**PowerShell:**
+```
+PS> gti status
+❌ Command not found: 'gti'
+💡 Typo: did you mean 'git'?
+
+PS> █               ← press Ctrl+E for suggestion
+```
+
+### ⚠️ Important Notes
+
+> **Zsh Users:** When error diagnosis is enabled, stderr is temporarily redirected
+> during command execution. This means:
+> - Error messages won't display in real-time
+> - After command failure, Nudge displays the captured errors with diagnosis
+> - Some programs that check stderr's TTY status may behave differently
+>
+> If you experience issues, disable with `diagnosis.enabled: false`
+
 ## 🏗️ Architecture
 
 ```
