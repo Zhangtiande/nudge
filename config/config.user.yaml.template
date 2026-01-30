@@ -52,3 +52,7 @@ model:
 # log:
 #   level: "info"
 #   file_enabled: false
+
+# Error Diagnosis (opt-in)
+# diagnosis:
+#   enabled: true
