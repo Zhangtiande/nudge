@@ -243,6 +243,9 @@ fn truncate_by_priority(context: &mut ContextData, config: &Config) {
 /// Create and configure plugin manager with registered plugins
 fn create_plugin_manager(config: &Config) -> plugin::PluginManager {
     use super::plugins::builtin::git::GitPlugin;
+    use super::plugins::builtin::node::NodePlugin;
+    use super::plugins::builtin::python::PythonPlugin;
+    use super::plugins::builtin::rust_lang::RustPlugin;
     use super::plugins::community::docker::DockerPlugin;
     use plugin::{
         CombinedActivation, CommandPrefixActivation, FeatureFileActivation, PluginManager,
@@ -279,5 +282,44 @@ fn create_plugin_manager(config: &Config) -> plugin::PluginManager {
             config.plugins.docker.enabled,
             config.plugins.docker.timeout_ms,
             config.plugins.docker.priority.unwrap_or(45),
+        )
+        // Register Node.js plugin
+        .register(
+            Box::new(NodePlugin::new(config.plugins.node.clone())),
+            Box::new(CombinedActivation::new(vec![
+                Box::new(FeatureFileActivation::new(vec!["package.json"])),
+                Box::new(CommandPrefixActivation::new(vec![
+                    "npm", "yarn", "pnpm", "node", "npx",
+                ])),
+            ])),
+            config.plugins.node.enabled,
+            config.plugins.node.timeout_ms,
+            config.plugins.node.priority.unwrap_or(45),
+        )
+        // Register Rust plugin
+        .register(
+            Box::new(RustPlugin::new(config.plugins.rust.clone())),
+            Box::new(CombinedActivation::new(vec![
+                Box::new(FeatureFileActivation::new(vec!["Cargo.toml"])),
+                Box::new(CommandPrefixActivation::new(vec!["cargo", "rustc"])),
+            ])),
+            config.plugins.rust.enabled,
+            config.plugins.rust.timeout_ms,
+            config.plugins.rust.priority.unwrap_or(45),
+        )
+        // Register Python plugin
+        .register(
+            Box::new(PythonPlugin::new(config.plugins.python.clone())),
+            Box::new(CombinedActivation::new(vec![
+                Box::new(FeatureFileActivation::new(vec![
+                    "pyproject.toml",
+                    "uv.lock",
+                    "requirements.txt",
+                ])),
+                Box::new(CommandPrefixActivation::new(vec!["uv", "python", "pip"])),
+            ])),
+            config.plugins.python.enabled,
+            config.plugins.python.timeout_ms,
+            config.plugins.python.priority.unwrap_or(45),
         )
 }

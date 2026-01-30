@@ -126,6 +126,45 @@ plugins:
     # Include Dockerfile preview (first 50 lines)
     include_dockerfile: true
 
+  node:
+    # Enable Node.js plugin to include project context
+    enabled: true
+
+    # Timeout for file operations (milliseconds)
+    timeout_ms: 100
+
+    # Plugin priority for truncation (1-100, higher = kept longer)
+    # priority: 45
+
+    # Maximum dependencies to include in context
+    max_dependencies: 50
+
+  rust:
+    # Enable Rust plugin to include Cargo project context
+    enabled: true
+
+    # Timeout for file operations (milliseconds)
+    timeout_ms: 100
+
+    # Plugin priority for truncation (1-100, higher = kept longer)
+    # priority: 45
+
+    # Maximum dependencies to include in context
+    max_dependencies: 50
+
+  python:
+    # Enable Python plugin to include project context (uv, poetry, pip)
+    enabled: true
+
+    # Timeout for file operations (milliseconds)
+    timeout_ms: 100
+
+    # Plugin priority for truncation (1-100, higher = kept longer)
+    # priority: 45
+
+    # Maximum dependencies to include in context
+    max_dependencies: 50
+
 # ========================================
 # Trigger Configuration
 # ========================================

@@ -115,6 +115,9 @@ impl Default for PriorityConfig {
 pub struct PluginsConfig {
     pub git: GitPluginConfig,
     pub docker: DockerPluginConfig,
+    pub node: NodePluginConfig,
+    pub rust: RustPluginConfig,
+    pub python: PythonPluginConfig,
     pub plugin_dir: Option<PathBuf>,
 }
 
@@ -174,6 +177,69 @@ impl Default for DockerPluginConfig {
             show_containers: true,
             include_compose: true,
             include_dockerfile: true,
+        }
+    }
+}
+
+/// Node.js plugin configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NodePluginConfig {
+    pub enabled: bool,
+    pub timeout_ms: u64,
+    pub priority: Option<u8>,
+    pub max_dependencies: usize,
+}
+
+impl Default for NodePluginConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            timeout_ms: 100,
+            priority: Some(45),
+            max_dependencies: 50,
+        }
+    }
+}
+
+/// Rust plugin configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RustPluginConfig {
+    pub enabled: bool,
+    pub timeout_ms: u64,
+    pub priority: Option<u8>,
+    pub max_dependencies: usize,
+}
+
+impl Default for RustPluginConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            timeout_ms: 100,
+            priority: Some(45),
+            max_dependencies: 50,
+        }
+    }
+}
+
+/// Python plugin configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PythonPluginConfig {
+    pub enabled: bool,
+    pub timeout_ms: u64,
+    pub priority: Option<u8>,
+    pub max_dependencies: usize,
+}
+
+impl Default for PythonPluginConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            timeout_ms: 100,
+            priority: Some(45),
+            max_dependencies: 50,
         }
     }
 }
