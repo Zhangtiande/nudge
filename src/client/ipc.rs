@@ -12,7 +12,10 @@ use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::GenericNamespaced;
 
 use crate::config::Config;
-use crate::protocol::{CompletionRequest, CompletionResponse, ErrorCode, ErrorInfo};
+use crate::protocol::{
+    CompletionRequest, CompletionResponse, DiagnosisRequest, DiagnosisResponse, ErrorCode,
+    ErrorInfo,
+};
 
 /// Connection timeout
 const CONNECT_TIMEOUT_MS: u64 = 1000;
@@ -186,6 +189,117 @@ pub async fn send_request(request: &CompletionRequest) -> Result<CompletionRespo
             0,
         )),
         Err(_) => Ok(CompletionResponse::error(
+            String::new(),
+            ErrorInfo::llm_timeout(),
+            0,
+        )),
+    }
+}
+
+/// Send diagnosis request to daemon
+pub async fn send_diagnosis_request(request: &DiagnosisRequest) -> Result<DiagnosisResponse> {
+    let socket_path = Config::socket_path();
+
+    // Check daemon alive (same as send_request)
+    #[cfg(unix)]
+    if !socket_path.exists() {
+        return Ok(DiagnosisResponse::error(
+            String::new(),
+            ErrorInfo::new(
+                ErrorCode::LlmUnavailable,
+                "Daemon is not running. Start it with: nudge start",
+                true,
+            ),
+            0,
+        ));
+    }
+
+    if !is_daemon_alive() {
+        cleanup_stale_files();
+        return Ok(DiagnosisResponse::error(
+            String::new(),
+            ErrorInfo::new(
+                ErrorCode::LlmUnavailable,
+                "Daemon is not running. Start it with: nudge start",
+                true,
+            ),
+            0,
+        ));
+    }
+
+    // Connect
+    let socket_path_str = socket_path.to_string_lossy().to_string();
+
+    #[cfg(unix)]
+    let name = socket_path_str.as_str().to_fs_name::<GenericFilePath>()?;
+    #[cfg(windows)]
+    let name = socket_path_str.as_str().to_ns_name::<GenericNamespaced>()?;
+
+    let connect_result = timeout(
+        Duration::from_millis(CONNECT_TIMEOUT_MS),
+        Stream::connect(name),
+    )
+    .await;
+
+    let stream = match connect_result {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => {
+            return Ok(DiagnosisResponse::error(
+                String::new(),
+                ErrorInfo::new(
+                    ErrorCode::LlmUnavailable,
+                    format!("Failed to connect to daemon: {}", e),
+                    true,
+                ),
+                0,
+            ));
+        }
+        Err(_) => {
+            return Ok(DiagnosisResponse::error(
+                String::new(),
+                ErrorInfo::new(ErrorCode::LlmTimeout, "Connection timed out", true),
+                0,
+            ));
+        }
+    };
+
+    // Send request with type marker
+    let (reader, mut writer) = stream.split();
+    let mut reader = BufReader::new(reader);
+
+    // Wrap request with type for daemon to distinguish
+    let wrapped = serde_json::json!({
+        "type": "diagnosis",
+        "payload": request
+    });
+    let request_json = serde_json::to_string(&wrapped)?;
+    writer.write_all(request_json.as_bytes()).await?;
+    writer.write_all(b"\n").await?;
+    writer.flush().await?;
+
+    // Read response
+    let mut response_line = String::new();
+    let read_result = timeout(
+        Duration::from_millis(READ_TIMEOUT_MS),
+        reader.read_line(&mut response_line),
+    )
+    .await;
+
+    match read_result {
+        Ok(Ok(_)) => {
+            let response: DiagnosisResponse = serde_json::from_str(&response_line)?;
+            Ok(response)
+        }
+        Ok(Err(e)) => Ok(DiagnosisResponse::error(
+            String::new(),
+            ErrorInfo::new(
+                ErrorCode::InternalError,
+                format!("Failed to read response: {}", e),
+                false,
+            ),
+            0,
+        )),
+        Err(_) => Ok(DiagnosisResponse::error(
             String::new(),
             ErrorInfo::llm_timeout(),
             0,

@@ -1,4 +1,7 @@
+mod diagnosis;
 pub mod ipc;
+
+pub use diagnosis::diagnose;
 
 use std::path::PathBuf;
 
