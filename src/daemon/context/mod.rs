@@ -331,8 +331,10 @@ fn create_plugin_manager(config: &Config) -> plugin::PluginManager {
 
 /// Gather minimal context for diagnosis (faster, less data)
 pub async fn gather_minimal(cwd: &Path, config: &Config) -> Result<ContextData> {
-    let mut data = ContextData::default();
-    data.cwd = cwd.to_path_buf();
+    let mut data = ContextData {
+        cwd: cwd.to_path_buf(),
+        ..Default::default()
+    };
 
     // Only gather CWD listing and recent history
     if let Ok(files) = cwd::list_files(cwd, config.context.max_files_in_listing) {
