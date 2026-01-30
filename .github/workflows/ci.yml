@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/*, feature/*]
+    branches: [main]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -11,7 +11,6 @@ on:
       - 'config/**'
       - 'shell/**'
   pull_request:
-    branches: [main]
     paths:
       - 'src/**'
       - 'tests/**'
