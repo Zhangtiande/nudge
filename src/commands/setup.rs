@@ -356,10 +356,7 @@ fn install_config_files(force: bool) -> Result<()> {
                 user_config_path.display()
             )
         })?;
-        println!(
-            "✓ Created user config at {}",
-            user_config_path.display()
-        );
+        println!("✓ Created user config at {}", user_config_path.display());
     } else {
         println!(
             "✓ User config already exists: {}",
