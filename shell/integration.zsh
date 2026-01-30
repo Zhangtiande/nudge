@@ -71,10 +71,26 @@ _nudge_diagnosis_precmd() {
         _nudge_stderr_fd=""
     fi
 
+    # Cleanup function (always called)
+    _nudge_diagnosis_cleanup() {
+        rm -f "$_nudge_stderr_file"
+        _nudge_stderr_file=""
+        _nudge_last_command=""
+    }
+
     # Only proceed if diagnosis enabled and command failed
-    [[ "$NUDGE_DIAGNOSIS_ENABLED" != "true" ]] && return
-    [[ $exit_code -eq 0 ]] && return
-    [[ -z "$_nudge_last_command" ]] && return
+    if [[ "$NUDGE_DIAGNOSIS_ENABLED" != "true" ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
+    if [[ $exit_code -eq 0 ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
+    if [[ -z "$_nudge_last_command" ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
 
     # Check if stderr file has content
     if [[ -s "$_nudge_stderr_file" ]]; then
@@ -110,9 +126,7 @@ _nudge_diagnosis_precmd() {
     fi
 
     # Cleanup
-    rm -f "$_nudge_stderr_file"
-    _nudge_stderr_file=""
-    _nudge_last_command=""
+    _nudge_diagnosis_cleanup
 }
 
 # Ensure daemon is running
