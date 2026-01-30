@@ -100,9 +100,11 @@ _nudge_diagnosis_precmd() {
                 echo "$message"
             fi
 
-            # Set suggestion for auto-accept if different from message
+            # Show suggestion with prompt to accept
             if [[ -n "$suggestion" && "$suggestion" != "$message" ]]; then
                 _nudge_auto_suggestion="$suggestion"
+                # Print suggestion with visual hint
+                echo -e "\033[90m💡 Suggested fix: \033[0m\033[1m$suggestion\033[0m \033[90m(press Tab to accept)\033[0m"
             fi
         fi
     fi
