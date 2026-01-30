@@ -1,4 +1,4 @@
-use crate::config::{Platform, ShellType};
+use crate::config::{Config, Platform, ShellType};
 use anyhow::{Context, Result};
 use std::fs;
 use std::io::Write;
@@ -33,6 +33,9 @@ pub async fn run_setup(shell: Option<String>, force: bool) -> Result<()> {
 
     println!("Setting up Nudge for {}...", target_shell);
     println!();
+
+    // Install config files first
+    install_config_files(force)?;
 
     // Run shell-specific setup
     match target_shell {
@@ -311,6 +314,55 @@ async fn start_daemon_if_needed() -> Result<()> {
 
     // Start daemon directly using the existing async runtime
     crate::daemon::start().await?;
+
+    Ok(())
+}
+
+/// Install config files (config.default.yaml and config.yaml)
+fn install_config_files(force: bool) -> Result<()> {
+    // Get config paths
+    let default_config_path = Config::base_config_path()
+        .ok_or_else(|| anyhow::anyhow!("Failed to determine config directory"))?;
+    let user_config_path = Config::default_config_path()
+        .ok_or_else(|| anyhow::anyhow!("Failed to determine config directory"))?;
+
+    // Ensure config directory exists
+    if let Some(parent) = default_config_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+    }
+
+    // Embedded config templates (compiled into binary)
+    let default_config_content = include_str!("../../config/config.default.yaml.template");
+    let user_config_content = include_str!("../../config/config.user.yaml.template");
+
+    // Always update config.default.yaml (it's managed by the app)
+    fs::write(&default_config_path, default_config_content).with_context(|| {
+        format!(
+            "Failed to write default config: {}",
+            default_config_path.display()
+        )
+    })?;
+    println!(
+        "✓ Installed default config to {}",
+        default_config_path.display()
+    );
+
+    // Only create config.yaml if it doesn't exist (preserve user customizations)
+    if !user_config_path.exists() || force {
+        fs::write(&user_config_path, user_config_content).with_context(|| {
+            format!(
+                "Failed to write user config: {}",
+                user_config_path.display()
+            )
+        })?;
+        println!("✓ Created user config at {}", user_config_path.display());
+    } else {
+        println!(
+            "✓ User config already exists: {}",
+            user_config_path.display()
+        );
+    }
 
     Ok(())
 }

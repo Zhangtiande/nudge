@@ -16,12 +16,26 @@ use interprocess::local_socket::GenericFilePath;
 use interprocess::local_socket::GenericNamespaced;
 
 use super::context;
+use super::diagnosis;
 use super::llm;
 use super::safety;
 use super::sanitizer;
 use super::session::SessionStore;
 use crate::config::Config;
-use crate::protocol::{CompletionRequest, CompletionResponse, ErrorCode, ErrorInfo, Suggestion};
+use crate::protocol::{
+    CompletionRequest, CompletionResponse, DiagnosisRequest, DiagnosisResponse, ErrorCode,
+    ErrorInfo, Suggestion,
+};
+
+/// Wrapper for typed requests
+#[derive(Debug, serde::Deserialize)]
+#[serde(tag = "type", content = "payload")]
+enum TypedRequest {
+    #[serde(rename = "completion")]
+    Completion(CompletionRequest),
+    #[serde(rename = "diagnosis")]
+    Diagnosis(DiagnosisRequest),
+}
 
 /// Common error messages for better user experience
 #[allow(dead_code)]
@@ -136,55 +150,101 @@ async fn handle_connection(stream: Stream, config: Config, sessions: SessionStor
         return Ok(());
     }
 
-    // Parse request with helpful error message
-    let request: CompletionRequest = match serde_json::from_str(&line) {
-        Ok(req) => req,
-        Err(e) => {
-            warn!("Invalid request JSON: {}", e);
-            let response = CompletionResponse::error(
-                Uuid::new_v4().to_string(),
-                ErrorInfo::new(
-                    ErrorCode::InternalError,
-                    format!("{} Error: {}", error_messages::REQUEST_INVALID_JSON, e),
-                    false,
-                ),
-                start.elapsed().as_millis() as u64,
-            );
-            send_response(&mut writer, &response).await?;
-            return Ok(());
-        }
-    };
+    // Try to parse as typed request first, fall back to completion request
+    let typed_request: Result<TypedRequest, _> = serde_json::from_str(&line);
 
-    // Validate buffer size
-    if request.buffer.len() > 10000 {
-        warn!("Buffer too large: {} bytes", request.buffer.len());
-        let response = CompletionResponse::error(
-            Uuid::new_v4().to_string(),
-            ErrorInfo::new(
-                ErrorCode::InternalError,
-                error_messages::REQUEST_BUFFER_TOO_LARGE,
-                false,
-            ),
-            start.elapsed().as_millis() as u64,
-        );
-        send_response(&mut writer, &response).await?;
-        return Ok(());
+    match typed_request {
+        Ok(TypedRequest::Completion(request)) => {
+            // Existing completion handling
+            debug!(
+                "Received completion request from session: {}",
+                request.session_id
+            );
+
+            // Validate buffer size
+            if request.buffer.len() > 10000 {
+                warn!("Buffer too large: {} bytes", request.buffer.len());
+                let response = CompletionResponse::error(
+                    Uuid::new_v4().to_string(),
+                    ErrorInfo::new(
+                        ErrorCode::InternalError,
+                        error_messages::REQUEST_BUFFER_TOO_LARGE,
+                        false,
+                    ),
+                    start.elapsed().as_millis() as u64,
+                );
+                send_response(&mut writer, &response).await?;
+                return Ok(());
+            }
+
+            let response = process_request(request, &config, &sessions).await;
+            let response = CompletionResponse {
+                processing_time_ms: start.elapsed().as_millis() as u64,
+                ..response
+            };
+            send_response(&mut writer, &response).await?;
+        }
+        Ok(TypedRequest::Diagnosis(request)) => {
+            // New diagnosis handling
+            debug!(
+                "Received diagnosis request from session: {}",
+                request.session_id
+            );
+            let response = process_diagnosis_request(request, &config).await;
+            let response = DiagnosisResponse {
+                processing_time_ms: start.elapsed().as_millis() as u64,
+                ..response
+            };
+            send_diagnosis_response(&mut writer, &response).await?;
+        }
+        Err(_) => {
+            // Fall back to parsing as plain CompletionRequest (backward compatibility)
+            let request: CompletionRequest = match serde_json::from_str(&line) {
+                Ok(req) => req,
+                Err(e) => {
+                    warn!("Invalid request JSON: {}", e);
+                    let response = CompletionResponse::error(
+                        Uuid::new_v4().to_string(),
+                        ErrorInfo::new(
+                            ErrorCode::InternalError,
+                            format!("{} Error: {}", error_messages::REQUEST_INVALID_JSON, e),
+                            false,
+                        ),
+                        start.elapsed().as_millis() as u64,
+                    );
+                    send_response(&mut writer, &response).await?;
+                    return Ok(());
+                }
+            };
+
+            debug!("Received request from session: {}", request.session_id);
+
+            // Validate buffer size
+            if request.buffer.len() > 10000 {
+                warn!("Buffer too large: {} bytes", request.buffer.len());
+                let response = CompletionResponse::error(
+                    Uuid::new_v4().to_string(),
+                    ErrorInfo::new(
+                        ErrorCode::InternalError,
+                        error_messages::REQUEST_BUFFER_TOO_LARGE,
+                        false,
+                    ),
+                    start.elapsed().as_millis() as u64,
+                );
+                send_response(&mut writer, &response).await?;
+                return Ok(());
+            }
+
+            let response = process_request(request, &config, &sessions).await;
+            let response = CompletionResponse {
+                processing_time_ms: start.elapsed().as_millis() as u64,
+                ..response
+            };
+            send_response(&mut writer, &response).await?;
+        }
     }
 
-    debug!("Received request from session: {}", request.session_id);
-
-    // Process request
-    let response = process_request(request, &config, &sessions).await;
-
-    // Add timing
-    let response = CompletionResponse {
-        processing_time_ms: start.elapsed().as_millis() as u64,
-        ..response
-    };
-
-    send_response(&mut writer, &response).await?;
-    debug!("Response sent in {}ms", response.processing_time_ms);
-
+    debug!("Response sent in {}ms", start.elapsed().as_millis());
     Ok(())
 }
 
@@ -219,7 +279,7 @@ async fn process_request(
     sessions.update_session(&request.session_id, &request.cwd);
 
     // Gather context with timing
-    let context_result = context::gather(&request, config).await;
+    let context_result = context::gather(&context::GatherParams::from(&request), config).await;
     let context_time = context_start.elapsed();
 
     if context_time.as_millis() > 50 {
@@ -282,6 +342,91 @@ async fn process_request(
     }
 
     CompletionResponse::success(request_id, vec![suggestion], 0)
+}
+
+/// Process a diagnosis request
+async fn process_diagnosis_request(
+    request: DiagnosisRequest,
+    config: &Config,
+) -> DiagnosisResponse {
+    let request_id = Uuid::new_v4().to_string();
+
+    // Check if diagnosis is enabled
+    if !config.diagnosis.enabled {
+        return DiagnosisResponse::error(
+            request_id,
+            ErrorInfo::new(
+                ErrorCode::ConfigError,
+                "Error diagnosis is disabled. Enable with diagnosis.enabled: true",
+                false,
+            ),
+            0,
+        );
+    }
+
+    // Gather full context for diagnosis (same as completion)
+    let context_result = context::gather(&context::GatherParams::from(&request), config).await;
+    let context_data = match context_result {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            warn!("Context gathering failed for diagnosis: {}", e);
+            // Use empty context
+            context::ContextData::default()
+        }
+    };
+
+    // Sanitize context
+    let sanitized_context = if config.privacy.sanitize_enabled {
+        let (ctx, _) = sanitizer::sanitize(&context_data, &config.privacy.custom_patterns);
+        ctx
+    } else {
+        context_data
+    };
+
+    // Sanitize stderr if present
+    let stderr = request.stderr_output.as_ref().map(|s| {
+        if config.privacy.sanitize_enabled {
+            let (sanitized, _) = sanitizer::sanitize_string(s, &config.privacy.custom_patterns);
+            sanitized
+        } else {
+            s.clone()
+        }
+    });
+
+    // Query LLM for diagnosis
+    let diagnosis_result = diagnosis::diagnose(
+        &request.command,
+        request.exit_code,
+        stderr.as_deref(),
+        request.error_record.as_ref(),
+        &sanitized_context,
+        config,
+    )
+    .await;
+
+    match diagnosis_result {
+        Ok((message, suggestion)) => DiagnosisResponse::success(request_id, message, suggestion, 0),
+        Err(e) => {
+            warn!("Diagnosis failed: {}", e);
+            DiagnosisResponse::error(
+                request_id,
+                ErrorInfo::llm_unavailable(format!("Diagnosis failed: {}", e)),
+                0,
+            )
+        }
+    }
+}
+
+/// Send diagnosis response to client
+async fn send_diagnosis_response<W: AsyncWriteExt + Unpin>(
+    writer: &mut W,
+    response: &DiagnosisResponse,
+) -> Result<()> {
+    let response_json = serde_json::to_string(response)?;
+    writer.write_all(response_json.as_bytes()).await?;
+    writer.write_all(b"\n").await?;
+    writer.flush().await?;
+    Ok(())
 }
 
 /// Categorize context gathering errors for better user feedback

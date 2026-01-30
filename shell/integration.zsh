@@ -31,12 +31,103 @@ typeset -g _nudge_timer_fd=""
 typeset -g _nudge_last_buffer=""
 typeset -g _nudge_pending_buffer=""
 
+# Diagnosis state
+typeset -g _nudge_stderr_file=""
+typeset -g _nudge_stderr_fd=""
+typeset -g _nudge_last_command=""
+NUDGE_DIAGNOSIS_ENABLED=$(nudge info --field diagnosis_enabled 2>/dev/null)
+
 # Capture last exit code
 _nudge_last_exit=0
 _nudge_capture_exit() {
     _nudge_last_exit=$?
 }
 precmd_functions+=(_nudge_capture_exit)
+
+# ============================================================================
+# Error Diagnosis Functions
+# ============================================================================
+
+# Diagnosis preexec - capture stderr before command runs
+_nudge_diagnosis_preexec() {
+    [[ "$NUDGE_DIAGNOSIS_ENABLED" != "true" ]] && return
+
+    _nudge_last_command="$1"
+    _nudge_stderr_file="/tmp/nudge_stderr_$$"
+
+    # Save original stderr and redirect to file
+    exec {_nudge_stderr_fd}>&2
+    exec 2>"$_nudge_stderr_file"
+}
+
+# Diagnosis precmd - analyze errors after command runs
+_nudge_diagnosis_precmd() {
+    local exit_code=$?
+
+    # Restore stderr immediately
+    if [[ -n "$_nudge_stderr_fd" ]]; then
+        exec 2>&$_nudge_stderr_fd
+        exec {_nudge_stderr_fd}>&-
+        _nudge_stderr_fd=""
+    fi
+
+    # Cleanup function (always called)
+    _nudge_diagnosis_cleanup() {
+        rm -f "$_nudge_stderr_file"
+        _nudge_stderr_file=""
+        _nudge_last_command=""
+    }
+
+    # Only proceed if diagnosis enabled and command failed
+    if [[ "$NUDGE_DIAGNOSIS_ENABLED" != "true" ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
+    if [[ $exit_code -eq 0 ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
+    if [[ -z "$_nudge_last_command" ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
+
+    # Check if stderr file has content
+    if [[ -s "$_nudge_stderr_file" ]]; then
+        _nudge_ensure_daemon
+
+        # Get diagnosis (format: message\nsuggestion)
+        local diagnosis
+        diagnosis=$(nudge diagnose \
+            --exit-code "$exit_code" \
+            --command "$_nudge_last_command" \
+            --stderr-file "$_nudge_stderr_file" \
+            --cwd "$PWD" \
+            --session "zsh-$$" \
+            --format plain 2>/dev/null)
+
+        if [[ $? -eq 0 && -n "$diagnosis" ]]; then
+            # Split into message and suggestion
+            local message="${diagnosis%%$'\n'*}"
+            local suggestion="${diagnosis#*$'\n'}"
+
+            # Print diagnosis message (replaces stderr)
+            if [[ -n "$message" ]]; then
+                echo "$message"
+            fi
+
+            # Show suggestion with prompt to accept
+            if [[ -n "$suggestion" && "$suggestion" != "$message" ]]; then
+                _nudge_auto_suggestion="$suggestion"
+                # Print suggestion with visual hint
+                echo -e "\033[90m💡 Suggested fix: \033[0m\033[1m$suggestion\033[0m \033[90m(press Tab to accept)\033[0m"
+            fi
+        fi
+    fi
+
+    # Cleanup
+    _nudge_diagnosis_cleanup
+}
 
 # Ensure daemon is running
 _nudge_ensure_daemon() {
@@ -292,12 +383,29 @@ if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
     zshexit_functions+=(_nudge_cleanup)
 fi
 
+# Setup diagnosis if enabled
+if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
+    preexec_functions+=(_nudge_diagnosis_preexec)
+    # Insert at beginning to capture exit code first
+    precmd_functions=(_nudge_diagnosis_precmd "${precmd_functions[@]}")
+
+    # Bind Tab to accept diagnosis suggestion (if not already bound by auto mode)
+    if [[ "$NUDGE_TRIGGER_MODE" != "auto" ]]; then
+        bindkey '^I' _nudge_auto_accept
+    fi
+fi
+
 # Print success message on first load
 if [[ -z "$_NUDGE_LOADED" ]]; then
     export _NUDGE_LOADED=1
+    local mode_msg=""
     if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
-        echo "Nudge loaded (auto mode). Suggestions appear as you type. Press Tab to accept."
+        mode_msg="auto mode"
     else
-        echo "Nudge loaded. Press Ctrl+E to trigger completion."
+        mode_msg="manual mode (Ctrl+E)"
     fi
+    if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
+        mode_msg="$mode_msg + error diagnosis"
+    fi
+    echo "Nudge loaded ($mode_msg)."
 fi

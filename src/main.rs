@@ -120,6 +120,26 @@ async fn main() -> Result<()> {
         Command::Setup { shell, force } => {
             commands::setup::run_setup(shell, force).await?;
         }
+        Command::Diagnose {
+            exit_code,
+            command,
+            cwd,
+            session,
+            stderr_file,
+            error_record,
+            format,
+        } => {
+            client::diagnose(
+                exit_code,
+                command,
+                cwd,
+                session,
+                stderr_file,
+                error_record,
+                format,
+            )
+            .await?;
+        }
     }
 
     Ok(())

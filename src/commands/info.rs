@@ -20,6 +20,8 @@ pub struct InfoOutput {
     pub trigger_mode: String,
     pub trigger_hotkey: String,
     pub auto_delay_ms: u64,
+    // Diagnosis configuration
+    pub diagnosis_enabled: bool,
 }
 
 /// Run the info command
@@ -62,6 +64,7 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
         trigger_mode,
         trigger_hotkey,
         auto_delay_ms,
+        diagnosis_enabled: config.diagnosis.enabled,
     };
 
     if let Some(field_name) = field {
@@ -83,6 +86,7 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
             "trigger_mode" => info.trigger_mode.clone(),
             "trigger_hotkey" => info.trigger_hotkey.clone(),
             "auto_delay_ms" => info.auto_delay_ms.to_string(),
+            "diagnosis_enabled" => info.diagnosis_enabled.to_string(),
             _ => anyhow::bail!("Unknown field: {}", field_name),
         };
         println!("{}", value);
@@ -118,6 +122,10 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
         println!("Mode:                 {}", info.trigger_mode);
         println!("Hotkey:               {}", info.trigger_hotkey);
         println!("Auto Delay:           {}ms", info.auto_delay_ms);
+        println!();
+        println!("Diagnosis Configuration");
+        println!("-----------------------");
+        println!("Enabled:              {}", info.diagnosis_enabled);
     }
 
     Ok(())

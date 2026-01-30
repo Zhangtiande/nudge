@@ -16,6 +16,7 @@ pub struct Config {
     pub trigger: TriggerConfig,
     pub privacy: PrivacyConfig,
     pub log: LogConfig,
+    pub diagnosis: DiagnosisConfig,
     pub system_prompt: Option<String>,
 }
 
@@ -308,6 +309,34 @@ impl Default for LogConfig {
         Self {
             level: "info".to_string(),
             file_enabled: false,
+        }
+    }
+}
+
+/// Error diagnosis configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DiagnosisConfig {
+    /// Enable/disable error diagnosis feature
+    pub enabled: bool,
+    /// Zsh: capture stderr to file during command execution
+    pub capture_stderr: bool,
+    /// Zsh: show suggested fix as gray inline text
+    pub auto_suggest: bool,
+    /// Maximum stderr size to send to LLM (bytes)
+    pub max_stderr_size: usize,
+    /// Timeout for diagnosis request (ms)
+    pub timeout_ms: u64,
+}
+
+impl Default for DiagnosisConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            capture_stderr: true,
+            auto_suggest: true,
+            max_stderr_size: 4096,
+            timeout_ms: 5000,
         }
     }
 }

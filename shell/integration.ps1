@@ -19,19 +19,161 @@ try {
 $script:NudgeLastExitCode = 0
 $script:NudgeTriggerMode = if ($script:NudgeInfo.trigger_mode) { $script:NudgeInfo.trigger_mode } else { "manual" }
 
-# Capture exit codes
-function global:Invoke-NudgeCaptureExitCode {
-    $script:NudgeLastExitCode = $LASTEXITCODE
+# Diagnosis state
+$script:NudgeDiagnosisEnabled = $false
+try {
+    $diagEnabled = nudge info --field diagnosis_enabled 2>$null
+    $script:NudgeDiagnosisEnabled = $diagEnabled -eq "true"
+} catch {}
+
+$script:NudgeLastErrorCount = 0
+$script:NudgeLastHistoryId = 0
+$script:NudgeDiagnosisSuggestion = ""
+
+# ============================================================================
+# Error Diagnosis Functions
+# ============================================================================
+
+function global:Invoke-NudgeDiagnosis {
+    if (-not $script:NudgeDiagnosisEnabled) { return }
+
+    # Clear previous suggestion
+    $script:NudgeDiagnosisSuggestion = ""
+
+    $currentErrorCount = $Global:Error.Count
+    $currentExitCode = $script:NudgeLastExitCode
+
+    # Get last command from history
+    $lastHistory = Get-History -Count 1 -ErrorAction SilentlyContinue
+    $lastHistoryId = if ($lastHistory) { $lastHistory.Id } else { -1 }
+    $lastCommand = if ($lastHistory) { $lastHistory.CommandLine } else { "" }
+
+    # Skip if same command (deduplication for interactive sessions)
+    if ($lastHistoryId -gt 0 -and $lastHistoryId -eq $script:NudgeLastHistoryId) {
+        return
+    }
+    if ($lastHistoryId -gt 0) {
+        $script:NudgeLastHistoryId = $lastHistoryId
+    }
+
+    # Check for PowerShell errors (cmdlet exceptions)
+    if ($currentErrorCount -gt $script:NudgeLastErrorCount) {
+        $lastError = $Global:Error[0]
+
+        if ($lastError) {
+            Start-NudgeDaemonIfNeeded
+
+            # Build error record JSON
+            $errorContext = @{
+                message = $lastError.Exception.Message
+                command = $lastError.InvocationInfo.Line
+                scriptStackTrace = $lastError.ScriptStackTrace
+                category = $lastError.CategoryInfo.ToString()
+            } | ConvertTo-Json -Compress
+
+            try {
+                $diagnosis = & nudge diagnose `
+                    --exit-code $(if ($currentExitCode) { $currentExitCode } else { 1 }) `
+                    --command "$($lastError.InvocationInfo.Line)" `
+                    --error-record $errorContext `
+                    --cwd (Get-Location).Path `
+                    --session "pwsh-$PID" `
+                    --format plain 2>$null
+
+                if ($LASTEXITCODE -eq 0 -and $diagnosis) {
+                    Show-NudgeDiagnosis $diagnosis
+                }
+            } catch {
+                # Silently ignore diagnosis errors
+            }
+        }
+
+        $script:NudgeLastErrorCount = $currentErrorCount
+        return
+    }
+
+    # Check for external command failures (non-zero exit code)
+    if ($currentExitCode -ne 0 -and $currentExitCode -ne $null) {
+        Start-NudgeDaemonIfNeeded
+
+        # Use command from history if available, otherwise use a placeholder
+        $cmdToSend = if ($lastCommand) { $lastCommand } else { "(unknown command)" }
+
+        try {
+            $diagnosis = & nudge diagnose `
+                --exit-code $currentExitCode `
+                --command $cmdToSend `
+                --cwd (Get-Location).Path `
+                --session "pwsh-$PID" `
+                --format plain 2>$null
+
+            if ($LASTEXITCODE -eq 0 -and $diagnosis) {
+                Show-NudgeDiagnosis $diagnosis
+            }
+        } catch {
+            # Silently ignore diagnosis errors
+        }
+    }
+
+    $script:NudgeLastErrorCount = $currentErrorCount
 }
 
-# Register prompt hook if not already registered
+# Display diagnosis and store suggestion for Tab completion
+function global:Show-NudgeDiagnosis {
+    param($DiagnosisOutput)
+
+    # Handle array output (PowerShell captures multi-line output as array)
+    if ($DiagnosisOutput -is [array]) {
+        $message = $DiagnosisOutput[0]
+        $suggestion = if ($DiagnosisOutput.Count -gt 1) { $DiagnosisOutput[1].Trim() } else { "" }
+    } else {
+        # Handle string output
+        $lines = $DiagnosisOutput -split "`n"
+        $message = $lines[0]
+        $suggestion = if ($lines.Count -gt 1) { $lines[1].Trim() } else { "" }
+    }
+
+    # Display diagnosis message
+    if ($message) {
+        Write-Host $message -ForegroundColor Yellow
+    }
+
+    # Store and display suggestion with hint
+    if ($suggestion) {
+        $script:NudgeDiagnosisSuggestion = $suggestion
+        Write-Host "  Suggested fix: " -ForegroundColor DarkGray -NoNewline
+        Write-Host $suggestion -ForegroundColor Cyan -NoNewline
+        Write-Host " (press Tab to accept)" -ForegroundColor DarkGray
+    }
+}
+
+# Accept diagnosis suggestion
+function global:Invoke-NudgeAcceptSuggestion {
+    if ($script:NudgeDiagnosisSuggestion) {
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+        [Microsoft.PowerShell.PSConsoleReadLine]::Insert($script:NudgeDiagnosisSuggestion)
+        $script:NudgeDiagnosisSuggestion = ""
+    } else {
+        # Fall back to default Tab behavior
+        [Microsoft.PowerShell.PSConsoleReadLine]::TabCompleteNext()
+    }
+}
+
+# Register prompt hook
+# Always update to ensure latest version is used
+function global:_NudgePromptHook {
+    # Capture exit code FIRST before anything else runs
+    $script:NudgeLastExitCode = $global:LASTEXITCODE
+    Invoke-NudgeDiagnosis
+}
+
 if (-not $global:NudgePromptHookRegistered) {
-    $existingPrompt = Get-Content Function:\prompt -ErrorAction SilentlyContinue
-    if ($existingPrompt) {
-        $newPrompt = @"
-Invoke-NudgeCaptureExitCode
-$existingPrompt
-"@
+    # First time registration - wrap existing prompt
+    $script:NudgeOriginalPrompt = Get-Content Function:\prompt -ErrorAction SilentlyContinue
+    if ($script:NudgeOriginalPrompt) {
+        $newPrompt = @'
+_NudgePromptHook
+'@ + "`n" + $script:NudgeOriginalPrompt
         Set-Content Function:\prompt -Value ([scriptblock]::Create($newPrompt))
     }
     $global:NudgePromptHookRegistered = $true
@@ -163,6 +305,9 @@ function Initialize-NudgeAutoMode {
 # Register manual mode key handler (always available)
 Set-PSReadLineKeyHandler -Chord "Ctrl+e" -ScriptBlock { Invoke-NudgeComplete }
 
+# Register Tab handler for diagnosis suggestion acceptance
+Set-PSReadLineKeyHandler -Chord "Tab" -ScriptBlock { Invoke-NudgeAcceptSuggestion }
+
 # ============================================================================
 # Initialization
 # ============================================================================
@@ -179,8 +324,8 @@ if ($script:NudgeTriggerMode -eq "auto") {
 }
 
 # Print success message
-if ($autoModeEnabled) {
-    Write-Host "Nudge loaded (auto mode). Suggestions appear as you type. Press Tab to accept." -ForegroundColor Green
-} else {
-    Write-Host "Nudge loaded. Press Ctrl+E to trigger completion." -ForegroundColor Green
+$modeMsg = if ($autoModeEnabled) { "auto mode" } else { "manual mode (Ctrl+E)" }
+if ($script:NudgeDiagnosisEnabled) {
+    $modeMsg = "$modeMsg + error diagnosis"
 }
+Write-Host "Nudge loaded ($modeMsg)." -ForegroundColor Green
