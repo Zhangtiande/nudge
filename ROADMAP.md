@@ -66,26 +66,49 @@ trigger:
 
 ---
 
-### 3. 🎯 错误诊断 (Error Context Recovery)
+### 3. ✅ 错误诊断 (Error Diagnosis) - v0.5.0 已实现
 
 **目标**: 当命令失败时，自动收集错误上下文并提供智能修复建议。
 
-**核心功能**:
-- **错误拦截**: 在 PROMPT_COMMAND/precmd 中检测退出码
-- **上下文收集**:
-  - 失败的命令、错误输出、相关文件内容
-  - 系统状态（磁盘空间、权限、网络连接）
-- **智能分析**: LLM 推断根本原因并提供 3-5 个修复建议
-- **交互式修复**: `nudge fix-last` 触发，`nudge apply-fix <N>` 执行
+**已实现功能**:
+- ✅ **错误拦截**: 在 precmd/prompt 中检测退出码和错误
+- ✅ **上下文收集**: 失败的命令、错误输出、当前目录、历史记录
+- ✅ **智能分析**: LLM 推断根本原因并提供修复建议
+- ✅ **一键修复**: Tab 键接受建议命令
 
-**输出格式**:
+**平台支持**:
+| Shell | 错误检测 | 建议显示 | Tab 接受 |
+|-------|---------|---------|---------|
+| Zsh | ✅ stderr 捕获 | ✅ 幽灵文字 | ✅ |
+| Bash | 🎯 计划中 | 🎯 计划中 | 🎯 计划中 |
+| PowerShell | ✅ 退出码 + Error | ✅ 彩色提示 | ✅ |
+
+**输出示例**:
+
+Zsh:
 ```
-❌ Command failed with exit code 127
-   $ git pul origin main
+$ gti status
+❌ Typo: 'gti' should be 'git'
+💡 Suggested fix: git status (press Tab to accept)
+$ █
+```
 
-💡 Suggested fixes:
-   1. git pull origin main        → Fix typo: 'pul' → 'pull'
-   2. git fetch origin main       → Alternative approach
+PowerShell:
+```
+PS> gti status
+[Error] Typo: 'gti' should be 'git'
+  Suggested fix: git status (press Tab to accept)
+PS> █
+```
+
+**配置选项**:
+```yaml
+diagnosis:
+  enabled: true           # 启用错误诊断
+  capture_stderr: true    # Zsh: 捕获 stderr
+  auto_suggest: true      # 显示修复建议
+  max_stderr_size: 4096   # 最大 stderr 大小
+  timeout_ms: 5000        # 诊断超时
 ```
 
 ---

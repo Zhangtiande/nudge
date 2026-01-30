@@ -24,6 +24,7 @@ Nudge uses Large Language Models to predict and complete command-line inputs bas
 | 📁 **Context-Aware** | Considers current directory files and Git status |
 | 🔒 **Privacy-First** | Automatically sanitizes sensitive data (API keys, passwords) before sending to LLM |
 | ⚠️ **Safety Warnings** | Flags potentially dangerous commands (rm -rf, mkfs, etc.) |
+| 🩺 **Error Diagnosis** | Automatically analyzes failed commands and suggests fixes |
 | 🐚 **Multi-Shell Support** | Works with Bash, Zsh, PowerShell, and CMD |
 | 🌐 **Cross-Platform** | Supports Linux, macOS, and Windows |
 | ⚡ **Fast** | <200ms response time with local LLMs |
@@ -351,7 +352,6 @@ Nudge is actively evolving with exciting features planned. Here's a glimpse of w
 | Feature | Description | Status |
 |---------|-------------|--------|
 | **Project-Aware Context** | Auto-activate plugins based on command keywords (docker, npm, etc.) to provide deep project context | 🎯 Planned |
-| **Error Context Recovery** | Automatically collect error context and provide intelligent fix suggestions when commands fail | 🎯 Planned |
 | **Smart History Analytics** | Analyze command patterns and suggest aliases for frequently used commands | 🎯 Planned |
 | **Community Plugin System** | WASM-based plugin marketplace for custom context providers | 🎯 Planned |
 

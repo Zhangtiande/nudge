@@ -24,6 +24,7 @@ Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上�
 | 📁 **上下文感知** | 考虑当前目录文件和 Git 状态 |
 | 🔒 **隐私优先** | 发送给 LLM 前自动清理敏感数据（API 密钥、密码等） |
 | ⚠️ **安全警告** | 标记潜在危险命令（rm -rf、mkfs 等） |
+| 🩺 **错误诊断** | 命令失败时自动分析错误并提供修复建议 |
 | 🐚 **多 Shell 支持** | 支持 Bash、Zsh、PowerShell 和 CMD |
 | 🌐 **跨平台** | 支持 Linux、macOS 和 Windows |
 | ⚡ **响应迅速** | 本地 LLM 响应时间 <200ms |
@@ -214,6 +215,50 @@ log:
   file_enabled: false      # 启用文件日志（按天轮转）
 ```
 
+## 🩺 错误诊断 (v0.5.0+)
+
+Nudge 可以自动分析失败的命令并提供修复建议。
+
+### 启用错误诊断
+
+在 `config.yaml` 中添加：
+
+```yaml
+diagnosis:
+  enabled: true
+```
+
+### 工作原理
+
+**Zsh:**
+```
+$ gti status
+❌ Command not found: 'gti'
+💡 Typo: did you mean 'git'?
+
+git status          ← 灰色文字，按 Tab 接受
+$ █
+```
+
+**PowerShell:**
+```
+PS> gti status
+[Error] Command not found: 'gti'
+[Tip] Typo: did you mean 'git'?
+  Suggested fix: git status (press Tab to accept)
+
+PS> █               ← 按 Tab 接受建议
+```
+
+### ⚠️ 重要说明
+
+> **Zsh 用户:** 启用错误诊断后，命令执行期间 stderr 会被临时重定向。这意味着：
+> - 错误信息不会实时显示
+> - 命令失败后，Nudge 会显示捕获的错误和诊断结果
+> - 某些检查 stderr TTY 状态的程序可能会有不同的行为
+>
+> 如果遇到问题，可以通过 `diagnosis.enabled: false` 禁用
+
 ## 🏗️ 架构设计
 
 ```
@@ -311,7 +356,6 @@ Nudge 正在积极发展，许多激动人心的功能已在规划中。以下�
 | 功能 | 描述 | 状态 |
 |------|------|------|
 | **项目级感知** | 根据命令关键词（docker、npm 等）自动激活插件，提供深度项目上下文 | 🎯 计划中 |
-| **错误现场还原** | 命令失败时自动收集错误上下文并提供智能修复建议 | 🎯 计划中 |
 | **智能历史分析** | 分析命令模式，为高频命令推荐别名 | 🎯 计划中 |
 | **社区插件系统** | 基于 WASM 的插件市场，支持自定义上下文提供器 | 🎯 计划中 |
 
