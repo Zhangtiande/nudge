@@ -90,6 +90,37 @@ pub enum Command {
         #[arg(long)]
         force: bool,
     },
+
+    /// Diagnose a failed command and suggest fixes
+    Diagnose {
+        /// Exit code of the failed command
+        #[arg(long)]
+        exit_code: i32,
+
+        /// The failed command text
+        #[arg(long)]
+        command: String,
+
+        /// Current working directory
+        #[arg(long)]
+        cwd: PathBuf,
+
+        /// Session identifier (e.g., "zsh-12345")
+        #[arg(long)]
+        session: String,
+
+        /// Path to file containing captured stderr (Zsh)
+        #[arg(long)]
+        stderr_file: Option<PathBuf>,
+
+        /// PowerShell ErrorRecord as JSON string
+        #[arg(long)]
+        error_record: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = OutputFormat::Plain)]
+        format: OutputFormat,
+    },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
