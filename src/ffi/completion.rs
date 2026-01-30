@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use crate::config::Config;
-use crate::daemon::context;
+use crate::daemon::context::{self, GatherParams};
 use crate::daemon::llm;
 use crate::daemon::safety;
 use crate::daemon::sanitizer;
@@ -73,7 +73,8 @@ pub async fn complete(
     );
 
     // Gather context
-    let context = match context::gather(&request, config).await {
+    let params = GatherParams::from(&request);
+    let context = match context::gather(&params, config).await {
         Ok(ctx) => ctx,
         Err(e) => {
             return CompletionResult::error(format!("Failed to gather context: {}", e));
