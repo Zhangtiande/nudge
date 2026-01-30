@@ -87,6 +87,20 @@ pub fn sanitize(
     (result, events)
 }
 
+/// Sanitize a single string (public API for diagnosis)
+pub fn sanitize_string(
+    input: &str,
+    custom_patterns: &[String],
+) -> (String, Vec<SanitizationEvent>) {
+    // Compile custom patterns
+    let custom_regexes: Vec<Regex> = custom_patterns
+        .iter()
+        .filter_map(|p| Regex::new(p).ok())
+        .collect();
+
+    sanitize_text(input, &custom_regexes)
+}
+
 /// Sanitize a single text string
 fn sanitize_text(input: &str, custom_patterns: &[Regex]) -> (String, Vec<SanitizationEvent>) {
     let mut result = input.to_string();
