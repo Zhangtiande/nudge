@@ -1,4 +1,5 @@
 pub mod context;
+pub mod diagnosis;
 pub mod llm;
 pub mod plugins;
 pub mod safety;

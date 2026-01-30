@@ -4,6 +4,7 @@ pub mod plugin;
 pub mod system;
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -18,6 +19,9 @@ use system::SystemInfo;
 /// Aggregated context data
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ContextData {
+    /// Current working directory
+    #[serde(default)]
+    pub cwd: PathBuf,
     /// Recent command history
     pub history: Vec<String>,
     /// Similar commands from history
@@ -46,6 +50,7 @@ impl ContextData {
 /// Gather all context for a completion request
 pub async fn gather(request: &CompletionRequest, config: &Config) -> Result<ContextData> {
     let mut context = ContextData::new();
+    context.cwd = request.cwd.clone();
 
     // Collect system information
     if config.context.include_system_info {
@@ -322,4 +327,21 @@ fn create_plugin_manager(config: &Config) -> plugin::PluginManager {
             config.plugins.python.timeout_ms,
             config.plugins.python.priority.unwrap_or(45),
         )
+}
+
+/// Gather minimal context for diagnosis (faster, less data)
+pub async fn gather_minimal(cwd: &Path, config: &Config) -> Result<ContextData> {
+    let mut data = ContextData::default();
+    data.cwd = cwd.to_path_buf();
+
+    // Only gather CWD listing and recent history
+    if let Ok(files) = cwd::list_files(cwd, config.context.max_files_in_listing) {
+        data.files = files;
+    }
+
+    if let Ok(hist) = history::read_recent(5) {
+        data.history = hist;
+    }
+
+    Ok(data)
 }

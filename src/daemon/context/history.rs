@@ -44,6 +44,27 @@ pub fn read_history(session_id: &str, window_size: usize) -> Result<Vec<String>>
     Ok(limited)
 }
 
+/// Read recent history without session context (for diagnosis)
+/// Auto-detects shell from environment
+pub fn read_recent(count: usize) -> Result<Vec<String>> {
+    // Try to auto-detect shell from environment
+    let session_id = if cfg!(unix) {
+        if let Ok(shell) = std::env::var("SHELL") {
+            if shell.contains("zsh") {
+                "zsh-auto"
+            } else {
+                "bash-auto"
+            }
+        } else {
+            "bash-auto"
+        }
+    } else {
+        "pwsh-auto"
+    };
+
+    read_history(session_id, count)
+}
+
 /// Find similar commands from history based on query string
 pub fn find_similar_commands(
     session_id: &str,
