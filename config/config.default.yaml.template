@@ -216,6 +216,33 @@ log:
   file_enabled: false
 
 # ========================================
+# Error Diagnosis Configuration
+# ========================================
+diagnosis:
+  # Enable automatic error diagnosis and fix suggestions
+  # When enabled, Nudge will analyze failed commands and suggest fixes
+  # WARNING (Zsh): stderr is temporarily redirected during command execution
+  #   - Error messages won't display in real-time
+  #   - After failure, Nudge shows captured errors with diagnosis
+  # Default: false (must opt-in)
+  enabled: false
+
+  # Zsh: Capture stderr to temporary file for analysis
+  # Disable if you experience issues with certain programs
+  capture_stderr: true
+
+  # Zsh: Show suggested fix as gray inline text (Tab to accept)
+  # Uses the same mechanism as auto-mode suggestions
+  auto_suggest: true
+
+  # Maximum stderr size to send to LLM (bytes)
+  # Larger errors are truncated to prevent token overflow
+  max_stderr_size: 4096
+
+  # Timeout for diagnosis request (milliseconds)
+  timeout_ms: 5000
+
+# ========================================
 # Advanced Configuration
 # ========================================
 
