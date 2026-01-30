@@ -19,9 +19,63 @@ try {
 $script:NudgeLastExitCode = 0
 $script:NudgeTriggerMode = if ($script:NudgeInfo.trigger_mode) { $script:NudgeInfo.trigger_mode } else { "manual" }
 
+# Diagnosis state
+$script:NudgeDiagnosisEnabled = $false
+try {
+    $diagEnabled = nudge info --field diagnosis_enabled 2>$null
+    $script:NudgeDiagnosisEnabled = $diagEnabled -eq "true"
+} catch {}
+
+$script:NudgeLastErrorCount = 0
+
 # Capture exit codes
 function global:Invoke-NudgeCaptureExitCode {
     $script:NudgeLastExitCode = $LASTEXITCODE
+}
+
+# ============================================================================
+# Error Diagnosis Functions
+# ============================================================================
+
+function global:Invoke-NudgeDiagnosis {
+    if (-not $script:NudgeDiagnosisEnabled) { return }
+
+    $currentErrorCount = $Global:Error.Count
+
+    # Check if new error occurred
+    if ($currentErrorCount -gt $script:NudgeLastErrorCount) {
+        $lastError = $Global:Error[0]
+
+        if ($lastError) {
+            Start-NudgeDaemonIfNeeded
+
+            # Build error record JSON
+            $errorContext = @{
+                message = $lastError.Exception.Message
+                command = $lastError.InvocationInfo.Line
+                scriptStackTrace = $lastError.ScriptStackTrace
+                category = $lastError.CategoryInfo.ToString()
+            } | ConvertTo-Json -Compress
+
+            try {
+                $diagnosis = & nudge diagnose `
+                    --exit-code $(if ($LASTEXITCODE) { $LASTEXITCODE } else { 1 }) `
+                    --command "$($lastError.InvocationInfo.Line)" `
+                    --error-record $errorContext `
+                    --cwd (Get-Location).Path `
+                    --session "pwsh-$PID" `
+                    --format plain 2>$null
+
+                if ($LASTEXITCODE -eq 0 -and $diagnosis) {
+                    Write-Host $diagnosis -ForegroundColor Yellow
+                }
+            } catch {
+                # Silently ignore diagnosis errors
+            }
+        }
+    }
+
+    $script:NudgeLastErrorCount = $currentErrorCount
 }
 
 # Register prompt hook if not already registered
@@ -30,6 +84,7 @@ if (-not $global:NudgePromptHookRegistered) {
     if ($existingPrompt) {
         $newPrompt = @"
 Invoke-NudgeCaptureExitCode
+Invoke-NudgeDiagnosis
 $existingPrompt
 "@
         Set-Content Function:\prompt -Value ([scriptblock]::Create($newPrompt))
@@ -179,8 +234,8 @@ if ($script:NudgeTriggerMode -eq "auto") {
 }
 
 # Print success message
-if ($autoModeEnabled) {
-    Write-Host "Nudge loaded (auto mode). Suggestions appear as you type. Press Tab to accept." -ForegroundColor Green
-} else {
-    Write-Host "Nudge loaded. Press Ctrl+E to trigger completion." -ForegroundColor Green
+$modeMsg = if ($autoModeEnabled) { "auto mode" } else { "manual mode (Ctrl+E)" }
+if ($script:NudgeDiagnosisEnabled) {
+    $modeMsg = "$modeMsg + error diagnosis"
 }
+Write-Host "Nudge loaded ($modeMsg)." -ForegroundColor Green
