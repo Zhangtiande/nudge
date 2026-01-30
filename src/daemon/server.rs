@@ -279,7 +279,7 @@ async fn process_request(
     sessions.update_session(&request.session_id, &request.cwd);
 
     // Gather context with timing
-    let context_result = context::gather(&request, config).await;
+    let context_result = context::gather(&context::GatherParams::from(&request), config).await;
     let context_time = context_start.elapsed();
 
     if context_time.as_millis() > 50 {
@@ -364,8 +364,8 @@ async fn process_diagnosis_request(
         );
     }
 
-    // Gather minimal context for diagnosis
-    let context_result = context::gather_minimal(&request.cwd, config).await;
+    // Gather full context for diagnosis (same as completion)
+    let context_result = context::gather(&context::GatherParams::from(&request), config).await;
     let context_data = match context_result {
         Ok(ctx) => ctx,
         Err(e) => {
@@ -373,6 +373,14 @@ async fn process_diagnosis_request(
             // Use empty context
             context::ContextData::default()
         }
+    };
+
+    // Sanitize context
+    let sanitized_context = if config.privacy.sanitize_enabled {
+        let (ctx, _) = sanitizer::sanitize(&context_data, &config.privacy.custom_patterns);
+        ctx
+    } else {
+        context_data
     };
 
     // Sanitize stderr if present
@@ -391,7 +399,7 @@ async fn process_diagnosis_request(
         request.exit_code,
         stderr.as_deref(),
         request.error_record.as_ref(),
-        &context_data,
+        &sanitized_context,
         config,
     )
     .await;

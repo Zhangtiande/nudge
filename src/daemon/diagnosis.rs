@@ -157,6 +157,14 @@ fn build_diagnosis_prompt(
         prompt.push_str("\n```\n\n");
     }
 
+    // Add system information
+    if !context.system.os_type.is_empty() {
+        prompt.push_str(&format!(
+            "## System\n{} {} ({})\n\n",
+            context.system.os_type, context.system.os_version, context.system.arch
+        ));
+    }
+
     // Add context
     prompt.push_str(&format!(
         "## Current Directory\n{}\n\n",
@@ -171,10 +179,53 @@ fn build_diagnosis_prompt(
 
     if !context.history.is_empty() {
         prompt.push_str("## Recent Commands\n");
-        for cmd in context.history.iter().take(5) {
+        for cmd in context.history.iter().take(10) {
             prompt.push_str(&format!("- {}\n", cmd));
         }
         prompt.push('\n');
+    }
+
+    // Add Git context if available
+    if let Some(git) = &context.git {
+        prompt.push_str("## Git Status\n");
+        if let Some(branch) = &git.branch {
+            prompt.push_str(&format!("Branch: {}\n", branch));
+        }
+        if !git.staged.is_empty() {
+            prompt.push_str(&format!("Staged files: {}\n", git.staged.join(", ")));
+        }
+        if !git.unstaged.is_empty() {
+            prompt.push_str(&format!("Modified files: {}\n", git.unstaged.join(", ")));
+        }
+        if !git.recent_commits.is_empty() {
+            prompt.push_str("Recent commits:\n");
+            for commit in git.recent_commits.iter().take(3) {
+                prompt.push_str(&format!("  - {}\n", commit));
+            }
+        }
+        prompt.push('\n');
+    }
+
+    // Add plugin context (excluding git which is handled above)
+    for (plugin_id, data) in &context.plugins {
+        if plugin_id == "git" {
+            continue; // Already handled above
+        }
+        prompt.push_str(&format!(
+            "## {} Project Context\n",
+            capitalize_first(plugin_id)
+        ));
+        // Format plugin data as compact JSON
+        if let Ok(json_str) = serde_json::to_string_pretty(data) {
+            // Truncate if too long
+            if json_str.len() > 500 {
+                prompt.push_str(&json_str[..500]);
+                prompt.push_str("\n... (truncated)");
+            } else {
+                prompt.push_str(&json_str);
+            }
+        }
+        prompt.push_str("\n\n");
     }
 
     prompt.push_str(
@@ -182,6 +233,15 @@ fn build_diagnosis_prompt(
     );
 
     prompt
+}
+
+/// Capitalize first letter of a string
+fn capitalize_first(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+    }
 }
 
 fn parse_diagnosis_response(text: &str) -> Result<(String, Option<String>)> {

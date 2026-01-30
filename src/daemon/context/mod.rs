@@ -4,7 +4,7 @@ pub mod plugin;
 pub mod system;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use tracing::debug;
 
 use super::plugins::builtin::git::GitContext;
 use crate::config::Config;
-use crate::protocol::CompletionRequest;
+use crate::protocol::{CompletionRequest, DiagnosisRequest};
 use system::SystemInfo;
 
 /// Aggregated context data
@@ -47,14 +47,53 @@ impl ContextData {
     }
 }
 
-/// Gather all context for a completion request
-pub async fn gather(request: &CompletionRequest, config: &Config) -> Result<ContextData> {
+/// Common parameters for context gathering (shared between completion and diagnosis)
+#[derive(Debug, Clone)]
+pub struct GatherParams {
+    /// Session ID for history tracking
+    pub session_id: String,
+    /// Current working directory
+    pub cwd: PathBuf,
+    /// Command text (buffer for completion, failed command for diagnosis)
+    pub command: String,
+    /// Exit code of last command
+    pub last_exit_code: Option<i32>,
+    /// Whether to search for similar commands (completion: true, diagnosis: false)
+    pub include_similar_commands: bool,
+}
+
+impl From<&CompletionRequest> for GatherParams {
+    fn from(req: &CompletionRequest) -> Self {
+        Self {
+            session_id: req.session_id.clone(),
+            cwd: req.cwd.clone(),
+            command: req.buffer.clone(),
+            last_exit_code: req.last_exit_code,
+            include_similar_commands: true,
+        }
+    }
+}
+
+impl From<&DiagnosisRequest> for GatherParams {
+    fn from(req: &DiagnosisRequest) -> Self {
+        Self {
+            session_id: req.session_id.clone(),
+            cwd: req.cwd.clone(),
+            command: req.command.clone(),
+            last_exit_code: Some(req.exit_code),
+            include_similar_commands: false,
+        }
+    }
+}
+
+/// Gather all context for completion or diagnosis
+pub async fn gather(params: &GatherParams, config: &Config) -> Result<ContextData> {
     let mut context = ContextData::new();
-    context.cwd = request.cwd.clone();
+    context.cwd = params.cwd.clone();
 
     // Collect system information
     if config.context.include_system_info {
-        context.system = system::collect_system_info(&request.session_id)?;
+        context.system = system::collect_system_info(&params.session_id)?;
         debug!(
             "Gathered system info: {} {} ({})",
             context.system.os_type, context.system.os_version, context.system.arch
@@ -62,15 +101,18 @@ pub async fn gather(request: &CompletionRequest, config: &Config) -> Result<Cont
     }
 
     // Gather history
-    let history = history::read_history(&request.session_id, config.context.history_window)?;
+    let history = history::read_history(&params.session_id, config.context.history_window)?;
     context.history = history;
     debug!("Gathered {} history entries", context.history.len());
 
-    // Gather similar commands (if enabled and buffer is long enough)
-    if config.context.similar_commands_enabled && request.buffer.len() >= 3 {
+    // Gather similar commands (if enabled, requested, and command is long enough)
+    if params.include_similar_commands
+        && config.context.similar_commands_enabled
+        && params.command.len() >= 3
+    {
         let similar = history::find_similar_commands(
-            &request.session_id,
-            &request.buffer,
+            &params.session_id,
+            &params.command,
             config.context.similar_commands_window,
             config.context.similar_commands_max,
         )?;
@@ -78,26 +120,26 @@ pub async fn gather(request: &CompletionRequest, config: &Config) -> Result<Cont
         debug!(
             "Gathered {} similar commands for query: {}",
             context.similar_commands.len(),
-            request.buffer
+            params.command
         );
     }
 
     // Gather CWD listing
     if config.context.include_cwd_listing {
-        let files = cwd::list_files(&request.cwd, config.context.max_files_in_listing)?;
+        let files = cwd::list_files(&params.cwd, config.context.max_files_in_listing)?;
         context.files = files;
         debug!("Gathered {} files from CWD", context.files.len());
     }
 
     // Set exit code
     if config.context.include_exit_code {
-        context.last_exit_code = request.last_exit_code;
+        context.last_exit_code = params.last_exit_code;
     }
 
     // Gather plugin context using PluginManager
     let plugin_manager = create_plugin_manager(config);
     let plugin_data = plugin_manager
-        .collect_all(&request.cwd, &request.buffer)
+        .collect_all(&params.cwd, &params.command)
         .await;
 
     // Populate plugins HashMap and maintain legacy git field
@@ -327,23 +369,4 @@ fn create_plugin_manager(config: &Config) -> plugin::PluginManager {
             config.plugins.python.timeout_ms,
             config.plugins.python.priority.unwrap_or(45),
         )
-}
-
-/// Gather minimal context for diagnosis (faster, less data)
-pub async fn gather_minimal(cwd: &Path, config: &Config) -> Result<ContextData> {
-    let mut data = ContextData {
-        cwd: cwd.to_path_buf(),
-        ..Default::default()
-    };
-
-    // Only gather CWD listing and recent history
-    if let Ok(files) = cwd::list_files(cwd, config.context.max_files_in_listing) {
-        data.files = files;
-    }
-
-    if let Ok(hist) = history::read_recent(5) {
-        data.history = hist;
-    }
-
-    Ok(data)
 }
