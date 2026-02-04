@@ -202,9 +202,18 @@ The configuration loader (`src/config.rs::Config::load()`):
 - **IPC**: Unix Domain Socket at `~/.config/nudge/nudge.sock`
 - **Process control**: Uses `nix` crate with POSIX signals (SIGTERM, SIGCONT)
 - **Shell integration**: Bash (`integration.bash`) and Zsh (`integration.zsh`)
+- **Interactive shell detection**: Use `[[ $- == *i* ]]` to check if shell is interactive
 
 #### Windows
 - **IPC**: Named Pipe at `\\.\pipe\nudge_{username}`
 - **Process control**: Uses `windows-sys` crate with `OpenProcess`/`TerminateProcess`
 - **Shell integration**: PowerShell (`integration.ps1`) and CMD (`integration.cmd`)
 - **Installation**: Run `shell/install.ps1` to add to PowerShell profile
+- **Interactive session detection**: Use `[Environment]::UserInteractive` in PowerShell
+- **CMD interactive detection**: Check `if defined PROMPT` for interactive CMD sessions
+
+### Shell Integration Gotchas
+
+- **Non-interactive shells**: Scripts like scp, rsync, git remote operations source shell profiles in non-interactive mode. Any stdout/stderr output will break these commands.
+- **stderr capture**: Error diagnosis feature redirects stderr to file. Interactive programs (vim, ssh, top) must be excluded via `diagnosis.interactive_commands` config.
+- **CLI info command**: Use `nudge info --field <name>` to expose config values to shell scripts (e.g., `interactive_commands` returns comma-separated list).

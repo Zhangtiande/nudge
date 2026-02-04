@@ -242,6 +242,48 @@ diagnosis:
   # Timeout for diagnosis request (milliseconds)
   timeout_ms: 5000
 
+  # Interactive commands that should skip stderr capture
+  # These programs need real-time stderr output and user interaction
+  # The shell integration checks the first word of the command against this list
+  # You can add custom commands in your config.yaml to extend this list
+  interactive_commands:
+    # Editors
+    - vim
+    - nvim
+    - vi
+    - nano
+    - emacs
+    - code
+    # Remote access
+    - ssh
+    - telnet
+    - mosh
+    # Interactive tools
+    - top
+    - htop
+    - btop
+    - less
+    - more
+    - man
+    # Fuzzy finders
+    - fzf
+    - sk
+    # Terminal multiplexers
+    - tmux
+    - screen
+    # Interactive shells/REPLs
+    - python
+    - python3
+    - ipython
+    - node
+    - irb
+    - psql
+    - mysql
+    - sqlite3
+    # Other interactive programs
+    - watch
+    - tail
+
 # ========================================
 # Advanced Configuration
 # ========================================

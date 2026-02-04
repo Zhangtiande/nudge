@@ -327,6 +327,9 @@ pub struct DiagnosisConfig {
     pub max_stderr_size: usize,
     /// Timeout for diagnosis request (ms)
     pub timeout_ms: u64,
+    /// Commands that should skip stderr capture (interactive programs)
+    /// These programs need real-time stderr output (e.g., vim, ssh, top)
+    pub interactive_commands: Vec<String>,
 }
 
 impl Default for DiagnosisConfig {
@@ -337,6 +340,44 @@ impl Default for DiagnosisConfig {
             auto_suggest: true,
             max_stderr_size: 4096,
             timeout_ms: 5000,
+            interactive_commands: vec![
+                // Editors
+                "vim".to_string(),
+                "nvim".to_string(),
+                "vi".to_string(),
+                "nano".to_string(),
+                "emacs".to_string(),
+                "code".to_string(),
+                // Remote access
+                "ssh".to_string(),
+                "telnet".to_string(),
+                "mosh".to_string(),
+                // Interactive tools
+                "top".to_string(),
+                "htop".to_string(),
+                "btop".to_string(),
+                "less".to_string(),
+                "more".to_string(),
+                "man".to_string(),
+                // Fuzzy finders
+                "fzf".to_string(),
+                "sk".to_string(),
+                // Terminal multiplexers
+                "tmux".to_string(),
+                "screen".to_string(),
+                // Interactive shells
+                "python".to_string(),
+                "python3".to_string(),
+                "ipython".to_string(),
+                "node".to_string(),
+                "irb".to_string(),
+                "psql".to_string(),
+                "mysql".to_string(),
+                "sqlite3".to_string(),
+                // Other interactive programs
+                "watch".to_string(),
+                "tail".to_string(),
+            ],
         }
     }
 }

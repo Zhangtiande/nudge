@@ -87,6 +87,7 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
             "trigger_hotkey" => info.trigger_hotkey.clone(),
             "auto_delay_ms" => info.auto_delay_ms.to_string(),
             "diagnosis_enabled" => info.diagnosis_enabled.to_string(),
+            "interactive_commands" => config.diagnosis.interactive_commands.join(","),
             _ => anyhow::bail!("Unknown field: {}", field_name),
         };
         println!("{}", value);

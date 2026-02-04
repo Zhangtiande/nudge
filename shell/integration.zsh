@@ -35,7 +35,24 @@ typeset -g _nudge_pending_buffer=""
 typeset -g _nudge_stderr_file=""
 typeset -g _nudge_stderr_fd=""
 typeset -g _nudge_last_command=""
+typeset -g _nudge_skip_capture=""
 NUDGE_DIAGNOSIS_ENABLED=$(nudge info --field diagnosis_enabled 2>/dev/null)
+
+# Interactive commands list (loaded from config, cached for performance)
+typeset -ga _nudge_interactive_commands
+_nudge_interactive_commands=($(nudge info --field interactive_commands 2>/dev/null | tr ',' ' '))
+# Fallback if nudge info fails
+if [[ ${#_nudge_interactive_commands[@]} -eq 0 ]]; then
+    _nudge_interactive_commands=(
+        vim nvim vi nano emacs code
+        ssh telnet mosh
+        top htop btop less more man
+        fzf sk
+        tmux screen
+        python python3 ipython node irb psql mysql sqlite3
+        watch tail
+    )
+fi
 
 # Capture last exit code
 _nudge_last_exit=0
@@ -48,11 +65,37 @@ precmd_functions+=(_nudge_capture_exit)
 # Error Diagnosis Functions
 # ============================================================================
 
+# Check if command is interactive (should skip stderr capture)
+_nudge_is_interactive_command() {
+    local cmd="$1"
+    # Extract the first word (command name), handling pipes and redirects
+    local first_word="${cmd%% *}"
+    # Remove any leading env vars like VAR=value
+    first_word="${first_word##*=}"
+    # Handle commands with path like /usr/bin/vim
+    first_word="${first_word##*/}"
+
+    # Check against interactive commands list
+    local interactive_cmd
+    for interactive_cmd in "${_nudge_interactive_commands[@]}"; do
+        [[ "$first_word" == "$interactive_cmd" ]] && return 0
+    done
+    return 1
+}
+
 # Diagnosis preexec - capture stderr before command runs
 _nudge_diagnosis_preexec() {
     [[ "$NUDGE_DIAGNOSIS_ENABLED" != "true" ]] && return
 
     _nudge_last_command="$1"
+    _nudge_skip_capture=""
+
+    # Skip stderr capture for interactive commands
+    if _nudge_is_interactive_command "$1"; then
+        _nudge_skip_capture="1"
+        return
+    fi
+
     _nudge_stderr_file="/tmp/nudge_stderr_$$"
 
     # Save original stderr and redirect to file
@@ -64,7 +107,7 @@ _nudge_diagnosis_preexec() {
 _nudge_diagnosis_precmd() {
     local exit_code=$?
 
-    # Restore stderr immediately
+    # Restore stderr immediately (only if we captured it)
     if [[ -n "$_nudge_stderr_fd" ]]; then
         exec 2>&$_nudge_stderr_fd
         exec {_nudge_stderr_fd}>&-
@@ -76,6 +119,7 @@ _nudge_diagnosis_precmd() {
         rm -f "$_nudge_stderr_file"
         _nudge_stderr_file=""
         _nudge_last_command=""
+        _nudge_skip_capture=""
     }
 
     # Only proceed if diagnosis enabled
@@ -84,6 +128,12 @@ _nudge_diagnosis_precmd() {
         return
     fi
     if [[ -z "$_nudge_last_command" ]]; then
+        _nudge_diagnosis_cleanup
+        return
+    fi
+
+    # Skip diagnosis for interactive commands (stderr was not captured)
+    if [[ -n "$_nudge_skip_capture" ]]; then
         _nudge_diagnosis_cleanup
         return
     fi
@@ -404,17 +454,20 @@ if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
     fi
 fi
 
-# Print success message on first load
+# Print success message on first load (only in interactive shells)
 if [[ -z "$_NUDGE_LOADED" ]]; then
     export _NUDGE_LOADED=1
-    local mode_msg=""
-    if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
-        mode_msg="auto mode"
-    else
-        mode_msg="manual mode (Ctrl+E)"
+    # Only print messages in interactive shells to avoid breaking scp, rsync, etc.
+    if [[ $- == *i* ]]; then
+        local mode_msg=""
+        if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+            mode_msg="auto mode"
+        else
+            mode_msg="manual mode (Ctrl+E)"
+        fi
+        if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
+            mode_msg="$mode_msg + error diagnosis"
+        fi
+        echo "Nudge loaded ($mode_msg)."
     fi
-    if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
-        mode_msg="$mode_msg + error diagnosis"
-    fi
-    echo "Nudge loaded ($mode_msg)."
 fi

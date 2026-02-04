@@ -14,10 +14,14 @@ REM To make this permanent, add to your AutoRun registry:
 REM   reg add "HKCU\Software\Microsoft\Command Processor" /v AutoRun /t REG_SZ /d "path\to\integration.cmd" /f
 
 REM Ensure daemon is running on first load
+REM Only show message in interactive sessions to avoid breaking scp, rsync, etc.
 if not defined NUDGE_LOADED (
     set NUDGE_LOADED=1
     start /b nudge daemon --fork >nul 2>&1
-    echo Nudge loaded. Use 'nudge-complete ^<command^>' to get suggestions.
+    REM Check if running interactively: PROMPT is set in interactive CMD sessions
+    if defined PROMPT (
+        echo Nudge loaded. Use 'nudge-complete ^<command^>' to get suggestions.
+    )
 )
 
 REM Create doskey macros

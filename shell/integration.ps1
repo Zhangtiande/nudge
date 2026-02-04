@@ -30,6 +30,52 @@ $script:NudgeLastErrorCount = 0
 $script:NudgeLastHistoryId = 0
 $script:NudgeDiagnosisSuggestion = ""
 
+# Interactive commands list (loaded from config, cached for performance)
+$script:NudgeInteractiveCommands = @()
+try {
+    $interactiveCmds = nudge info --field interactive_commands 2>$null
+    if ($interactiveCmds) {
+        $script:NudgeInteractiveCommands = $interactiveCmds -split ','
+    }
+} catch {}
+# Fallback if nudge info fails
+if ($script:NudgeInteractiveCommands.Count -eq 0) {
+    $script:NudgeInteractiveCommands = @(
+        'vim', 'nvim', 'vi', 'nano', 'emacs', 'code',
+        'ssh', 'telnet', 'mosh',
+        'top', 'htop', 'btop', 'less', 'more', 'man',
+        'fzf', 'sk',
+        'tmux', 'screen',
+        'python', 'python3', 'ipython', 'node', 'irb', 'psql', 'mysql', 'sqlite3',
+        'watch', 'tail'
+    )
+}
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+# Check if running in interactive mode (to avoid breaking scp, rsync, etc.)
+function Test-InteractiveSession {
+    return [Environment]::UserInteractive -and $Host.UI.RawUI -and $Host.Name -ne 'Default Host'
+}
+
+# Check if command is interactive (should skip diagnosis)
+function Test-InteractiveCommand {
+    param([string]$Command)
+    if (-not $Command) { return $false }
+
+    # Extract the first word (command name)
+    $firstWord = ($Command -split '\s+')[0]
+    # Handle commands with path like C:\Program Files\vim\vim.exe
+    $firstWord = Split-Path $firstWord -Leaf -ErrorAction SilentlyContinue
+    if (-not $firstWord) { $firstWord = ($Command -split '\s+')[0] }
+    # Remove .exe extension if present
+    $firstWord = $firstWord -replace '\.exe$', ''
+
+    return $script:NudgeInteractiveCommands -contains $firstWord
+}
+
 # ============================================================================
 # Error Diagnosis Functions
 # ============================================================================
@@ -54,6 +100,11 @@ function global:Invoke-NudgeDiagnosis {
     }
     if ($lastHistoryId -gt 0) {
         $script:NudgeLastHistoryId = $lastHistoryId
+    }
+
+    # Skip diagnosis for interactive commands
+    if ($lastCommand -and (Test-InteractiveCommand $lastCommand)) {
+        return
     }
 
     # Check for PowerShell errors (cmdlet exceptions)
@@ -279,8 +330,10 @@ function Initialize-NudgeAutoMode {
     }
 
     if (-not $modulePath) {
-        Write-Warning "NudgePredictor module not found. Auto mode disabled."
-        Write-Warning "Install the module or use manual mode (Ctrl+E)."
+        if (Test-InteractiveSession) {
+            Write-Warning "NudgePredictor module not found. Auto mode disabled."
+            Write-Warning "Install the module or use manual mode (Ctrl+E)."
+        }
         return $false
     }
 
@@ -293,7 +346,9 @@ function Initialize-NudgeAutoMode {
 
         return $true
     } catch {
-        Write-Warning "Failed to initialize auto mode: $_"
+        if (Test-InteractiveSession) {
+            Write-Warning "Failed to initialize auto mode: $_"
+        }
         return $false
     }
 }
@@ -318,14 +373,18 @@ if ($script:NudgeTriggerMode -eq "auto") {
     if (Test-NudgeAutoModeSupport) {
         $autoModeEnabled = Initialize-NudgeAutoMode
     } else {
-        Write-Warning "Auto mode requires PowerShell 7.2+ with PSReadLine 2.2.0+"
-        Write-Warning "Falling back to manual mode. Press Ctrl+E to trigger completion."
+        if (Test-InteractiveSession) {
+            Write-Warning "Auto mode requires PowerShell 7.2+ with PSReadLine 2.2.0+"
+            Write-Warning "Falling back to manual mode. Press Ctrl+E to trigger completion."
+        }
     }
 }
 
-# Print success message
-$modeMsg = if ($autoModeEnabled) { "auto mode" } else { "manual mode (Ctrl+E)" }
-if ($script:NudgeDiagnosisEnabled) {
-    $modeMsg = "$modeMsg + error diagnosis"
+# Print success message (only in interactive sessions)
+if (Test-InteractiveSession) {
+    $modeMsg = if ($autoModeEnabled) { "auto mode" } else { "manual mode (Ctrl+E)" }
+    if ($script:NudgeDiagnosisEnabled) {
+        $modeMsg = "$modeMsg + error diagnosis"
+    }
+    Write-Host "Nudge loaded ($modeMsg)." -ForegroundColor Green
 }
-Write-Host "Nudge loaded ($modeMsg)." -ForegroundColor Green

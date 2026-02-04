@@ -67,14 +67,17 @@ _nudge_complete() {
 # Bind Ctrl+E hotkey (manual mode)
 bind -x '"\C-e": _nudge_complete'
 
-# Print success message on first load
+# Print success message on first load (only in interactive shells)
 if [[ -z "$_NUDGE_LOADED" ]]; then
     export _NUDGE_LOADED=1
-    if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
-        echo "Warning: Bash does not support auto mode due to readline limitations."
-        echo "Falling back to manual mode. Press Ctrl+E to trigger completion."
-        echo "For auto mode support, consider using Zsh or Fish."
-    else
-        echo "Nudge loaded. Press Ctrl+E to trigger completion."
+    # Only print messages in interactive shells to avoid breaking scp, rsync, etc.
+    if [[ $- == *i* ]]; then
+        if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+            echo "Warning: Bash does not support auto mode due to readline limitations."
+            echo "Falling back to manual mode. Press Ctrl+E to trigger completion."
+            echo "For auto mode support, consider using Zsh or Fish."
+        else
+            echo "Nudge loaded. Press Ctrl+E to trigger completion."
+        fi
     fi
 fi
