@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-02-04
+
+### Added
+- **Interactive Command Detection**: Shell integration now detects interactive shells to avoid breaking scp, rsync, git remote operations
+  - Bash/Zsh: `[[ $- == *i* ]]` check
+  - PowerShell: `[Environment]::UserInteractive` check
+  - CMD: `if defined PROMPT` check
+- **Interactive Commands Config**: New `diagnosis.interactive_commands` setting to skip stderr capture for programs like vim, ssh, top, less, fzf, tmux, python, etc.
+- **CLI Enhancement**: `nudge info --field interactive_commands` to expose config to shell scripts
+
+### Fixed
+- Shell integration scripts no longer output messages in non-interactive shells
+- Error diagnosis now skips stderr capture for interactive programs
+- **Security**: Updated `bytes` crate to 1.11.1 to fix integer overflow vulnerability (RUSTSEC-2026-0007)
+
 ## [0.3.0] - 2026-01-23
 
 ### Added
