@@ -49,6 +49,15 @@ trigger:
   hotkey: "\\C-e"
   auto_delay_ms: 500
 
+# Cache Settings
+cache:
+  capacity: 1024
+  prefix_bytes: 80
+  ttl_auto_ms: 3000
+  ttl_manual_ms: 15000
+  ttl_negative_ms: 2000
+  stale_ratio: 0.8
+
 # Error Diagnosis
 diagnosis:
   enabled: true
@@ -155,6 +164,17 @@ Higher priority = kept longer during truncation (1-100).
 | `mode` | string | `manual` | `manual` or `auto` |
 | `hotkey` | string | `\C-e` | Manual trigger key |
 | `auto_delay_ms` | integer | 500 | Auto mode debounce |
+
+### Cache
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `capacity` | integer | 1024 | Max cache entries (LRU) |
+| `prefix_bytes` | integer | 80 | Max bytes of prefix for key hashing |
+| `ttl_auto_ms` | integer | 3000 | Auto mode TTL (ms) |
+| `ttl_manual_ms` | integer | 15000 | Manual mode TTL (ms) |
+| `ttl_negative_ms` | integer | 2000 | Negative cache TTL (ms) |
+| `stale_ratio` | float | 0.8 | Stale-while-revalidate threshold |
 
 ### Diagnosis
 

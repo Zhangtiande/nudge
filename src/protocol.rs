@@ -20,6 +20,18 @@ pub struct CompletionRequest {
     /// Exit code of the most recent command
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_exit_code: Option<i32>,
+    /// Git repository root (if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_root: Option<PathBuf>,
+    /// Git state summary (repo_id|branch|dirty|staged)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_state: Option<String>,
+    /// Shell mode (zsh-auto, zsh-inline, ps-inline, bash-popup, etc.)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_mode: Option<String>,
+    /// Optional time bucket for auto mode (floor(now_ms / 2000))
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_bucket: Option<u64>,
 }
 
 impl CompletionRequest {
@@ -37,6 +49,10 @@ impl CompletionRequest {
             cursor_pos,
             cwd,
             last_exit_code,
+            git_root: None,
+            git_state: None,
+            shell_mode: None,
+            time_bucket: None,
         }
     }
 }
@@ -56,6 +72,12 @@ pub struct CompletionResponse {
     /// Summary of context used (optional, for debugging)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_summary: Option<ContextSummary>,
+    /// Whether response came from cache
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_hit: Option<bool>,
+    /// Cache age in milliseconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_age_ms: Option<u64>,
 }
 
 impl CompletionResponse {
@@ -70,6 +92,8 @@ impl CompletionResponse {
             processing_time_ms,
             error: None,
             context_summary: None,
+            cache_hit: None,
+            cache_age_ms: None,
         }
     }
 
@@ -80,6 +104,8 @@ impl CompletionResponse {
             processing_time_ms,
             error: Some(error),
             context_summary: None,
+            cache_hit: None,
+            cache_age_ms: None,
         }
     }
 }

@@ -18,10 +18,18 @@ pub async fn complete(
     cwd: PathBuf,
     session: String,
     last_exit_code: Option<i32>,
+    git_root: Option<PathBuf>,
+    git_state: Option<String>,
+    shell_mode: Option<String>,
+    time_bucket: Option<u64>,
     format: OutputFormat,
 ) -> Result<()> {
     // Build request
-    let request = CompletionRequest::new(session, buffer, cursor, cwd, last_exit_code);
+    let mut request = CompletionRequest::new(session, buffer, cursor, cwd, last_exit_code);
+    request.git_root = git_root;
+    request.git_state = git_state;
+    request.shell_mode = shell_mode;
+    request.time_bucket = time_bucket;
 
     debug!("Sending completion request");
 

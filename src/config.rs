@@ -14,6 +14,7 @@ pub struct Config {
     pub context: ContextConfig,
     pub plugins: PluginsConfig,
     pub trigger: TriggerConfig,
+    pub cache: CacheConfig,
     pub privacy: PrivacyConfig,
     pub log: LogConfig,
     pub diagnosis: DiagnosisConfig,
@@ -260,6 +261,31 @@ impl Default for TriggerConfig {
             mode: TriggerMode::Manual,
             hotkey: r"\C-e".to_string(),
             auto_delay_ms: 500,
+        }
+    }
+}
+
+/// Cache settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CacheConfig {
+    pub capacity: usize,
+    pub prefix_bytes: usize,
+    pub ttl_auto_ms: u64,
+    pub ttl_manual_ms: u64,
+    pub ttl_negative_ms: u64,
+    pub stale_ratio: f32,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            capacity: 1024,
+            prefix_bytes: 80,
+            ttl_auto_ms: 3000,
+            ttl_manual_ms: 15000,
+            ttl_negative_ms: 2000,
+            stale_ratio: 0.8,
         }
     }
 }
