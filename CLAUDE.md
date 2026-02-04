@@ -40,6 +40,13 @@ cargo fmt --check
 cargo clippy
 ```
 
+## Version Management
+
+When user explicitly requests a version upgrade:
+1. Update version in `Cargo.toml`
+2. Update `CHANGELOG.md` with new version section and changes
+3. Create git tag with `git tag vX.Y.Z`
+
 ## Pre-Commit Quality Checks
 
 **IMPORTANT**: When user ask to check code, you MUST run the following checks to ensure code quality and prevent CI failures. These checks mirror the GitHub Actions workflows defined in `.github/workflows/`.
