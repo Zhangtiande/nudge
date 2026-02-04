@@ -87,6 +87,10 @@ _nudge_is_interactive_command() {
 _nudge_diagnosis_preexec() {
     [[ "$NUDGE_DIAGNOSIS_ENABLED" != "true" ]] && return
 
+    # Clear any pending diagnosis suggestion when user executes a new command
+    # This prevents stale suggestions from appearing on next Tab press
+    _nudge_auto_suggestion=""
+
     _nudge_last_command="$1"
     _nudge_skip_capture=""
 
@@ -106,6 +110,11 @@ _nudge_diagnosis_preexec() {
 # Diagnosis precmd - analyze errors after command runs
 _nudge_diagnosis_precmd() {
     local exit_code=$?
+
+    # Clear any stale diagnosis suggestion at the start of each prompt
+    # This handles cases where user pressed Enter without accepting the suggestion
+    # or when preexec wasn't called (e.g., empty command)
+    _nudge_auto_suggestion=""
 
     # Restore stderr immediately (only if we captured it)
     if [[ -n "$_nudge_stderr_fd" ]]; then
