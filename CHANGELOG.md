@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-02-05
+
+### Added
+- **Suggestion Cache**: LRU+TTL cache with stale-while-revalidate for faster completions
+  - Cache key: `prefix + cwd + git_state + shell_mode` (context-aware)
+  - TTL: auto=5min, manual=10min, negative=30s
+  - Stale-while-revalidate: returns cached result immediately, refreshes in background at 80% TTL
+- **Cache Debug Logging**: Run `RUST_LOG=debug nudge daemon` to observe cache hit/miss
+
+### Changed
+- Removed `time_bucket` from cache key (unnecessary with debounce delay)
+- Extended cache TTL for better reuse across sessions
+
+### Documentation
+- Added auto-mode widget refactor implementation plan
+- Updated CLAUDE.md with cache design and Zsh auto mode architecture
+
 ## [0.4.1] - 2026-02-04
 
 ### Added

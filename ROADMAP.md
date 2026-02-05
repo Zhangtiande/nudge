@@ -19,7 +19,7 @@
 - Tab 接受完整建议
 - Right Arrow 接受下一个单词
 
-### v0.4.0 - 错误诊断增强 🚧
+### v0.4.0 - 错误诊断增强 ✅
 
 **目标**: 增强错误诊断功能，提供与命令补全相同级别的项目感知能力。
 
@@ -29,6 +29,10 @@
 - ✅ Tab 键接受修复建议
 - ✅ 诊断上下文与补全上下文统一
 - ✅ 诊断支持完整项目上下文（Git、Node、Python、Rust、Docker）
+- ✅ **建议缓存** (v0.4.2): LRU+TTL 缓存，stale-while-revalidate 策略
+  - 缓存 key: prefix + cwd + git_state + shell_mode
+  - TTL: auto=5min, manual=10min
+  - 上下文变化自动失效
 
 **改进内容**:
 - 诊断现在包含系统信息（OS、架构、Shell 类型）
@@ -86,6 +90,7 @@
 | Python 插件 | v0.3.0 | pyproject.toml、依赖、虚拟环境 |
 | Rust 插件 | v0.3.0 | Cargo.toml、依赖、workspace |
 | 诊断项目感知 | v0.4.0 | 诊断使用完整项目上下文 |
+| 建议缓存 | v0.4.2 | LRU+TTL 缓存减少 LLM 调用 |
 
 ### 平台支持
 
@@ -109,4 +114,4 @@
 
 ---
 
-*Last updated: 2026-01-30*
+*Last updated: 2026-02-05*
