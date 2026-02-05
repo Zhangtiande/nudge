@@ -18,10 +18,30 @@ impl SuggestionKey {
         time_bucket: Option<u64>,
         prefix_bytes: usize,
     ) -> String {
+        Self::build_with_patterns(
+            req,
+            git_root,
+            git_state,
+            shell_mode,
+            time_bucket,
+            prefix_bytes,
+            &[],
+        )
+    }
+
+    pub fn build_with_patterns(
+        req: &CompletionRequest,
+        git_root: Option<&PathBuf>,
+        git_state: Option<&str>,
+        shell_mode: &str,
+        time_bucket: Option<u64>,
+        prefix_bytes: usize,
+        custom_patterns: &[String],
+    ) -> String {
         let cursor = req.cursor_pos.min(req.buffer.len());
         let prefix_raw = &req.buffer[..cursor];
 
-        let (sanitized_prefix, _) = sanitizer::sanitize_string(prefix_raw, &[]);
+        let (sanitized_prefix, _) = sanitizer::sanitize_string(prefix_raw, custom_patterns);
         let truncated = truncate_utf8(&sanitized_prefix, prefix_bytes);
         let prefix_hash = hash_hex_16(truncated.as_bytes());
 

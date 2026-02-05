@@ -52,6 +52,7 @@ _nudge_complete() {
         --cursor "$READLINE_POINT" \
         --cwd "$PWD" \
         --session "bash-$$" \
+        --shell-mode "bash-popup" \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
     if [[ $? -eq 0 && -n "$suggestion" ]]; then

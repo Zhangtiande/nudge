@@ -259,6 +259,7 @@ function global:Invoke-NudgeComplete {
             --cursor $cursor `
             --cwd (Get-Location).Path `
             --session "pwsh-$PID" `
+            --shell-mode "ps-inline" `
             --last-exit-code $script:NudgeLastExitCode `
             2>$null
 

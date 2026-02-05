@@ -217,6 +217,7 @@ _nudge_complete() {
         --cursor "$CURSOR" \
         --cwd "$PWD" \
         --session "zsh-$$" \
+        --shell-mode "zsh-inline" \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
     if [[ $? -eq 0 && -n "$suggestion" ]]; then
@@ -254,6 +255,8 @@ _nudge_auto_fetch() {
         --cursor "$CURSOR" \
         --cwd "$PWD" \
         --session "zsh-$$" \
+        --shell-mode "zsh-auto" \
+        --time-bucket $((EPOCHSECONDS / 2)) \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
     local exit_code=$?

@@ -25,8 +25,8 @@ if not defined NUDGE_LOADED (
 )
 
 REM Create doskey macros
-doskey nudge-complete=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" 2^>nul
-doskey nudge-suggest=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" 2^>nul
+doskey nudge-complete=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" --shell-mode "cmd-inline" 2^>nul
+doskey nudge-suggest=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" --shell-mode "cmd-inline" 2^>nul
 
 REM Alias for starting/stopping daemon
 doskey nudge-start=nudge start
