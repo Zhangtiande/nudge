@@ -31,6 +31,73 @@ typeset -g _nudge_timer_fd=""
 typeset -g _nudge_last_buffer=""
 typeset -g _nudge_pending_buffer=""
 
+# Widget classification for auto mode (inspired by zsh-autosuggestions)
+# Widgets that modify the buffer - trigger new suggestion fetch
+typeset -ga NUDGE_MODIFY_WIDGETS=(
+    self-insert
+    backward-delete-char
+    delete-char
+    delete-word
+    backward-delete-word
+    kill-word
+    backward-kill-word
+    kill-line
+    backward-kill-line
+    kill-whole-line
+    quoted-insert
+    yank
+    yank-pop
+    vi-delete
+    vi-change
+    vi-substitute
+)
+
+# Widgets that clear the suggestion (history navigation)
+typeset -ga NUDGE_CLEAR_WIDGETS=(
+    up-line-or-history
+    down-line-or-history
+    up-line-or-beginning-search
+    down-line-or-beginning-search
+    history-search-forward
+    history-search-backward
+    history-beginning-search-forward
+    history-beginning-search-backward
+    history-substring-search-up
+    history-substring-search-down
+    accept-line
+    accept-and-hold
+)
+
+# Widgets that accept the entire suggestion
+typeset -ga NUDGE_ACCEPT_WIDGETS=(
+    end-of-line
+    vi-end-of-line
+    vi-add-eol
+)
+
+# Widgets that accept suggestion partially (word by word)
+typeset -ga NUDGE_PARTIAL_ACCEPT_WIDGETS=(
+    forward-word
+    vi-forward-word
+    vi-forward-word-end
+    emacs-forward-word
+)
+
+# Widgets to ignore completely
+typeset -ga NUDGE_IGNORE_WIDGETS=(
+    beep
+    run-help
+    set-local-history
+    which-command
+    zle-*
+    orig-*
+    autosuggest-*
+    _nudge_*
+)
+
+# Prefix for saving original widgets
+typeset -g NUDGE_ORIG_WIDGET_PREFIX="_nudge_orig_"
+
 # Diagnosis state
 typeset -g _nudge_stderr_file=""
 typeset -g _nudge_stderr_fd=""
