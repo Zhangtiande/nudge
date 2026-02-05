@@ -17,7 +17,11 @@ REM Ensure daemon is running on first load
 REM Only show message in interactive sessions to avoid breaking scp, rsync, etc.
 if not defined NUDGE_LOADED (
     set NUDGE_LOADED=1
-    start /b nudge daemon --fork >nul 2>&1
+    REM Check if daemon is already running before starting
+    nudge status >nul 2>&1
+    if errorlevel 1 (
+        start /b nudge start >nul 2>&1
+    )
     REM Check if running interactively: PROMPT is set in interactive CMD sessions
     if defined PROMPT (
         echo Nudge loaded. Use 'nudge-complete ^<command^>' to get suggestions.
@@ -25,8 +29,8 @@ if not defined NUDGE_LOADED (
 )
 
 REM Create doskey macros
-doskey nudge-complete=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" 2^>nul
-doskey nudge-suggest=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" 2^>nul
+doskey nudge-complete=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" --shell-mode "cmd-inline" 2^>nul
+doskey nudge-suggest=nudge complete --format plain --buffer $* --cursor 9999 --cwd "%CD%" --session "cmd-%RANDOM%" --shell-mode "cmd-inline" 2^>nul
 
 REM Alias for starting/stopping daemon
 doskey nudge-start=nudge start

@@ -65,9 +65,8 @@ pub async fn complete(buffer: &str, context: &ContextData, config: &Config) -> R
         .unwrap_or(DEFAULT_SYSTEM_PROMPT);
     let user_prompt = build_user_prompt(buffer, context);
 
-    debug!("Sending request to LLM: {}", config.model.endpoint);
-    debug!("System prompt: {}", system_prompt);
-    debug!("User prompt: {}", user_prompt);
+    // Only log prompts at trace level to avoid flooding logs
+    debug!("LLM request: endpoint={}", config.model.endpoint);
 
     let request = ChatCompletionRequest {
         model: config.model.model_name.clone(),

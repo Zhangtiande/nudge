@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Command::Daemon { foreground, fork } => {
-            daemon::run(foreground, fork).await?;
+            daemon::run(config, foreground, fork).await?;
         }
         Command::Complete {
             buffer,
@@ -94,9 +94,25 @@ async fn main() -> Result<()> {
             cwd,
             session,
             last_exit_code,
+            git_root,
+            git_state,
+            shell_mode,
+            time_bucket,
             format,
         } => {
-            client::complete(buffer, cursor, cwd, session, last_exit_code, format).await?;
+            client::complete(
+                buffer,
+                cursor,
+                cwd,
+                session,
+                last_exit_code,
+                git_root,
+                git_state,
+                shell_mode,
+                time_bucket,
+                format,
+            )
+            .await?;
         }
         Command::Start => {
             daemon::start().await?;

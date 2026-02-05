@@ -5,6 +5,8 @@
 //! - Sanitization of sensitive data
 //! - Safety checks for dangerous commands
 
+use nudge::protocol::{CompletionRequest, CompletionResponse, Suggestion};
+
 /// Test that context gathering collects all expected sources
 #[tokio::test]
 async fn test_context_gathering_collects_all_sources() {
@@ -190,4 +192,39 @@ fn test_context_aggregation() {
     assert!(!history.is_empty());
     assert!(!files.is_empty());
     assert!(exit_code.is_some());
+}
+
+#[test]
+fn test_completion_request_deserialize_with_cache_fields() {
+    let json = serde_json::json!({
+        "session_id": "zsh-123",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "buffer": "git st",
+        "cursor_pos": 6,
+        "cwd": "/tmp",
+        "last_exit_code": 0,
+        "git_root": "/tmp",
+        "git_state": "repo|main|0|0",
+        "shell_mode": "zsh-inline",
+        "time_bucket": 12345
+    });
+
+    let req: CompletionRequest = serde_json::from_value(json).unwrap();
+    assert_eq!(req.git_state.as_deref(), Some("repo|main|0|0"));
+    assert_eq!(req.shell_mode.as_deref(), Some("zsh-inline"));
+    assert_eq!(req.time_bucket, Some(12345));
+}
+
+#[test]
+fn test_completion_response_serializes_cache_meta() {
+    let mut resp = CompletionResponse::success(
+        "req-1".to_string(),
+        vec![Suggestion::new("ls".to_string())],
+        0,
+    );
+    resp.cache_hit = Some(true);
+    resp.cache_age_ms = Some(12);
+    let serialized = serde_json::to_string(&resp).unwrap();
+    assert!(serialized.contains("cache_hit"));
+    assert!(serialized.contains("cache_age_ms"));
 }

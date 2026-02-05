@@ -107,6 +107,7 @@ class NudgePredictor : ICommandPredictor {
                     --cursor $cursor `
                     --cwd $cwd `
                     --session $this.SessionId `
+                    --shell-mode "ps-auto" `
                     2>$null | ConvertFrom-Json
             } catch {
                 return (& $script:NewSuggestionPackageFunc)

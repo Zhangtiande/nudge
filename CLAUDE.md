@@ -64,7 +64,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 cargo check --all-targets
 
 # 4. Test suite - Ensures all tests pass
-cargo test --verbose
+cargo test
 ```
 
 ### When to Run These Checks
@@ -148,6 +148,7 @@ When the interactive wizard needs to handle new settings:
 #### 4. Documentation
 - [ ] Update configuration examples in README.md
 - [ ] Update configuration examples in README_zh.md (Chinese version)
+- [ ] Update docs/configuration.md (full reference)
 - [ ] Update this CLAUDE.md file if architectural changes
 
 ### Configuration Sync Checklist Example
@@ -161,6 +162,7 @@ When adding a new config option like `context.include_system_info`:
 5. ✅ Add to inline fallback config in `shell/setup-shell.sh` (lines ~305-372)
 6. ✅ Optionally add to `config.user.yaml.template` if commonly customized
 7. ✅ Update README examples if relevant to users
+8. ✅ Update docs/configuration.md (full reference)
 
 **Why this matters**: Installation scripts contain embedded fallback configurations. If these get out of sync, users may experience:
 - Missing configuration options on fresh installs
@@ -186,6 +188,7 @@ The configuration loader (`src/config.rs::Config::load()`):
 - **`src/daemon/context/`**: Context aggregation with priority-based truncation
 - **`src/daemon/sanitizer.rs`**: Sensitive data redaction (API keys, tokens, passwords)
 - **`src/daemon/safety.rs`**: Dangerous command detection
+- **`src/daemon/suggestion_cache.rs`**: LRU+TTL cache with stale-while-revalidate
 
 ### Data Flow
 
@@ -202,6 +205,14 @@ The configuration loader (`src/config.rs::Config::load()`):
 - **Git plugin timeout**: Strict 50ms timeout on all git operations
 - **Token estimation**: Word-based with 1.3x multiplier for context truncation
 - **Context priorities**: history(80) > cwd_listing(60) > plugins(40)
+
+### Suggestion Cache Design
+
+- **Cache key**: `sk:v1:{prefix_hash}:{cwd_hash}:{git_hash}:{shell_mode}` - context changes auto-invalidate
+- **TTL**: auto=5min, manual=10min, negative=30s (configurable in `cache` config section)
+- **No time_bucket**: Removed because auto mode has delay debounce, manual mode users don't repeat same prefix
+- **Debug logging**: Run `RUST_LOG=debug nudge daemon` to observe cache hit/miss
+- **Stale-while-revalidate**: Returns stale cache immediately, refreshes in background at 80% TTL
 
 ### Platform-Specific Details
 
@@ -224,3 +235,10 @@ The configuration loader (`src/config.rs::Config::load()`):
 - **Non-interactive shells**: Scripts like scp, rsync, git remote operations source shell profiles in non-interactive mode. Any stdout/stderr output will break these commands.
 - **stderr capture**: Error diagnosis feature redirects stderr to file. Interactive programs (vim, ssh, top) must be excluded via `diagnosis.interactive_commands` config.
 - **CLI info command**: Use `nudge info --field <name>` to expose config values to shell scripts (e.g., `interactive_commands` returns comma-separated list).
+
+### Zsh Auto Mode Architecture
+
+- **Current**: Uses `zle-line-pre-redraw` hook + `sleep` process debounce (has performance issues)
+- **Planned**: Widget wrapping approach (see `docs/plans/2026-02-05-auto-mode-widget-refactor.md`)
+- **Reference**: zsh-autosuggestions uses `$PENDING` and `$KEYS_QUEUED_COUNT` for input queue detection
+- **Widget classification**: modify (fetch new), clear (history nav), accept, partial_accept, ignore

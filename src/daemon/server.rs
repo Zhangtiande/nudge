@@ -1,4 +1,5 @@
-use std::time::Instant;
+use std::sync::Arc;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use interprocess::local_socket::{
@@ -7,6 +8,7 @@ use interprocess::local_socket::{
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::signal;
+use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -21,6 +23,7 @@ use super::llm;
 use super::safety;
 use super::sanitizer;
 use super::session::SessionStore;
+use super::suggestion_cache::{SuggestionCache, SuggestionKey};
 use crate::config::Config;
 use crate::protocol::{
     CompletionRequest, CompletionResponse, DiagnosisRequest, DiagnosisResponse, ErrorCode,
@@ -88,6 +91,10 @@ pub async fn run(config: Config) -> Result<()> {
 
     // Create shared state
     let session_store = SessionStore::new();
+    let cache = Arc::new(Mutex::new(SuggestionCache::new(
+        config.cache.capacity,
+        config.cache.stale_ratio,
+    )));
 
     // Main accept loop with graceful shutdown
     loop {
@@ -98,8 +105,9 @@ pub async fn run(config: Config) -> Result<()> {
                     Ok(stream) => {
                         let config = config.clone();
                         let sessions = session_store.clone();
+                        let cache = cache.clone();
                         tokio::spawn(async move {
-                            if let Err(e) = handle_connection(stream, config, sessions).await {
+                            if let Err(e) = handle_connection(stream, config, sessions, cache).await {
                                 error!("Connection handler error: {}", e);
                             }
                         });
@@ -127,7 +135,12 @@ pub async fn run(config: Config) -> Result<()> {
 }
 
 /// Handle a single client connection
-async fn handle_connection(stream: Stream, config: Config, sessions: SessionStore) -> Result<()> {
+async fn handle_connection(
+    stream: Stream,
+    config: Config,
+    sessions: SessionStore,
+    cache: Arc<Mutex<SuggestionCache>>,
+) -> Result<()> {
     let (reader, mut writer) = stream.split();
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -177,7 +190,7 @@ async fn handle_connection(stream: Stream, config: Config, sessions: SessionStor
                 return Ok(());
             }
 
-            let response = process_request(request, &config, &sessions).await;
+            let response = process_request(request, &config, &sessions, cache.clone()).await;
             let response = CompletionResponse {
                 processing_time_ms: start.elapsed().as_millis() as u64,
                 ..response
@@ -235,7 +248,7 @@ async fn handle_connection(stream: Stream, config: Config, sessions: SessionStor
                 return Ok(());
             }
 
-            let response = process_request(request, &config, &sessions).await;
+            let response = process_request(request, &config, &sessions, cache.clone()).await;
             let response = CompletionResponse {
                 processing_time_ms: start.elapsed().as_millis() as u64,
                 ..response
@@ -265,9 +278,9 @@ async fn process_request(
     request: CompletionRequest,
     config: &Config,
     sessions: &SessionStore,
+    cache: Arc<Mutex<SuggestionCache>>,
 ) -> CompletionResponse {
     let request_id = Uuid::new_v4().to_string();
-    let context_start = Instant::now();
 
     // Validate CWD exists
     if !request.cwd.exists() {
@@ -278,17 +291,106 @@ async fn process_request(
     // Update session
     sessions.update_session(&request.session_id, &request.cwd);
 
+    let shell_mode = request
+        .shell_mode
+        .clone()
+        .unwrap_or_else(|| infer_shell_mode(&request.session_id));
+
+    let cache_key = SuggestionKey::build_with_patterns(
+        &request,
+        request.git_root.as_ref(),
+        request.git_state.as_deref(),
+        &shell_mode,
+        request.time_bucket,
+        config.cache.prefix_bytes,
+        &config.privacy.custom_patterns,
+    );
+
+    let now_ms = now_millis();
+    if let Some(hit) = {
+        let mut cache = cache.lock().await;
+        cache.get_with_state(&cache_key, now_ms)
+    } {
+        debug!(
+            cache_hit = true,
+            age_ms = hit.age_ms,
+            is_stale = hit.is_stale,
+            should_refresh = hit.should_refresh,
+            negative = hit.negative,
+            "Cache hit"
+        );
+        let mut response = hit.response;
+        response.request_id = request_id;
+        response.cache_hit = Some(true);
+        response.cache_age_ms = Some(hit.age_ms);
+
+        if hit.should_refresh {
+            debug!("Starting background cache refresh (stale-while-revalidate)");
+            let refresh_request = request.clone();
+            let refresh_config = config.clone();
+            let refresh_sessions = sessions.clone();
+            let refresh_cache = cache.clone();
+            let refresh_key = cache_key.clone();
+            let refresh_shell_mode = shell_mode.clone();
+
+            tokio::spawn(async move {
+                refresh_sessions.update_session(&refresh_request.session_id, &refresh_request.cwd);
+                let response = compute_completion(
+                    &refresh_request,
+                    &refresh_config,
+                    Uuid::new_v4().to_string(),
+                )
+                .await;
+                let insert_now = now_millis();
+                let is_negative = response.error.is_some() || response.suggestions.is_empty();
+                let ttl_ms = cache_ttl_ms(&refresh_shell_mode, &refresh_config, is_negative);
+                debug!(
+                    ttl_ms = ttl_ms,
+                    "Background refresh complete, updating cache"
+                );
+                let mut cache = refresh_cache.lock().await;
+                cache.insert(refresh_key, response, insert_now, ttl_ms, is_negative);
+            });
+        }
+
+        return response;
+    }
+
+    debug!(cache_hit = false, "Cache miss, computing completion");
+    let response = compute_completion(&request, config, request_id.clone()).await;
+    let insert_now = now_millis();
+    let is_negative = response.error.is_some() || response.suggestions.is_empty();
+    let ttl_ms = cache_ttl_ms(&shell_mode, config, is_negative);
+
+    debug!(
+        ttl_ms = ttl_ms,
+        is_negative = is_negative,
+        "Inserting into cache"
+    );
+    {
+        let mut cache = cache.lock().await;
+        cache.insert(cache_key, response.clone(), insert_now, ttl_ms, is_negative);
+    }
+
+    response
+}
+
+async fn compute_completion(
+    request: &CompletionRequest,
+    config: &Config,
+    request_id: String,
+) -> CompletionResponse {
+    let context_start = Instant::now();
+
     // Gather context with timing
-    let context_result = context::gather(&context::GatherParams::from(&request), config).await;
+    let context_result = context::gather(&context::GatherParams::from(request), config).await;
     let context_time = context_start.elapsed();
 
     if context_time.as_millis() > 50 {
         warn!(
-            "Context gathering took {}ms (target: <50ms)",
+            "Context gathering slow: {}ms (target: <50ms)",
             context_time.as_millis()
         );
-    } else {
-        debug!("Context gathered in {}ms", context_time.as_millis());
     }
 
     let context_data = match context_result {
@@ -309,15 +411,17 @@ async fn process_request(
     };
 
     if sanitization_event_count > 0 {
-        debug!("Sanitized {} sensitive items", sanitization_event_count);
+        debug!("Sanitized {} items", sanitization_event_count);
     }
 
-    // Query LLM with improved error categorization
+    // Query LLM
     let llm_start = Instant::now();
     let llm_result = llm::complete(&request.buffer, &sanitized_context, config).await;
     let llm_time = llm_start.elapsed();
 
-    debug!("LLM query completed in {}ms", llm_time.as_millis());
+    if llm_time.as_millis() > config.model.timeout_ms as u128 / 2 {
+        debug!("LLM query: {}ms", llm_time.as_millis());
+    }
 
     let suggestion_text = match llm_result {
         Ok(text) => text,
@@ -342,6 +446,38 @@ async fn process_request(
     }
 
     CompletionResponse::success(request_id, vec![suggestion], 0)
+}
+
+fn cache_ttl_ms(shell_mode: &str, config: &Config, negative: bool) -> u64 {
+    if negative {
+        return config.cache.ttl_negative_ms;
+    }
+    if shell_mode.to_lowercase().ends_with("-auto") {
+        config.cache.ttl_auto_ms
+    } else {
+        config.cache.ttl_manual_ms
+    }
+}
+
+fn infer_shell_mode(session_id: &str) -> String {
+    if session_id.starts_with("zsh-") {
+        "zsh-inline".to_string()
+    } else if session_id.starts_with("bash-") {
+        "bash-popup".to_string()
+    } else if session_id.starts_with("pwsh-") || session_id.starts_with("powershell-") {
+        "ps-inline".to_string()
+    } else if session_id.starts_with("cmd-") {
+        "cmd-inline".to_string()
+    } else {
+        "unknown".to_string()
+    }
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 /// Process a diagnosis request

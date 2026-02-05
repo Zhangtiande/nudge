@@ -6,20 +6,19 @@ pub mod safety;
 pub mod sanitizer;
 pub mod server;
 pub mod session;
+pub mod suggestion_cache;
 
 use std::fs;
 use std::process::Command;
 
 use anyhow::{Context, Result};
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use crate::config::Config;
 
-/// Run the daemon
-pub async fn run(foreground: bool, fork: bool) -> Result<()> {
-    debug!("Loading configuration...");
-    let config = Config::load()?;
-
+/// Run the daemon (called after fork or in foreground mode)
+/// Config is passed in to avoid duplicate loading
+pub async fn run(config: Config, foreground: bool, fork: bool) -> Result<()> {
     // Validate LLM configuration
     if let Err(e) = config.validate_llm_config() {
         eprintln!("\n\x1b[1;31mError: LLM configuration issue\x1b[0m\n");
@@ -50,9 +49,11 @@ pub async fn run(foreground: bool, fork: bool) -> Result<()> {
     let pid = std::process::id();
     fs::write(&pid_path, pid.to_string())?;
 
-    info!("Starting Nudge daemon (pid: {})", pid);
-    info!("Socket path: {}", Config::socket_path().display());
-    debug!("PID file: {}", pid_path.display());
+    info!(
+        "Daemon started: pid={} socket={}",
+        pid,
+        Config::socket_path().display()
+    );
 
     // Run the server
     let result = server::run(config).await;
@@ -257,14 +258,18 @@ fn terminate_process(pid: u32) -> bool {
 }
 
 /// Check daemon status
+/// Prints status message and exits with code 0 if running, 1 if not running
+/// This allows shell scripts to check daemon status via exit code
 pub async fn status() -> Result<()> {
     let (running, pid) = is_running_with_cleanup();
     if running {
         println!("Nudge daemon is running (pid: {})", pid);
+        Ok(())
     } else {
         println!("Nudge daemon is not running");
+        // Use exit directly to avoid anyhow printing duplicate error message
+        std::process::exit(1);
     }
-    Ok(())
 }
 
 /// Check if daemon is running, and clean up stale files if not

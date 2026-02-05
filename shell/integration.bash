@@ -32,14 +32,18 @@ _nudge_capture_exit() {
 PROMPT_COMMAND="_nudge_capture_exit${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
 
 # Ensure daemon is running (lazy load)
+# Uses `nudge status` for reliable detection (checks PID file + process alive)
 _nudge_ensure_daemon() {
-    if [[ ! -S "$NUDGE_SOCKET" ]]; then
-        # Use flock to prevent concurrent daemon starts
-        (
-            flock -n 200 2>/dev/null || exit 0
-            nudge start 2>/dev/null
-        ) 200>"$NUDGE_LOCK"
+    # Fast path: check if daemon is responding via status command
+    if nudge status >/dev/null 2>&1; then
+        return 0
     fi
+
+    # Daemon not running, try to start it with lock to prevent concurrent starts
+    (
+        flock -n 200 2>/dev/null || exit 0
+        nudge start 2>/dev/null
+    ) 200>"$NUDGE_LOCK"
 }
 
 # Main completion function (manual mode)
@@ -52,6 +56,7 @@ _nudge_complete() {
         --cursor "$READLINE_POINT" \
         --cwd "$PWD" \
         --session "bash-$$" \
+        --shell-mode "bash-popup" \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
     if [[ $? -eq 0 && -n "$suggestion" ]]; then

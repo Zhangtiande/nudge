@@ -45,6 +45,22 @@ pub enum Command {
         #[arg(long)]
         last_exit_code: Option<i32>,
 
+        /// Git repository root (if available)
+        #[arg(long)]
+        git_root: Option<PathBuf>,
+
+        /// Git state summary (repo_id|branch|dirty|staged)
+        #[arg(long)]
+        git_state: Option<String>,
+
+        /// Shell mode (zsh-auto, zsh-inline, ps-inline, bash-popup, etc.)
+        #[arg(long)]
+        shell_mode: Option<String>,
+
+        /// Time bucket for auto mode (floor(now_ms / 2000))
+        #[arg(long)]
+        time_bucket: Option<u64>,
+
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Plain)]
         format: OutputFormat,

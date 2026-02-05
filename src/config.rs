@@ -14,6 +14,7 @@ pub struct Config {
     pub context: ContextConfig,
     pub plugins: PluginsConfig,
     pub trigger: TriggerConfig,
+    pub cache: CacheConfig,
     pub privacy: PrivacyConfig,
     pub log: LogConfig,
     pub diagnosis: DiagnosisConfig,
@@ -264,6 +265,31 @@ impl Default for TriggerConfig {
     }
 }
 
+/// Cache settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CacheConfig {
+    pub capacity: usize,
+    pub prefix_bytes: usize,
+    pub ttl_auto_ms: u64,
+    pub ttl_manual_ms: u64,
+    pub ttl_negative_ms: u64,
+    pub stale_ratio: f32,
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            capacity: 1024,
+            prefix_bytes: 80,
+            ttl_auto_ms: 300000,    // 5 minutes
+            ttl_manual_ms: 600000,  // 10 minutes
+            ttl_negative_ms: 30000, // 30 seconds
+            stale_ratio: 0.8,
+        }
+    }
+}
+
 /// Trigger mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -402,55 +428,32 @@ impl Config {
         // Layer 1: Load config.default.yaml if exists (ships with app)
         if let Some(base_path) = Self::base_config_path() {
             if base_path.exists() {
-                debug!("Loading base config from: {}", base_path.display());
                 if let Ok(contents) = std::fs::read_to_string(&base_path) {
                     if let Ok(base_value) = serde_yaml::from_str::<Value>(&contents) {
                         merged_value = Self::deep_merge(merged_value, base_value);
-                        info!("Base config loaded and merged: {}", base_path.display());
+                        debug!("Merged base config: {}", base_path.display());
                     } else {
                         warn!("Failed to parse base config: {}", base_path.display());
                     }
-                } else {
-                    warn!("Failed to read base config: {}", base_path.display());
                 }
-            } else {
-                debug!("Base config not found: {}", base_path.display());
             }
-        } else {
-            warn!("Could not determine base config path (ProjectDirs failed)");
         }
 
         // Layer 2: Load config.yaml if exists (user customizations)
         if let Some(user_path) = Self::default_config_path() {
             if user_path.exists() {
-                debug!("Loading user config from: {}", user_path.display());
                 if let Ok(contents) = std::fs::read_to_string(&user_path) {
-                    // Skip empty files
                     let trimmed = contents.trim();
                     if !trimmed.is_empty() && trimmed != "---" {
-                        debug!(
-                            "User config contents ({} bytes): {}",
-                            contents.len(),
-                            &contents[..contents.len().min(200)]
-                        );
                         if let Ok(user_value) = serde_yaml::from_str::<Value>(&contents) {
-                            debug!("User config parsed successfully, merging...");
                             merged_value = Self::deep_merge(merged_value, user_value);
-                            info!("User config loaded and merged: {}", user_path.display());
+                            debug!("Merged user config: {}", user_path.display());
                         } else {
                             warn!("Failed to parse user config: {}", user_path.display());
                         }
-                    } else {
-                        debug!("User config is empty, using defaults");
                     }
-                } else {
-                    warn!("Failed to read user config: {}", user_path.display());
                 }
-            } else {
-                debug!("User config not found: {}", user_path.display());
             }
-        } else {
-            warn!("Could not determine config path (ProjectDirs failed)");
         }
 
         // Deserialize merged config
@@ -459,23 +462,16 @@ impl Config {
 
         config.validate()?;
 
-        // Log loaded configuration details
-        info!("Config loaded successfully (layered):");
-        info!("  Model endpoint: {}", config.model.endpoint);
-        info!("  Model name: {}", config.model.model_name);
+        // Log loaded configuration (concise single-line summary)
         info!(
-            "  API key configured: {}",
-            config.model.api_key.is_some() || config.model.api_key_env.is_some()
-        );
-        info!("  Timeout: {}ms", config.model.timeout_ms);
-        debug!("  History window: {}", config.context.history_window);
-        debug!("  Git plugin enabled: {}", config.plugins.git.enabled);
-        debug!(
-            "  Include system info: {}",
-            config.context.include_system_info
+            "Config loaded: model={} endpoint={} timeout={}ms",
+            config.model.model_name, config.model.endpoint, config.model.timeout_ms
         );
         debug!(
-            "  Include CWD listing: {}",
+            "Config details: history_window={} git_enabled={} system_info={} cwd_listing={}",
+            config.context.history_window,
+            config.plugins.git.enabled,
+            config.context.include_system_info,
             config.context.include_cwd_listing
         );
 

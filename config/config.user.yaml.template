@@ -45,6 +45,11 @@ model:
 #     enabled: true
 #     depth: standard
 
+# cache:
+#   capacity: 1024
+#   ttl_auto_ms: 3000
+#   ttl_manual_ms: 15000
+
 # privacy:
 #   sanitize_enabled: true
 #   block_dangerous: true
