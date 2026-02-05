@@ -597,6 +597,143 @@ _nudge_bind_all_widgets() {
 }
 
 # ============================================================================
+# Widget Action Handlers
+# ============================================================================
+
+# Handler for widgets that modify the buffer
+_nudge_widget_modify() {
+    local orig_widget=$1
+    shift
+    local -i retval
+
+    # Only available in zsh >= 5.4
+    local -i KEYS_QUEUED_COUNT 2>/dev/null
+
+    # Save original state
+    local orig_buffer="$BUFFER"
+    local orig_postdisplay="$POSTDISPLAY"
+
+    # Clear suggestion while processing
+    POSTDISPLAY=
+
+    # Call original widget
+    _nudge_invoke_original_widget $orig_widget $@
+    retval=$?
+
+    emulate -L zsh
+
+    # If more keys are queued, skip fetching (user is typing fast)
+    if (( PENDING > 0 || KEYS_QUEUED_COUNT > 0 )); then
+        POSTDISPLAY="$orig_postdisplay"
+        return $retval
+    fi
+
+    # Optimization: if user is typing into the suggestion, just truncate
+    if [[ "$BUFFER" = "$orig_buffer"* && -n "$orig_postdisplay" ]]; then
+        local typed_len=$((${#BUFFER} - ${#orig_buffer}))
+        if [[ "$orig_postdisplay" = "${BUFFER:${#orig_buffer}}"* ]]; then
+            POSTDISPLAY="${orig_postdisplay:$typed_len}"
+            _nudge_auto_suggestion="$BUFFER$POSTDISPLAY"
+            _nudge_highlight_suggestion
+            return $retval
+        fi
+    fi
+
+    # Fetch new suggestion if buffer is not empty
+    if (( ${#BUFFER} >= 2 )); then
+        _nudge_last_buffer="$BUFFER"
+        _nudge_fetch_async
+    else
+        _nudge_auto_suggestion=""
+        POSTDISPLAY=""
+    fi
+
+    return $retval
+}
+
+# Handler for widgets that clear the suggestion (history navigation)
+_nudge_widget_clear() {
+    local orig_widget=$1
+    shift
+
+    # Clear suggestion
+    _nudge_auto_suggestion=""
+    POSTDISPLAY=""
+    region_highlight=("${(@)region_highlight:#*fg=8*}")
+
+    # Call original widget
+    _nudge_invoke_original_widget $orig_widget $@
+}
+
+# Handler for widgets that accept the entire suggestion
+_nudge_widget_accept() {
+    local orig_widget=$1
+    shift
+    local -i retval
+
+    # If we have a suggestion and cursor is at end, accept it
+    if [[ -n "$_nudge_auto_suggestion" && $CURSOR -eq ${#BUFFER} && -n "$POSTDISPLAY" ]]; then
+        BUFFER="$_nudge_auto_suggestion"
+        _nudge_auto_suggestion=""
+        POSTDISPLAY=""
+        region_highlight=("${(@)region_highlight:#*fg=8*}")
+        CURSOR=${#BUFFER}
+    fi
+
+    # Call original widget
+    _nudge_invoke_original_widget $orig_widget $@
+    retval=$?
+
+    return $retval
+}
+
+# Handler for widgets that accept suggestion partially
+_nudge_widget_partial_accept() {
+    local orig_widget=$1
+    shift
+    local -i retval
+
+    if [[ -n "$_nudge_auto_suggestion" && -n "$POSTDISPLAY" ]]; then
+        # Temporarily accept full suggestion
+        local original_buffer="$BUFFER"
+        BUFFER="$_nudge_auto_suggestion"
+
+        # Let original widget move cursor
+        _nudge_invoke_original_widget $orig_widget $@
+        retval=$?
+
+        local cursor_pos=$CURSOR
+
+        # If cursor moved past original buffer end
+        if (( cursor_pos > ${#original_buffer} )); then
+            # Keep buffer up to cursor, rest becomes POSTDISPLAY
+            POSTDISPLAY="${BUFFER:$cursor_pos}"
+            BUFFER="${BUFFER:0:$cursor_pos}"
+            _nudge_highlight_suggestion
+        else
+            # Restore original buffer
+            BUFFER="$original_buffer"
+        fi
+    else
+        _nudge_invoke_original_widget $orig_widget $@
+        retval=$?
+    fi
+
+    return $retval
+}
+
+# Helper to apply highlight to POSTDISPLAY
+_nudge_highlight_suggestion() {
+    if [[ -n "$POSTDISPLAY" ]]; then
+        local start=${#BUFFER}
+        local end=$((start + ${#POSTDISPLAY}))
+        # Remove old suggestion highlights, add new one
+        region_highlight=("${(@)region_highlight:#*fg=8*}")
+        region_highlight+=("$start $end fg=8")
+    fi
+}
+
+# ============================================================================
 # Widget Registration
 # ============================================================================
 
