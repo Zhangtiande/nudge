@@ -305,6 +305,7 @@ _nudge_complete() {
 
 # Cancel any pending auto completion (wrapper for compatibility)
 _nudge_auto_cancel() {
+    _nudge_debounce_cancel
     _nudge_async_cancel
     _nudge_pending_buffer=""
     _nudge_auto_suggestion=""
@@ -312,12 +313,18 @@ _nudge_auto_cancel() {
 }
 
 # ============================================================================
-# Async Suggestion Fetching (No Sleep Debounce)
+# Async Suggestion Fetching (with time-based debounce)
 # ============================================================================
 
 # State for async operations
 typeset -g _nudge_async_fd=""
 typeset -g _nudge_child_pid=""
+typeset -g _nudge_last_fetch_time=0
+typeset -g _nudge_debounce_pending=""
+
+# Calculate debounce delay in seconds (from ms config)
+typeset -g _nudge_debounce_sec
+_nudge_debounce_sec=$(printf "%.3f" "$(echo "scale=3; ${NUDGE_AUTO_DELAY:-500} / 1000" | bc 2>/dev/null || echo "0.5")")
 
 # Cancel any pending async request
 _nudge_async_cancel() {
@@ -340,6 +347,60 @@ _nudge_async_cancel() {
 
         _nudge_async_fd=""
         _nudge_child_pid=""
+    fi
+}
+
+# State for debounce timer
+typeset -g _nudge_debounce_fd=""
+
+# Cancel debounce timer
+_nudge_debounce_cancel() {
+    if [[ -n "$_nudge_debounce_fd" ]]; then
+        zle -F "$_nudge_debounce_fd" 2>/dev/null
+        builtin exec {_nudge_debounce_fd}<&- 2>/dev/null
+        _nudge_debounce_fd=""
+    fi
+    _nudge_debounce_pending=""
+}
+
+# Debounced fetch - waits for delay before actually fetching
+_nudge_debounced_fetch() {
+    # Cancel any pending debounce timer
+    _nudge_debounce_cancel
+
+    # Cancel any pending async request
+    _nudge_async_cancel
+
+    # Mark that we have a pending fetch
+    _nudge_debounce_pending="$BUFFER"
+
+    # Start debounce timer using sleep in subshell
+    builtin exec {_nudge_debounce_fd}< <(
+        sleep "$_nudge_debounce_sec"
+        echo "ready"
+    )
+
+    # Register handler for when timer fires
+    zle -F "$_nudge_debounce_fd" _nudge_debounce_ready
+}
+
+# Called when debounce timer fires
+_nudge_debounce_ready() {
+    local fd=$1
+
+    # Read and discard
+    local dummy
+    read -r -u "$fd" dummy 2>/dev/null
+
+    # Clean up fd
+    zle -F "$fd" 2>/dev/null
+    builtin exec {fd}<&- 2>/dev/null
+    _nudge_debounce_fd=""
+
+    # Only fetch if buffer hasn't changed since debounce started
+    if [[ -n "$_nudge_debounce_pending" && "$BUFFER" == "$_nudge_debounce_pending" ]]; then
+        _nudge_debounce_pending=""
+        _nudge_fetch_async
     fi
 }
 
@@ -635,7 +696,8 @@ _nudge_widget_modify() {
     # Fetch new suggestion if buffer is not empty
     if (( ${#BUFFER} >= 2 )); then
         _nudge_last_buffer="$BUFFER"
-        _nudge_fetch_async
+        # Use debounced fetch instead of immediate fetch
+        _nudge_debounced_fetch
     else
         _nudge_auto_suggestion=""
         POSTDISPLAY=""
