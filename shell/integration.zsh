@@ -321,6 +321,7 @@ typeset -g _nudge_async_fd=""
 typeset -g _nudge_child_pid=""
 typeset -g _nudge_last_fetch_time=0
 typeset -g _nudge_debounce_pending=""
+typeset -g _nudge_async_suggestion_temp=""
 
 # Calculate debounce delay in seconds (from ms config)
 typeset -g _nudge_debounce_sec
@@ -357,7 +358,7 @@ typeset -g _nudge_debounce_fd=""
 _nudge_debounce_cancel() {
     if [[ -n "$_nudge_debounce_fd" ]]; then
         zle -F "$_nudge_debounce_fd" 2>/dev/null
-        builtin exec {_nudge_debounce_fd}<&- 2>/dev/null
+        exec {_nudge_debounce_fd}<&- 2>/dev/null
         _nudge_debounce_fd=""
     fi
     _nudge_debounce_pending=""
@@ -365,6 +366,7 @@ _nudge_debounce_cancel() {
 
 # Debounced fetch - waits for delay before actually fetching
 _nudge_debounced_fetch() {
+
     # Cancel any pending debounce timer
     _nudge_debounce_cancel
 
@@ -374,19 +376,24 @@ _nudge_debounced_fetch() {
     # Mark that we have a pending fetch
     _nudge_debounce_pending="$BUFFER"
 
-    # Start debounce timer using sleep in subshell
-    builtin exec {_nudge_debounce_fd}< <(
-        sleep "$_nudge_debounce_sec"
-        echo "ready"
-    )
+    # Start debounce timer using sleep in subshell (same pattern as original)
+    {
+        exec {_nudge_debounce_fd}< <(
+            setopt LOCAL_OPTIONS NO_NOTIFY NO_MONITOR
+            sleep "$_nudge_debounce_sec"
+            echo "ready"
+        )
 
-    # Register handler for when timer fires
-    zle -F "$_nudge_debounce_fd" _nudge_debounce_ready
+
+        # Register handler for when timer fires
+        zle -F "$_nudge_debounce_fd" _nudge_debounce_ready
+    } 2>/dev/null
 }
 
 # Called when debounce timer fires
 _nudge_debounce_ready() {
     local fd=$1
+
 
     # Read and discard
     local dummy
@@ -397,15 +404,25 @@ _nudge_debounce_ready() {
     builtin exec {fd}<&- 2>/dev/null
     _nudge_debounce_fd=""
 
+    # Trigger widget to check buffer and fetch (can't access $BUFFER in fd handler)
+    zle _nudge_debounce_check
+}
+
+# Widget to check buffer after debounce and trigger fetch
+_nudge_debounce_check() {
+
     # Only fetch if buffer hasn't changed since debounce started
     if [[ -n "$_nudge_debounce_pending" && "$BUFFER" == "$_nudge_debounce_pending" ]]; then
         _nudge_debounce_pending=""
         _nudge_fetch_async
+    else
+        _nudge_debounce_pending=""
     fi
 }
 
 # Fetch suggestion asynchronously
 _nudge_fetch_async() {
+
     zmodload zsh/system 2>/dev/null  # For $sysparams
 
     # Cancel any pending request
@@ -457,16 +474,18 @@ _nudge_async_response() {
     local fd=$1
     local error=$2
 
+
     if [[ -z "$error" || "$error" == "hup" ]]; then
         # Read the suggestion
         local suggestion
         IFS='' read -rd '' -u $fd suggestion 2>/dev/null
 
-        # Only update if buffer hasn't changed
-        if [[ "$BUFFER" == "$_nudge_last_buffer" && -n "$suggestion" ]]; then
-            _nudge_auto_suggestion="$suggestion"
-            _nudge_auto_display_preview
-            zle -R
+
+        # Store suggestion for widget to use (can't access $BUFFER in fd handler)
+        if [[ -n "$suggestion" ]]; then
+            _nudge_async_suggestion_temp="$suggestion"
+            # Trigger widget to update display
+            zle _nudge_async_update
         fi
     fi
 
@@ -477,27 +496,48 @@ _nudge_async_response() {
     _nudge_child_pid=""
 }
 
+# Widget to update display after async response
+_nudge_async_update() {
+
+    # Only update if buffer hasn't changed
+    if [[ "$BUFFER" == "$_nudge_last_buffer" && -n "$_nudge_async_suggestion_temp" ]]; then
+        _nudge_auto_suggestion="$_nudge_async_suggestion_temp"
+        _nudge_async_suggestion_temp=""
+        _nudge_auto_display_preview
+        zle -R
+    else
+        _nudge_async_suggestion_temp=""
+    fi
+}
+
 # Display inline preview (gray text after cursor)
 _nudge_auto_display_preview() {
     # Ensure POSTDISPLAY is writable
     typeset -g POSTDISPLAY
 
+
     if [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
-        # Calculate the preview text (suggestion minus current buffer)
-        local preview="${_nudge_auto_suggestion:${#BUFFER}}"
-        if [[ -n "$preview" ]]; then
-            # Set POSTDISPLAY to the preview text
-            POSTDISPLAY="$preview"
+        # Check if suggestion starts with buffer
+        if [[ "$_nudge_auto_suggestion" == "$BUFFER"* ]]; then
+            # Calculate the preview text (suggestion minus current buffer)
+            local preview="${_nudge_auto_suggestion:${#BUFFER}}"
+            if [[ -n "$preview" ]]; then
+                # Set POSTDISPLAY to the preview text
+                POSTDISPLAY="$preview"
 
-            # Use region_highlight to color it gray
-            # Format: "start end style"
-            # Start is after BUFFER, end is after BUFFER + preview length
-            local start=${#BUFFER}
-            local end=$((start + ${#preview}))
+                # Use region_highlight to color it gray
+                local start=${#BUFFER}
+                local end=$((start + ${#preview}))
 
-            # fg=8 is gray (bright black)
-            region_highlight+=("$start $end fg=8")
+                # Remove old suggestion highlights, add new one
+                region_highlight=("${(@)region_highlight:#*fg=8*}")
+                region_highlight+=("$start $end fg=8")
+
+            else
+                POSTDISPLAY=""
+            fi
         else
+            # Suggestion doesn't start with buffer, show full suggestion as replacement
             POSTDISPLAY=""
         fi
     else
@@ -660,6 +700,7 @@ _nudge_widget_modify() {
     shift
     local -i retval
 
+
     # Only available in zsh >= 5.4
     local -i KEYS_QUEUED_COUNT 2>/dev/null
 
@@ -675,6 +716,7 @@ _nudge_widget_modify() {
     retval=$?
 
     emulate -L zsh
+
 
     # If more keys are queued, skip fetching (user is typing fast)
     if (( PENDING > 0 || KEYS_QUEUED_COUNT > 0 )); then
@@ -796,6 +838,8 @@ _nudge_highlight_suggestion() {
 zle -N _nudge_complete
 zle -N _nudge_auto_accept
 zle -N _nudge_auto_accept_word
+zle -N _nudge_async_update
+zle -N _nudge_debounce_check
 
 # Bind manual mode hotkey
 bindkey '^E' _nudge_complete
