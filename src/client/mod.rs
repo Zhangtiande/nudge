@@ -54,9 +54,9 @@ pub async fn complete(
 
 /// Output plain text (just the suggestion)
 fn output_plain(response: &CompletionResponse) {
-    if let Some(suggestion) = response.suggestions.first() {
+    if let Some(text) = build_plain_output(response) {
         // Just print the suggestion text, no newline for shell integration
-        print!("{}", suggestion.text);
+        print!("{}", text);
     }
 }
 
@@ -94,5 +94,18 @@ mod tests {
         let output = build_plain_output(&response);
 
         assert_eq!(output, Some("NUDGE_WARNING: danger".to_string()));
+    }
+
+    #[test]
+    fn test_plain_output_uses_suggestion_text_when_safe() {
+        let response = CompletionResponse::success(
+            "req-1".to_string(),
+            vec![Suggestion::new("git status".to_string())],
+            0,
+        );
+
+        let output = build_plain_output(&response);
+
+        assert_eq!(output, Some("git status".to_string()));
     }
 }
