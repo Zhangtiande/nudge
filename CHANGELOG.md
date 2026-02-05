@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-02-05
+
+### Added
+- **Danger Warning System**: Visual warnings for dangerous command suggestions
+  - Zsh: Yellow `⚠️` prefix in ghost text for dangerous suggestions
+  - Bash: Warning prefix in suggestion output
+  - PowerShell: Warning display in PSReadLine predictor
+  - CMD: Warning prefix documentation
+  - Client emits `__NUDGE_WARNING__` sentinel for shell integration
+- **Auto Mode Widget Refactor**: Complete rewrite of Zsh auto mode for better performance
+  - Widget-based triggering instead of `zle-line-pre-redraw` hook
+  - Widget classification: modify/clear/accept/partial_accept/ignore
+  - Time-based debounce using `sleep` + `zle -F` (replaces per-keystroke spawning)
+  - Async fetch with proper `$BUFFER` access via callback widgets
+  - `$PENDING` detection to skip fetch when input queue is not empty
+
+### Fixed
+- Zsh auto mode no longer causes terminal freezing on rapid typing
+- Arrow keys (history navigation) now properly clear suggestions without triggering new fetch
+- Ghost text display now correctly handles warning prefix from dangerous suggestions
+
 ## [0.4.2] - 2026-02-05
 
 ### Added
@@ -38,6 +59,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shell integration scripts no longer output messages in non-interactive shells
 - Error diagnosis now skips stderr capture for interactive programs
 - **Security**: Updated `bytes` crate to 1.11.1 to fix integer overflow vulnerability (RUSTSEC-2026-0007)
+
+## [0.4.0] - 2026-02-03
+
+### Added
+- **Error Diagnosis**: AI-powered error analysis and fix suggestions
+  - Captures stderr from failed commands automatically
+  - Provides context-aware fix suggestions using LLM
+  - Tab key to accept diagnosis suggestion in Zsh manual mode
+  - Full project context (git, cwd, history) included in diagnosis
+- **Shell Integration**:
+  - Zsh: Diagnosis display with visual hint, Tab acceptance
+  - PowerShell: Error diagnosis with Tab completion
+  - Bash: Basic diagnosis support
+- **CLI**: New `nudge diagnose` subcommand for manual diagnosis
+- **Configuration**: New `diagnosis` section with `enabled`, `max_stderr_lines`, `interactive_commands` options
+
+### Changed
+- Setup command now installs config files during setup
+- FFI layer updated to use `GatherParams` for context gathering
+
+## [0.3.3] - 2026-02-01
+
+### Added
+- **Project-Aware Plugins**: Language-specific context for better suggestions
+  - **Node.js Plugin**: Detects package.json, lock files, scripts, dependencies, monorepo structure
+  - **Rust Plugin**: Parses Cargo.toml, workspace members, binary targets, rust-version
+  - **Python Plugin**: Supports pyproject.toml (PEP 621), requirements.txt, uv/poetry lock files
+- Plugin integration tests for all three language plugins
+
+### Changed
+- Removed auto mode from Bash integration (recommend Zsh for auto mode)
+- Updated roadmap to mark project plugins as completed
+
+## [0.3.2] - 2026-01-28
+
+### Fixed
+- PowerShell profile detection improved for setup command
+- Console logging disabled for all CLI commands except foreground daemon
+- Documentation clarified PowerShell auto mode limitation (PSReadLine timeout)
+
+### Changed
+- Config path handling updated with async setup functions
+- GitHub Actions optimized with staged pipeline and smart caching
+
+## [0.3.1] - 2026-01-25
+
+### Fixed
+- Daemon now creates new process group to prevent terminal signal interference
+- Zsh auto mode enhanced with better functionality
+
+### Added
+- Local mode support for installation scripts
+- Demo video for Zsh auto mode in README
+
+### Changed
+- Removed deprecated settings.local.json file
+- Added .claude/ to .gitignore
 
 ## [0.3.0] - 2026-01-23
 
@@ -173,7 +251,14 @@ trigger:
 - README_zh.md with Chinese documentation
 - Configuration reference documentation
 
-[Unreleased]: https://github.com/Zhangtiande/nudge/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Zhangtiande/nudge/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/Zhangtiande/nudge/compare/v0.4.2...v0.4.3
+[0.4.2]: https://github.com/Zhangtiande/nudge/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/Zhangtiande/nudge/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/Zhangtiande/nudge/compare/v0.3.3...v0.4.0
+[0.3.3]: https://github.com/Zhangtiande/nudge/compare/v0.3.2...v0.3.3
+[0.3.2]: https://github.com/Zhangtiande/nudge/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/Zhangtiande/nudge/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Zhangtiande/nudge/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/Zhangtiande/nudge/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Zhangtiande/nudge/compare/v0.2.1...v0.2.2
