@@ -317,27 +317,109 @@ _nudge_auto_cancel() {
     _nudge_auto_suggestion=""
 }
 
-# Fetch completion in background
-_nudge_auto_fetch() {
+# ============================================================================
+# Async Suggestion Fetching (No Sleep Debounce)
+# ============================================================================
+
+# State for async operations
+typeset -g _nudge_async_fd=""
+typeset -g _nudge_child_pid=""
+
+# Cancel any pending async request
+_nudge_async_cancel() {
+    if [[ -n "$_nudge_async_fd" ]]; then
+        # Remove fd handler
+        zle -F "$_nudge_async_fd" 2>/dev/null
+        # Close fd
+        builtin exec {_nudge_async_fd}<&- 2>/dev/null
+
+        # Kill child process if we have its PID
+        if [[ -n "$_nudge_child_pid" ]]; then
+            if [[ -o MONITOR ]]; then
+                # Kill process group
+                kill -TERM -$_nudge_child_pid 2>/dev/null
+            else
+                # Kill just the process
+                kill -TERM $_nudge_child_pid 2>/dev/null
+            fi
+        fi
+
+        _nudge_async_fd=""
+        _nudge_child_pid=""
+    fi
+}
+
+# Fetch suggestion asynchronously
+_nudge_fetch_async() {
+    zmodload zsh/system 2>/dev/null  # For $sysparams
+
+    # Cancel any pending request
+    _nudge_async_cancel
+
+    # Don't fetch for very short input
+    if [[ ${#BUFFER} -lt 2 ]]; then
+        return
+    fi
+
     _nudge_ensure_daemon
 
-    local suggestion
-    suggestion=$(nudge complete --format plain \
-        --buffer "$BUFFER" \
-        --cursor "$CURSOR" \
-        --cwd "$PWD" \
-        --session "zsh-$$" \
-        --shell-mode "zsh-auto" \
-        --last-exit-code "$_nudge_last_exit" 2>/dev/null)
+    local current_buffer="$BUFFER"
 
-    local exit_code=$?
+    # Fork process to fetch suggestion
+    builtin exec {_nudge_async_fd}< <(
+        # Send PID first for cancellation
+        echo $sysparams[pid]
 
-    if [[ $exit_code -eq 0 && -n "$suggestion" ]]; then
+        # Fetch suggestion
+        local suggestion
+        suggestion=$(nudge complete --format plain \
+            --buffer "$current_buffer" \
+            --cursor "$CURSOR" \
+            --cwd "$PWD" \
+            --session "zsh-$$" \
+            --shell-mode "zsh-auto" \
+            --time-bucket $((EPOCHSECONDS / 2)) \
+            --last-exit-code "$_nudge_last_exit" 2>/dev/null)
+
+        # Output suggestion
+        echo -nE "$suggestion"
+    )
+
+    # Workaround for ^C bug in older zsh versions
+    command true
+
+    # Read child PID
+    read _nudge_child_pid <&$_nudge_async_fd
+
+    # Register handler for when result is ready
+    zle -F "$_nudge_async_fd" _nudge_async_response
+}
+
+# Handle async response
+_nudge_async_response() {
+    emulate -L zsh
+
+    local fd=$1
+    local error=$2
+
+    if [[ -z "$error" || "$error" == "hup" ]]; then
+        # Read the suggestion
+        local suggestion
+        IFS='' read -rd '' -u $fd suggestion 2>/dev/null
+
         # Only update if buffer hasn't changed
-        if [[ "$BUFFER" == "$_nudge_last_buffer" ]]; then
+        if [[ "$BUFFER" == "$_nudge_last_buffer" && -n "$suggestion" ]]; then
             _nudge_auto_suggestion="$suggestion"
+            _nudge_auto_display_preview
+            zle -R
         fi
     fi
+
+    # Clean up
+    builtin exec {fd}<&- 2>/dev/null
+    zle -F "$fd" 2>/dev/null
+    _nudge_async_fd=""
+    _nudge_child_pid=""
 }
 
 # Display inline preview (gray text after cursor)
@@ -401,89 +483,6 @@ _nudge_auto_accept_word() {
     else
         # Fall back to default Right Arrow behavior
         zle forward-char
-    fi
-}
-
-# Trigger auto completion after debounce
-_nudge_auto_trigger() {
-    # Cancel previous timer
-    _nudge_auto_cancel
-
-    # Don't trigger for empty or very short input
-    if [[ ${#BUFFER} -lt 2 ]]; then
-        typeset -g POSTDISPLAY=""
-        return
-    fi
-
-    # Save buffer for comparison
-    _nudge_pending_buffer="$BUFFER"
-
-    # Calculate delay in seconds
-    local delay_sec
-    delay_sec=$(printf "%.3f" "$(echo "scale=3; $NUDGE_AUTO_DELAY / 1000" | bc)")
-
-    # Create an anonymous pipe and start background sleep process
-    # The process will write to the pipe after delay
-    {
-        # Open anonymous pipe for reading
-        exec {_nudge_timer_fd}< <(
-            setopt LOCAL_OPTIONS NO_NOTIFY NO_MONITOR
-            sleep "$delay_sec"
-            echo "ready"
-        )
-
-        # Register fd handler - this will call our widget when pipe is readable
-        zle -F "$_nudge_timer_fd" _nudge_auto_on_timer_ready
-    } 2>/dev/null
-}
-
-# This is called by zle -F when the timer fd becomes readable
-# It's NOT a widget, so we need to trigger a real widget
-_nudge_auto_on_timer_ready() {
-    local fd=$1
-
-    # Read and discard the message
-    local dummy
-    IFS= read -r -u "$fd" dummy 2>/dev/null
-
-    # Clean up fd
-    zle -F "$fd" 2>/dev/null
-    exec {fd}<&- 2>/dev/null
-    _nudge_timer_fd=""
-
-    # Trigger the actual widget that can call zle -R
-    zle _nudge_auto_update_display
-}
-
-# This is the actual widget that updates the display
-# Because it's a widget, zle -R works here
-_nudge_auto_update_display() {
-    # Only update if buffer hasn't changed
-    if [[ "$BUFFER" == "$_nudge_pending_buffer" && -n "$_nudge_pending_buffer" ]]; then
-        _nudge_last_buffer="$BUFFER"
-        _nudge_pending_buffer=""
-
-        # Fetch completion
-        _nudge_auto_fetch
-
-        # Display preview
-        _nudge_auto_display_preview
-
-        # Force redraw (this works because we're in a widget)
-        zle -R
-    fi
-}
-
-# Hook into line editing (called on every buffer change)
-_nudge_auto_line_change() {
-    if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
-        # Clear preview if buffer changed
-        if [[ "$BUFFER" != "$_nudge_last_buffer" ]]; then
-            typeset -g POSTDISPLAY=""
-            # Clear region_highlight
-            region_highlight=("${(@)region_highlight:#*}")
-            _nudge_auto_trigger
-        fi
     fi
 }
 
