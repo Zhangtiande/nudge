@@ -29,10 +29,76 @@ NUDGE_LOCK="/tmp/nudge.lock"
 # Auto mode state
 typeset -g _nudge_auto_suggestion=""
 typeset -g _nudge_auto_warning=""
-typeset -g _nudge_timer_fd=""
 typeset -g _nudge_last_buffer=""
 typeset -g _nudge_pending_buffer=""
 typeset -g _nudge_last_warning_buffer=""
+
+# Widget classification for auto mode (inspired by zsh-autosuggestions)
+# Widgets that modify the buffer - trigger new suggestion fetch
+typeset -ga NUDGE_MODIFY_WIDGETS=(
+    self-insert
+    backward-delete-char
+    delete-char
+    delete-word
+    backward-delete-word
+    kill-word
+    backward-kill-word
+    kill-line
+    backward-kill-line
+    kill-whole-line
+    quoted-insert
+    yank
+    yank-pop
+    vi-delete
+    vi-change
+    vi-substitute
+)
+
+# Widgets that clear the suggestion (history navigation)
+typeset -ga NUDGE_CLEAR_WIDGETS=(
+    up-line-or-history
+    down-line-or-history
+    up-line-or-beginning-search
+    down-line-or-beginning-search
+    history-search-forward
+    history-search-backward
+    history-beginning-search-forward
+    history-beginning-search-backward
+    history-substring-search-up
+    history-substring-search-down
+    accept-line
+    accept-and-hold
+)
+
+# Widgets that accept the entire suggestion
+typeset -ga NUDGE_ACCEPT_WIDGETS=(
+    end-of-line
+    vi-end-of-line
+    vi-add-eol
+)
+
+# Widgets that accept suggestion partially (word by word)
+typeset -ga NUDGE_PARTIAL_ACCEPT_WIDGETS=(
+    forward-word
+    vi-forward-word
+    vi-forward-word-end
+    emacs-forward-word
+)
+
+# Widgets to ignore completely
+typeset -ga NUDGE_IGNORE_WIDGETS=(
+    beep
+    run-help
+    set-local-history
+    which-command
+    'zle-*'
+    'orig-*'
+    'autosuggest-*'
+    '_nudge_*'
+)
+
+# Prefix for saving original widgets
+typeset -g NUDGE_ORIG_WIDGET_PREFIX="_nudge_orig_"
 
 # Diagnosis state
 typeset -g _nudge_stderr_file=""
@@ -255,47 +321,222 @@ _nudge_complete() {
 # Auto Mode Functions
 # ============================================================================
 
-# Cancel any pending auto completion
+# Cancel any pending auto completion (wrapper for compatibility)
 _nudge_auto_cancel() {
-    if [[ -n "$_nudge_timer_fd" ]]; then
-        # Unregister the fd handler
-        zle -F "$_nudge_timer_fd" 2>/dev/null
-        # Close the fd
-        exec {_nudge_timer_fd}<&- 2>/dev/null
-        _nudge_timer_fd=""
-    fi
+    _nudge_debounce_cancel
+    _nudge_async_cancel
     _nudge_pending_buffer=""
     _nudge_auto_suggestion=""
+    POSTDISPLAY=""
 }
 
-# Fetch completion in background
-_nudge_auto_fetch() {
-    _nudge_ensure_daemon
+# ============================================================================
+# Async Suggestion Fetching (with time-based debounce)
+# ============================================================================
 
-    local suggestion
-    suggestion=$(nudge complete --format plain \
-        --buffer "$BUFFER" \
-        --cursor "$CURSOR" \
-        --cwd "$PWD" \
-        --session "zsh-$$" \
-        --shell-mode "zsh-auto" \
-        --last-exit-code "$_nudge_last_exit" 2>/dev/null)
+# State for async operations
+typeset -g _nudge_async_fd=""
+typeset -g _nudge_child_pid=""
+typeset -g _nudge_last_fetch_time=0
+typeset -g _nudge_debounce_pending=""
+typeset -g _nudge_async_suggestion_temp=""
 
-    local exit_code=$?
+# Calculate debounce delay in seconds (from ms config)
+typeset -g _nudge_debounce_sec
+_nudge_debounce_sec=$(printf "%.3f" "$(echo "scale=3; ${NUDGE_AUTO_DELAY:-500} / 1000" | bc 2>/dev/null || echo "0.5")")
 
-    if [[ $exit_code -eq 0 && -n "$suggestion" ]]; then
-        # Only update if buffer hasn't changed
-        if [[ "$BUFFER" == "$_nudge_last_buffer" ]]; then
-            if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
-                local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
-                warning_message="${warning_message# }"
-                _nudge_auto_warning="$warning_message"
-                _nudge_auto_suggestion=""
+# Cancel any pending async request
+_nudge_async_cancel() {
+    if [[ -n "$_nudge_async_fd" ]]; then
+        # Remove fd handler
+        zle -F "$_nudge_async_fd" 2>/dev/null
+        # Close fd
+        builtin exec {_nudge_async_fd}<&- 2>/dev/null
+
+        # Kill child process if we have its PID
+        if [[ -n "$_nudge_child_pid" ]]; then
+            if [[ -o MONITOR ]]; then
+                # Kill process group
+                kill -TERM -$_nudge_child_pid 2>/dev/null
             else
-                _nudge_auto_warning=""
-                _nudge_auto_suggestion="$suggestion"
+                # Kill just the process
+                kill -TERM $_nudge_child_pid 2>/dev/null
             fi
         fi
+
+        _nudge_async_fd=""
+        _nudge_child_pid=""
+    fi
+}
+
+# State for debounce timer
+typeset -g _nudge_debounce_fd=""
+
+# Cancel debounce timer
+_nudge_debounce_cancel() {
+    if [[ -n "$_nudge_debounce_fd" ]]; then
+        zle -F "$_nudge_debounce_fd" 2>/dev/null
+        exec {_nudge_debounce_fd}<&- 2>/dev/null
+        _nudge_debounce_fd=""
+    fi
+    _nudge_debounce_pending=""
+}
+
+# Debounced fetch - waits for delay before actually fetching
+_nudge_debounced_fetch() {
+
+    # Cancel any pending debounce timer
+    _nudge_debounce_cancel
+
+    # Cancel any pending async request
+    _nudge_async_cancel
+
+    # Mark that we have a pending fetch
+    _nudge_debounce_pending="$BUFFER"
+
+    # Start debounce timer using sleep in subshell (same pattern as original)
+    {
+        exec {_nudge_debounce_fd}< <(
+            setopt LOCAL_OPTIONS NO_NOTIFY NO_MONITOR
+            sleep "$_nudge_debounce_sec"
+            echo "ready"
+        )
+
+
+        # Register handler for when timer fires
+        zle -F "$_nudge_debounce_fd" _nudge_debounce_ready
+    } 2>/dev/null
+}
+
+# Called when debounce timer fires
+_nudge_debounce_ready() {
+    local fd=$1
+
+
+    # Read and discard
+    local dummy
+    read -r -u "$fd" dummy 2>/dev/null
+
+    # Clean up fd
+    zle -F "$fd" 2>/dev/null
+    builtin exec {fd}<&- 2>/dev/null
+    _nudge_debounce_fd=""
+
+    # Trigger widget to check buffer and fetch (can't access $BUFFER in fd handler)
+    zle _nudge_debounce_check
+}
+
+# Widget to check buffer after debounce and trigger fetch
+_nudge_debounce_check() {
+
+    # Only fetch if buffer hasn't changed since debounce started
+    if [[ -n "$_nudge_debounce_pending" && "$BUFFER" == "$_nudge_debounce_pending" ]]; then
+        _nudge_debounce_pending=""
+        _nudge_fetch_async
+    else
+        _nudge_debounce_pending=""
+    fi
+}
+
+# Fetch suggestion asynchronously
+_nudge_fetch_async() {
+
+    zmodload zsh/system 2>/dev/null  # For $sysparams
+
+    # Cancel any pending request
+    _nudge_async_cancel
+
+    # Don't fetch for very short input
+    if [[ ${#BUFFER} -lt 2 ]]; then
+        return
+    fi
+
+    _nudge_ensure_daemon
+
+    local current_buffer="$BUFFER"
+
+    # Fork process to fetch suggestion
+    builtin exec {_nudge_async_fd}< <(
+        # Send PID first for cancellation
+        echo $sysparams[pid]
+
+        # Fetch suggestion
+        local suggestion
+        suggestion=$(nudge complete --format plain \
+            --buffer "$current_buffer" \
+            --cursor "$CURSOR" \
+            --cwd "$PWD" \
+            --session "zsh-$$" \
+            --shell-mode "zsh-auto" \
+            --time-bucket $((EPOCHSECONDS / 2)) \
+            --last-exit-code "$_nudge_last_exit" 2>/dev/null)
+
+        # Output suggestion
+        echo -nE "$suggestion"
+    )
+
+    # Workaround for ^C bug in older zsh versions
+    command true
+
+    # Read child PID
+    read _nudge_child_pid <&$_nudge_async_fd
+
+    # Register handler for when result is ready
+    zle -F "$_nudge_async_fd" _nudge_async_response
+}
+
+# Handle async response
+_nudge_async_response() {
+    emulate -L zsh
+
+    local fd=$1
+    local error=$2
+
+
+    if [[ -z "$error" || "$error" == "hup" ]]; then
+        # Read the suggestion
+        local suggestion
+        IFS='' read -rd '' -u $fd suggestion 2>/dev/null
+
+
+        # Store suggestion for widget to use (can't access $BUFFER in fd handler)
+        if [[ -n "$suggestion" ]]; then
+            _nudge_async_suggestion_temp="$suggestion"
+            # Trigger widget to update display
+            zle _nudge_async_update
+        fi
+    fi
+
+    # Clean up
+    builtin exec {fd}<&- 2>/dev/null
+    zle -F "$fd" 2>/dev/null
+    _nudge_async_fd=""
+    _nudge_child_pid=""
+}
+
+# Widget to update display after async response
+_nudge_async_update() {
+
+    # Only update if buffer hasn't changed
+    if [[ "$BUFFER" == "$_nudge_last_buffer" && -n "$_nudge_async_suggestion_temp" ]]; then
+        local suggestion="$_nudge_async_suggestion_temp"
+        _nudge_async_suggestion_temp=""
+
+        # Check for warning prefix
+        if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
+            local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
+            warning_message="${warning_message# }"
+            _nudge_auto_warning="$warning_message"
+            _nudge_auto_suggestion=""
+        else
+            _nudge_auto_warning=""
+            _nudge_auto_suggestion="$suggestion"
+        fi
+
+        _nudge_auto_display_preview
+        zle -R
+    else
+        _nudge_async_suggestion_temp=""
     fi
 }
 
@@ -304,22 +545,29 @@ _nudge_auto_display_preview() {
     # Ensure POSTDISPLAY is writable
     typeset -g POSTDISPLAY
 
+
     if [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
-        # Calculate the preview text (suggestion minus current buffer)
-        local preview="${_nudge_auto_suggestion:${#BUFFER}}"
-        if [[ -n "$preview" ]]; then
-            # Set POSTDISPLAY to the preview text
-            POSTDISPLAY="$preview"
+        # Check if suggestion starts with buffer
+        if [[ "$_nudge_auto_suggestion" == "$BUFFER"* ]]; then
+            # Calculate the preview text (suggestion minus current buffer)
+            local preview="${_nudge_auto_suggestion:${#BUFFER}}"
+            if [[ -n "$preview" ]]; then
+                # Set POSTDISPLAY to the preview text
+                POSTDISPLAY="$preview"
 
-            # Use region_highlight to color it gray
-            # Format: "start end style"
-            # Start is after BUFFER, end is after BUFFER + preview length
-            local start=${#BUFFER}
-            local end=$((start + ${#preview}))
+                # Use region_highlight to color it gray
+                local start=${#BUFFER}
+                local end=$((start + ${#preview}))
 
-            # fg=8 is gray (bright black)
-            region_highlight+=("$start $end fg=8")
+                # Remove old suggestion highlights, add new one
+                region_highlight=("${(@)region_highlight:#*fg=8*}")
+                region_highlight+=("$start $end fg=8")
+
+            else
+                POSTDISPLAY=""
+            fi
         else
+            # Suggestion doesn't start with buffer, show full suggestion as replacement
             POSTDISPLAY=""
         fi
     else
@@ -372,86 +620,252 @@ _nudge_auto_accept_word() {
     fi
 }
 
-# Trigger auto completion after debounce
-_nudge_auto_trigger() {
-    # Cancel previous timer
-    _nudge_auto_cancel
+# ============================================================================
+# Widget Wrapping Infrastructure
+# ============================================================================
 
-    # Don't trigger for empty or very short input
-    if [[ ${#BUFFER} -lt 2 ]]; then
-        typeset -g POSTDISPLAY=""
-        return
+# Track bind counts to handle multiple bindings of same widget
+typeset -gA _NUDGE_BIND_COUNTS
+
+# Increment and return bind count for a widget
+_nudge_incr_bind_count() {
+    local widget=$1
+    typeset -gi bind_count=$((_NUDGE_BIND_COUNTS[$widget]+1))
+    _NUDGE_BIND_COUNTS[$widget]=$bind_count
+}
+
+# Bind a widget to a nudge action, saving reference to original
+_nudge_bind_widget() {
+    local widget=$1
+    local action=$2
+    local prefix=$NUDGE_ORIG_WIDGET_PREFIX
+    local -i bind_count
+
+    # Check widget type and save original
+    case $widgets[$widget] in
+        # Already bound by us
+        user:_nudge_bound_*|user:_nudge_orig_*)
+            bind_count=$((_NUDGE_BIND_COUNTS[$widget]))
+            ;;
+        # User-defined widget
+        user:*)
+            _nudge_incr_bind_count $widget
+            bind_count=$_NUDGE_BIND_COUNTS[$widget]
+            zle -N $prefix$bind_count-$widget ${widgets[$widget]#*:}
+            ;;
+        # Built-in widget
+        builtin)
+            _nudge_incr_bind_count $widget
+            bind_count=$_NUDGE_BIND_COUNTS[$widget]
+            eval "_nudge_orig_${(q)widget}() { zle .${(q)widget} }"
+            zle -N $prefix$bind_count-$widget _nudge_orig_$widget
+            ;;
+        # Completion widget
+        completion:*)
+            _nudge_incr_bind_count $widget
+            bind_count=$_NUDGE_BIND_COUNTS[$widget]
+            eval "zle -C $prefix$bind_count-${(q)widget} ${${(s.:.)widgets[$widget]}[2,3]}"
+            ;;
+        # Unknown - skip
+        *)
+            return 1
+            ;;
+    esac
+
+    # Create bound widget that calls our action handler
+    eval "_nudge_bound_${bind_count}_${(q)widget}() {
+        _nudge_widget_$action $prefix$bind_count-${(q)widget} \$@
+    }"
+
+    # Register the new widget
+    zle -N -- $widget _nudge_bound_${bind_count}_$widget
+}
+
+# Invoke original widget by name
+_nudge_invoke_original_widget() {
+    (( $# )) || return 0
+    local original_widget_name="$1"
+    shift
+    if (( ${+widgets[$original_widget_name]} )); then
+        zle $original_widget_name -- $@
     fi
-
-    # Save buffer for comparison
-    _nudge_pending_buffer="$BUFFER"
-
-    # Calculate delay in seconds
-    local delay_sec
-    delay_sec=$(printf "%.3f" "$(echo "scale=3; $NUDGE_AUTO_DELAY / 1000" | bc)")
-
-    # Create an anonymous pipe and start background sleep process
-    # The process will write to the pipe after delay
-    {
-        # Open anonymous pipe for reading
-        exec {_nudge_timer_fd}< <(
-            setopt LOCAL_OPTIONS NO_NOTIFY NO_MONITOR
-            sleep "$delay_sec"
-            echo "ready"
-        )
-
-        # Register fd handler - this will call our widget when pipe is readable
-        zle -F "$_nudge_timer_fd" _nudge_auto_on_timer_ready
-    } 2>/dev/null
 }
 
-# This is called by zle -F when the timer fd becomes readable
-# It's NOT a widget, so we need to trigger a real widget
-_nudge_auto_on_timer_ready() {
-    local fd=$1
-
-    # Read and discard the message
-    local dummy
-    IFS= read -r -u "$fd" dummy 2>/dev/null
-
-    # Clean up fd
-    zle -F "$fd" 2>/dev/null
-    exec {fd}<&- 2>/dev/null
-    _nudge_timer_fd=""
-
-    # Trigger the actual widget that can call zle -R
-    zle _nudge_auto_update_display
+# Check if widget matches any pattern in an array
+_nudge_widget_in_list() {
+    local widget=$1
+    shift
+    local pattern
+    for pattern in $@; do
+        [[ $widget == $~pattern ]] && return 0
+    done
+    return 1
 }
 
-# This is the actual widget that updates the display
-# Because it's a widget, zle -R works here
-_nudge_auto_update_display() {
-    # Only update if buffer hasn't changed
-    if [[ "$BUFFER" == "$_nudge_pending_buffer" && -n "$_nudge_pending_buffer" ]]; then
-        _nudge_last_buffer="$BUFFER"
-        _nudge_pending_buffer=""
+# Bind all widgets based on classification
+_nudge_bind_all_widgets() {
+    emulate -L zsh
+    local widget
 
-        # Fetch completion
-        _nudge_auto_fetch
+    # Patterns to ignore
+    local ignore_patterns=(
+        '.*'
+        '_*'
+        $NUDGE_IGNORE_WIDGETS
+    )
 
-        # Display preview
-        _nudge_auto_display_preview
-
-        # Force redraw (this works because we're in a widget)
-        zle -R
-    fi
-}
-
-# Hook into line editing (called on every buffer change)
-_nudge_auto_line_change() {
-    if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
-        # Clear preview if buffer changed
-        if [[ "$BUFFER" != "$_nudge_last_buffer" ]]; then
-            typeset -g POSTDISPLAY=""
-            # Clear region_highlight
-            region_highlight=("${(@)region_highlight:#*}")
-            _nudge_auto_trigger
+    # Iterate all widgets
+    for widget in ${${(f)"$(builtin zle -la)"}:#${(j:|:)~ignore_patterns}}; do
+        if _nudge_widget_in_list $widget $NUDGE_CLEAR_WIDGETS; then
+            _nudge_bind_widget $widget clear
+        elif _nudge_widget_in_list $widget $NUDGE_ACCEPT_WIDGETS; then
+            _nudge_bind_widget $widget accept
+        elif _nudge_widget_in_list $widget $NUDGE_PARTIAL_ACCEPT_WIDGETS; then
+            _nudge_bind_widget $widget partial_accept
+        elif _nudge_widget_in_list $widget $NUDGE_MODIFY_WIDGETS; then
+            _nudge_bind_widget $widget modify
         fi
+        # Unclassified widgets are not wrapped (pass through)
+    done
+}
+
+# ============================================================================
+# Widget Action Handlers
+# ============================================================================
+
+# Handler for widgets that modify the buffer
+_nudge_widget_modify() {
+    local orig_widget=$1
+    shift
+    local -i retval
+
+
+    # Only available in zsh >= 5.4
+    local -i KEYS_QUEUED_COUNT 2>/dev/null
+
+    # Save original state
+    local orig_buffer="$BUFFER"
+    local orig_postdisplay="$POSTDISPLAY"
+
+    # Clear suggestion while processing
+    POSTDISPLAY=
+
+    # Call original widget
+    _nudge_invoke_original_widget $orig_widget $@
+    retval=$?
+
+    emulate -L zsh
+
+
+    # If more keys are queued, skip fetching (user is typing fast)
+    if (( PENDING > 0 || KEYS_QUEUED_COUNT > 0 )); then
+        POSTDISPLAY="$orig_postdisplay"
+        return $retval
+    fi
+
+    # Optimization: if user is typing into the suggestion, just truncate
+    if [[ "$BUFFER" = "$orig_buffer"* && -n "$orig_postdisplay" ]]; then
+        local typed_len=$((${#BUFFER} - ${#orig_buffer}))
+        if [[ "$orig_postdisplay" = "${BUFFER:${#orig_buffer}}"* ]]; then
+            POSTDISPLAY="${orig_postdisplay:$typed_len}"
+            _nudge_auto_suggestion="$BUFFER$POSTDISPLAY"
+            _nudge_highlight_suggestion
+            return $retval
+        fi
+    fi
+
+    # Fetch new suggestion if buffer is not empty
+    if (( ${#BUFFER} >= 2 )); then
+        _nudge_last_buffer="$BUFFER"
+        # Use debounced fetch instead of immediate fetch
+        _nudge_debounced_fetch
+    else
+        _nudge_auto_suggestion=""
+        POSTDISPLAY=""
+    fi
+
+    return $retval
+}
+
+# Handler for widgets that clear the suggestion (history navigation)
+_nudge_widget_clear() {
+    local orig_widget=$1
+    shift
+
+    # Clear suggestion
+    _nudge_auto_suggestion=""
+    POSTDISPLAY=""
+    region_highlight=("${(@)region_highlight:#*fg=8*}")
+
+    # Call original widget
+    _nudge_invoke_original_widget $orig_widget $@
+}
+
+# Handler for widgets that accept the entire suggestion
+_nudge_widget_accept() {
+    local orig_widget=$1
+    shift
+    local -i retval
+
+    # If we have a suggestion and cursor is at end, accept it
+    if [[ -n "$_nudge_auto_suggestion" && $CURSOR -eq ${#BUFFER} && -n "$POSTDISPLAY" ]]; then
+        BUFFER="$_nudge_auto_suggestion"
+        _nudge_auto_suggestion=""
+        POSTDISPLAY=""
+        region_highlight=("${(@)region_highlight:#*fg=8*}")
+        CURSOR=${#BUFFER}
+    fi
+
+    # Call original widget
+    _nudge_invoke_original_widget $orig_widget $@
+    retval=$?
+
+    return $retval
+}
+
+# Handler for widgets that accept suggestion partially
+_nudge_widget_partial_accept() {
+    local orig_widget=$1
+    shift
+    local -i retval
+
+    if [[ -n "$_nudge_auto_suggestion" && -n "$POSTDISPLAY" ]]; then
+        # Temporarily accept full suggestion
+        local original_buffer="$BUFFER"
+        BUFFER="$_nudge_auto_suggestion"
+
+        # Let original widget move cursor
+        _nudge_invoke_original_widget $orig_widget $@
+        retval=$?
+
+        local cursor_pos=$CURSOR
+
+        # If cursor moved past original buffer end
+        if (( cursor_pos > ${#original_buffer} )); then
+            # Keep buffer up to cursor, rest becomes POSTDISPLAY
+            POSTDISPLAY="${BUFFER:$cursor_pos}"
+            BUFFER="${BUFFER:0:$cursor_pos}"
+            _nudge_highlight_suggestion
+        else
+            # Restore original buffer
+            BUFFER="$original_buffer"
+        fi
+    else
+        _nudge_invoke_original_widget $orig_widget $@
+        retval=$?
+    fi
+
+    return $retval
+}
+
+# Helper to apply highlight to POSTDISPLAY
+_nudge_highlight_suggestion() {
+    if [[ -n "$POSTDISPLAY" ]]; then
+        local start=${#BUFFER}
+        local end=$((start + ${#POSTDISPLAY}))
+        # Remove old suggestion highlights, add new one
+        region_highlight=("${(@)region_highlight:#*fg=8*}")
+        region_highlight+=("$start $end fg=8")
     fi
 }
 
@@ -463,7 +877,8 @@ _nudge_auto_line_change() {
 zle -N _nudge_complete
 zle -N _nudge_auto_accept
 zle -N _nudge_auto_accept_word
-zle -N _nudge_auto_update_display  # Register the update display widget
+zle -N _nudge_async_update
+zle -N _nudge_debounce_check
 
 # Bind manual mode hotkey
 bindkey '^E' _nudge_complete
@@ -473,14 +888,10 @@ if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
     # Disable job notifications for background processes
     setopt NO_NOTIFY NO_MONITOR
 
-    # Hook into line editing
-    # Use zle-line-pre-redraw for buffer change detection
-    _nudge_zle_line_pre_redraw() {
-        _nudge_auto_line_change
-    }
-    zle -N zle-line-pre-redraw _nudge_zle_line_pre_redraw
+    # Bind all widgets based on classification
+    _nudge_bind_all_widgets
 
-    # Bind Tab to accept suggestion
+    # Bind Tab to accept suggestion (override default)
     bindkey '^I' _nudge_auto_accept
 
     # Bind Right Arrow to accept word
@@ -488,7 +899,7 @@ if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
 
     # Clean up on exit
     _nudge_cleanup() {
-        _nudge_auto_cancel
+        _nudge_async_cancel
     }
     zshexit_functions+=(_nudge_cleanup)
 fi
