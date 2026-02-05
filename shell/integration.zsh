@@ -740,7 +740,6 @@ _nudge_highlight_suggestion() {
 zle -N _nudge_complete
 zle -N _nudge_auto_accept
 zle -N _nudge_auto_accept_word
-zle -N _nudge_auto_update_display  # Register the update display widget
 
 # Bind manual mode hotkey
 bindkey '^E' _nudge_complete
@@ -750,14 +749,10 @@ if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
     # Disable job notifications for background processes
     setopt NO_NOTIFY NO_MONITOR
 
-    # Hook into line editing
-    # Use zle-line-pre-redraw for buffer change detection
-    _nudge_zle_line_pre_redraw() {
-        _nudge_auto_line_change
-    }
-    zle -N zle-line-pre-redraw _nudge_zle_line_pre_redraw
+    # Bind all widgets based on classification
+    _nudge_bind_all_widgets
 
-    # Bind Tab to accept suggestion
+    # Bind Tab to accept suggestion (override default)
     bindkey '^I' _nudge_auto_accept
 
     # Bind Right Arrow to accept word
@@ -765,7 +760,7 @@ if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
 
     # Clean up on exit
     _nudge_cleanup() {
-        _nudge_auto_cancel
+        _nudge_async_cancel
     }
     zshexit_functions+=(_nudge_cleanup)
 fi
