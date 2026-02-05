@@ -260,11 +260,16 @@ mod tests {
         let key_auto_different_bucket =
             SuggestionKey::build(&req, None, None, "zsh-auto", Some(456), 80);
 
-        // Key format: sk:v1:{prefix}:{cwd}:{git}:{mode} (no time_bucket)
-        assert!(!key_manual.contains(":0"));
-        assert!(!key_auto.contains(":123"));
+        // Key format: sk:v1:{prefix}:{cwd}:{git}:{mode} (4 hashes + mode, no time_bucket)
+        // Should have exactly 5 colon-separated parts: sk, v1, prefix, cwd, git, mode
+        assert_eq!(key_manual.matches(':').count(), 5);
+        assert_eq!(key_auto.matches(':').count(), 5);
+
         // Same input with different time_bucket should produce same key
         assert_eq!(key_auto, key_auto_different_bucket);
+
+        // Different shell_mode should produce different keys
+        assert_ne!(key_manual, key_auto);
     }
 
     #[test]
