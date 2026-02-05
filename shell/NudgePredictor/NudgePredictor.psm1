@@ -45,6 +45,7 @@ class NudgePredictor : ICommandPredictor {
     # Cache for recent predictions
     hidden [hashtable] $Cache = @{}
     hidden [int] $MaxCacheSize = 50
+    hidden [string] $LastWarningInput = ""
 
     # Session ID for nudge
     hidden [string] $SessionId = "pwsh-$PID"
@@ -117,6 +118,17 @@ class NudgePredictor : ICommandPredictor {
             # API returns: { "suggestions": [{ "text": "..." }], ... }
             if ($null -ne $result -and $null -ne $result.suggestions -and $result.suggestions.Count -gt 0) {
                 $suggestionText = $result.suggestions[0].text
+                $warning = $result.suggestions[0].warning
+
+                if ($null -ne $warning -and -not [string]::IsNullOrEmpty($warning.message)) {
+                    if ($this.LastWarningInput -ne $input) {
+                        Write-Warning "Dangerous suggestion blocked: $($warning.message)"
+                        $this.LastWarningInput = $input
+                    }
+                    return (& $script:NewSuggestionPackageFunc)
+                }
+
+                $this.LastWarningInput = ""
 
                 # Only return if suggestion starts with input
                 if (-not [string]::IsNullOrEmpty($suggestionText) -and $suggestionText -ne $input -and $suggestionText.StartsWith($input)) {
