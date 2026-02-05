@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Command::Daemon { foreground, fork } => {
-            daemon::run(foreground, fork).await?;
+            daemon::run(config, foreground, fork).await?;
         }
         Command::Complete {
             buffer,

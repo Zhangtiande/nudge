@@ -369,11 +369,9 @@ async fn compute_completion(
 
     if context_time.as_millis() > 50 {
         warn!(
-            "Context gathering took {}ms (target: <50ms)",
+            "Context gathering slow: {}ms (target: <50ms)",
             context_time.as_millis()
         );
-    } else {
-        debug!("Context gathered in {}ms", context_time.as_millis());
     }
 
     let context_data = match context_result {
@@ -394,15 +392,17 @@ async fn compute_completion(
     };
 
     if sanitization_event_count > 0 {
-        debug!("Sanitized {} sensitive items", sanitization_event_count);
+        debug!("Sanitized {} items", sanitization_event_count);
     }
 
-    // Query LLM with improved error categorization
+    // Query LLM
     let llm_start = Instant::now();
     let llm_result = llm::complete(&request.buffer, &sanitized_context, config).await;
     let llm_time = llm_start.elapsed();
 
-    debug!("LLM query completed in {}ms", llm_time.as_millis());
+    if llm_time.as_millis() > config.model.timeout_ms as u128 / 2 {
+        debug!("LLM query: {}ms", llm_time.as_millis());
+    }
 
     let suggestion_text = match llm_result {
         Ok(text) => text,

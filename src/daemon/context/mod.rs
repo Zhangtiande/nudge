@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::debug;
 
 use super::plugins::builtin::git::GitContext;
 use crate::config::Config;
@@ -94,16 +93,11 @@ pub async fn gather(params: &GatherParams, config: &Config) -> Result<ContextDat
     // Collect system information
     if config.context.include_system_info {
         context.system = system::collect_system_info(&params.session_id)?;
-        debug!(
-            "Gathered system info: {} {} ({})",
-            context.system.os_type, context.system.os_version, context.system.arch
-        );
     }
 
     // Gather history
     let history = history::read_history(&params.session_id, config.context.history_window)?;
     context.history = history;
-    debug!("Gathered {} history entries", context.history.len());
 
     // Gather similar commands (if enabled, requested, and command is long enough)
     if params.include_similar_commands
@@ -117,18 +111,12 @@ pub async fn gather(params: &GatherParams, config: &Config) -> Result<ContextDat
             config.context.similar_commands_max,
         )?;
         context.similar_commands = similar;
-        debug!(
-            "Gathered {} similar commands for query: {}",
-            context.similar_commands.len(),
-            params.command
-        );
     }
 
     // Gather CWD listing
     if config.context.include_cwd_listing {
         let files = cwd::list_files(&params.cwd, config.context.max_files_in_listing)?;
         context.files = files;
-        debug!("Gathered {} files from CWD", context.files.len());
     }
 
     // Set exit code
@@ -156,8 +144,6 @@ pub async fn gather(params: &GatherParams, config: &Config) -> Result<ContextDat
                 context.git = Some(git_ctx);
             }
         }
-
-        debug!("Gathered {} plugin context", plugin_id);
     }
 
     // Estimate tokens
