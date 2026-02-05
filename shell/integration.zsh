@@ -7,6 +7,7 @@ NUDGE_CONFIG_DIR=$(nudge info --field config_dir 2>/dev/null)
 NUDGE_SOCKET=$(nudge info --field socket_path 2>/dev/null)
 NUDGE_TRIGGER_MODE=$(nudge info --field trigger_mode 2>/dev/null)
 NUDGE_AUTO_DELAY=$(nudge info --field auto_delay_ms 2>/dev/null)
+NUDGE_WARNING_PREFIX="NUDGE_WARNING:"
 
 # Fallback if nudge binary not in PATH
 if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
@@ -27,9 +28,11 @@ NUDGE_LOCK="/tmp/nudge.lock"
 
 # Auto mode state
 typeset -g _nudge_auto_suggestion=""
+typeset -g _nudge_auto_warning=""
 typeset -g _nudge_timer_fd=""
 typeset -g _nudge_last_buffer=""
 typeset -g _nudge_pending_buffer=""
+typeset -g _nudge_last_warning_buffer=""
 
 # Diagnosis state
 typeset -g _nudge_stderr_file=""
@@ -81,6 +84,12 @@ _nudge_is_interactive_command() {
         [[ "$first_word" == "$interactive_cmd" ]] && return 0
     done
     return 1
+}
+
+# Display warning message for dangerous suggestions
+_nudge_show_warning() {
+    local message="$1"
+    echo -e "\033[33mWarning:\033[0m $message"
 }
 
 # Diagnosis preexec - capture stderr before command runs
@@ -226,10 +235,19 @@ _nudge_complete() {
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
     if [[ $? -eq 0 && -n "$suggestion" ]]; then
+        if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
+            local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
+            warning_message="${warning_message# }"
+            _nudge_auto_suggestion=""
+            _nudge_auto_warning=""
+            _nudge_show_warning "$warning_message"
+            return
+        fi
         BUFFER="$suggestion"
         CURSOR=${#BUFFER}
         # Clear any auto suggestion
         _nudge_auto_suggestion=""
+        _nudge_auto_warning=""
     fi
 }
 
@@ -268,7 +286,15 @@ _nudge_auto_fetch() {
     if [[ $exit_code -eq 0 && -n "$suggestion" ]]; then
         # Only update if buffer hasn't changed
         if [[ "$BUFFER" == "$_nudge_last_buffer" ]]; then
-            _nudge_auto_suggestion="$suggestion"
+            if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
+                local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
+                warning_message="${warning_message# }"
+                _nudge_auto_warning="$warning_message"
+                _nudge_auto_suggestion=""
+            else
+                _nudge_auto_warning=""
+                _nudge_auto_suggestion="$suggestion"
+            fi
         fi
     fi
 }
@@ -303,6 +329,15 @@ _nudge_auto_display_preview() {
 
 # Accept auto suggestion
 _nudge_auto_accept() {
+    if [[ -n "$_nudge_auto_warning" ]]; then
+        if [[ "$_nudge_last_warning_buffer" != "$BUFFER" ]]; then
+            _nudge_show_warning "$_nudge_auto_warning"
+            _nudge_last_warning_buffer="$BUFFER"
+        fi
+        _nudge_auto_warning=""
+        _nudge_auto_suggestion=""
+        return
+    fi
     if [[ -n "$_nudge_auto_suggestion" ]]; then
         BUFFER="$_nudge_auto_suggestion"
         CURSOR=${#BUFFER}

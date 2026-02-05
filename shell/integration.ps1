@@ -18,6 +18,7 @@ try {
 
 $script:NudgeLastExitCode = 0
 $script:NudgeTriggerMode = if ($script:NudgeInfo.trigger_mode) { $script:NudgeInfo.trigger_mode } else { "manual" }
+$script:NudgeWarningPrefix = "NUDGE_WARNING:"
 
 # Diagnosis state
 $script:NudgeDiagnosisEnabled = $false
@@ -74,6 +75,14 @@ function Test-InteractiveCommand {
     $firstWord = $firstWord -replace '\.exe$', ''
 
     return $script:NudgeInteractiveCommands -contains $firstWord
+}
+
+# Display warning message for dangerous suggestions
+function global:Show-NudgeWarning {
+    param([string]$Message)
+    if ($Message) {
+        Write-Host "Warning: $Message" -ForegroundColor Yellow
+    }
 }
 
 # ============================================================================
@@ -264,6 +273,11 @@ function global:Invoke-NudgeComplete {
             2>$null
 
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty($suggestion)) {
+            if ($suggestion.StartsWith($script:NudgeWarningPrefix)) {
+                $warningMessage = $suggestion.Substring($script:NudgeWarningPrefix.Length).TrimStart()
+                Show-NudgeWarning $warningMessage
+                return
+            }
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert($suggestion)
         }

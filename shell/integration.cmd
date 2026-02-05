@@ -10,6 +10,10 @@ REM Usage:
 REM   nudge-complete git sta     -> suggests completion for "git sta"
 REM   nudge-suggest              -> alias for nudge-complete
 REM
+REM If a suggestion is dangerous, nudge will output:
+REM   NUDGE_WARNING: <message>
+REM and no command will be suggested.
+REM
 REM To make this permanent, add to your AutoRun registry:
 REM   reg add "HKCU\Software\Microsoft\Command Processor" /v AutoRun /t REG_SZ /d "path\to\integration.cmd" /f
 

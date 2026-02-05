@@ -6,6 +6,7 @@
 NUDGE_CONFIG_DIR=$(nudge info --field config_dir 2>/dev/null)
 NUDGE_SOCKET=$(nudge info --field socket_path 2>/dev/null)
 NUDGE_TRIGGER_MODE=$(nudge info --field trigger_mode 2>/dev/null)
+NUDGE_WARNING_PREFIX="NUDGE_WARNING:"
 
 # Fallback if nudge binary not in PATH
 if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
@@ -23,6 +24,12 @@ fi
 
 # Lock file for daemon startup
 NUDGE_LOCK="/tmp/nudge.lock"
+
+# Display warning message for dangerous suggestions
+_nudge_show_warning() {
+    local message="$1"
+    echo -e "\033[33mWarning:\033[0m $message"
+}
 
 # Capture last exit code before any command
 _nudge_last_exit=0
@@ -60,6 +67,12 @@ _nudge_complete() {
         --last-exit-code "$_nudge_last_exit" 2>/dev/null)
 
     if [[ $? -eq 0 && -n "$suggestion" ]]; then
+        if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
+            local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
+            warning_message="${warning_message# }"
+            _nudge_show_warning "$warning_message"
+            return
+        fi
         READLINE_LINE="$suggestion"
         READLINE_POINT=${#READLINE_LINE}
     fi
