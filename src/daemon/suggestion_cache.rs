@@ -1,9 +1,11 @@
 //! Suggestion cache and key building.
 
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 
 use crate::daemon::sanitizer;
 use crate::protocol::CompletionRequest;
+use crate::protocol::CompletionResponse;
 
 pub struct SuggestionKey;
 
@@ -166,10 +168,140 @@ fn read_u32(slice: &[u8]) -> u32 {
     u32::from_le_bytes(slice[..4].try_into().unwrap())
 }
 
+#[derive(Clone)]
+pub struct CacheEntry {
+    pub response: CompletionResponse,
+    pub created_at_ms: u64,
+    pub ttl_ms: u64,
+    pub negative: bool,
+    pub refreshing: bool,
+}
+
+pub struct CacheHit {
+    pub response: CompletionResponse,
+    pub age_ms: u64,
+    pub is_stale: bool,
+    pub should_refresh: bool,
+    pub negative: bool,
+}
+
+pub struct SuggestionCache {
+    capacity: usize,
+    stale_ratio: f32,
+    entries: HashMap<String, CacheEntry>,
+    order: VecDeque<String>,
+}
+
+impl SuggestionCache {
+    pub fn new(capacity: usize, stale_ratio: f32) -> Self {
+        Self {
+            capacity,
+            stale_ratio,
+            entries: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
+
+    pub fn get(&mut self, key: &str, now_ms: u64) -> Option<CompletionResponse> {
+        self.get_with_state(key, now_ms)
+            .map(|hit| hit.response)
+    }
+
+    pub fn get_with_state(&mut self, key: &str, now_ms: u64) -> Option<CacheHit> {
+        let (age_ms, ttl_ms) = {
+            let entry = self.entries.get(key)?;
+            let age_ms = now_ms.saturating_sub(entry.created_at_ms);
+            (age_ms, entry.ttl_ms)
+        };
+
+        if age_ms > ttl_ms {
+            self.remove(key);
+            return None;
+        }
+
+        let (response, is_stale, should_refresh, negative) = {
+            let entry = self.entries.get_mut(key)?;
+            let is_stale = (age_ms as f32) >= (entry.ttl_ms as f32 * self.stale_ratio);
+            let should_refresh = is_stale && !entry.refreshing;
+            if should_refresh {
+                entry.refreshing = true;
+            }
+            (
+                entry.response.clone(),
+                is_stale,
+                should_refresh,
+                entry.negative,
+            )
+        };
+
+        self.touch(key);
+
+        Some(CacheHit {
+            response,
+            age_ms,
+            is_stale,
+            should_refresh,
+            negative,
+        })
+    }
+
+    pub fn insert(
+        &mut self,
+        key: String,
+        response: CompletionResponse,
+        now_ms: u64,
+        ttl_ms: u64,
+        negative: bool,
+    ) {
+        if self.capacity == 0 {
+            return;
+        }
+
+        if self.entries.contains_key(&key) {
+            self.remove(&key);
+        }
+
+        while self.entries.len() >= self.capacity {
+            if let Some(old_key) = self.order.pop_front() {
+                self.entries.remove(&old_key);
+            } else {
+                break;
+            }
+        }
+
+        self.entries.insert(
+            key.clone(),
+            CacheEntry {
+                response,
+                created_at_ms: now_ms,
+                ttl_ms,
+                negative,
+                refreshing: false,
+            },
+        );
+        self.order.push_back(key);
+    }
+
+    fn touch(&mut self, key: &str) {
+        if let Some(pos) = self.order.iter().position(|k| k == key) {
+            self.order.remove(pos);
+            self.order.push_back(key.to_string());
+        }
+    }
+
+    fn remove(&mut self, key: &str) {
+        self.entries.remove(key);
+        if let Some(pos) = self.order.iter().position(|k| k == key) {
+            self.order.remove(pos);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::protocol::CompletionRequest;
+    use crate::protocol::CompletionResponse;
     use std::path::PathBuf;
 
     #[test]
@@ -193,5 +325,24 @@ mod tests {
         let key_auto = SuggestionKey::build(&req, None, None, "zsh-auto", Some(123), 80);
         assert!(key_manual.ends_with(":0"));
         assert!(key_auto.ends_with(":123"));
+    }
+
+    #[test]
+    fn test_cache_ttl_expiry() {
+        let mut cache = SuggestionCache::new(2, 0.8);
+        let response = CompletionResponse::success("req".into(), vec![], 0);
+        cache.insert("k".into(), response, 1000, 10, false);
+        assert!(cache.get("k", 1005).is_some());
+        assert!(cache.get("k", 1011).is_none());
+    }
+
+    #[test]
+    fn test_cache_stale_threshold() {
+        let mut cache = SuggestionCache::new(2, 0.8);
+        let response = CompletionResponse::success("req".into(), vec![], 0);
+        cache.insert("k".into(), response, 1000, 10, false);
+        let hit = cache.get_with_state("k", 1008).unwrap();
+        assert!(hit.is_stale);
+        assert!(hit.should_refresh);
     }
 }
