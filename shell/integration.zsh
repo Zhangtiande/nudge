@@ -88,10 +88,10 @@ typeset -ga NUDGE_IGNORE_WIDGETS=(
     run-help
     set-local-history
     which-command
-    zle-*
-    orig-*
-    autosuggest-*
-    _nudge_*
+    'zle-*'
+    'orig-*'
+    'autosuggest-*'
+    '_nudge_*'
 )
 
 # Prefix for saving original widgets
