@@ -27,7 +27,6 @@ NUDGE_LOCK="/tmp/nudge.lock"
 
 # Auto mode state
 typeset -g _nudge_auto_suggestion=""
-typeset -g _nudge_timer_fd=""
 typeset -g _nudge_last_buffer=""
 typeset -g _nudge_pending_buffer=""
 
@@ -304,17 +303,12 @@ _nudge_complete() {
 # Auto Mode Functions
 # ============================================================================
 
-# Cancel any pending auto completion
+# Cancel any pending auto completion (wrapper for compatibility)
 _nudge_auto_cancel() {
-    if [[ -n "$_nudge_timer_fd" ]]; then
-        # Unregister the fd handler
-        zle -F "$_nudge_timer_fd" 2>/dev/null
-        # Close the fd
-        exec {_nudge_timer_fd}<&- 2>/dev/null
-        _nudge_timer_fd=""
-    fi
+    _nudge_async_cancel
     _nudge_pending_buffer=""
     _nudge_auto_suggestion=""
+    POSTDISPLAY=""
 }
 
 # ============================================================================
