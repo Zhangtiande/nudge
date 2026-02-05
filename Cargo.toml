@@ -4,7 +4,7 @@ version = "0.4.1"
 edition = "2021"
 description = "LLM-powered CLI auto-completion - a gentle nudge for your shell"
 license = "MIT"
-repository = "https://github.com/user/nudge"
+repository = "https://github.com/Zhangtiande/nudge"
 keywords = ["cli", "completion", "llm", "shell", "ai"]
 categories = ["command-line-utilities"]
 
