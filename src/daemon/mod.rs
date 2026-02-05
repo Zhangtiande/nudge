@@ -258,14 +258,18 @@ fn terminate_process(pid: u32) -> bool {
 }
 
 /// Check daemon status
+/// Prints status message and exits with code 0 if running, 1 if not running
+/// This allows shell scripts to check daemon status via exit code
 pub async fn status() -> Result<()> {
     let (running, pid) = is_running_with_cleanup();
     if running {
         println!("Nudge daemon is running (pid: {})", pid);
+        Ok(())
     } else {
         println!("Nudge daemon is not running");
+        // Use exit directly to avoid anyhow printing duplicate error message
+        std::process::exit(1);
     }
-    Ok(())
 }
 
 /// Check if daemon is running, and clean up stale files if not

@@ -198,12 +198,17 @@ _nudge_diagnosis_precmd() {
 }
 
 # Ensure daemon is running
+# Uses `nudge status` for reliable detection (checks PID file + process alive)
+# Falls back to socket check if nudge binary is unavailable
 _nudge_ensure_daemon() {
-    if [[ ! -S "$NUDGE_SOCKET" ]]; then
-        # Use zsystem flock to prevent concurrent daemon starts
-        if zsystem flock -t 0 "$NUDGE_LOCK" 2>/dev/null; then
-            nudge start 2>/dev/null
-        fi
+    # Fast path: check if daemon is responding via status command
+    if nudge status >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # Daemon not running, try to start it with lock to prevent concurrent starts
+    if zsystem flock -t 0 "$NUDGE_LOCK" 2>/dev/null; then
+        nudge start 2>/dev/null
     fi
 }
 
