@@ -311,12 +311,21 @@ async fn process_request(
         let mut cache = cache.lock().await;
         cache.get_with_state(&cache_key, now_ms)
     } {
+        debug!(
+            cache_hit = true,
+            age_ms = hit.age_ms,
+            is_stale = hit.is_stale,
+            should_refresh = hit.should_refresh,
+            negative = hit.negative,
+            "Cache hit"
+        );
         let mut response = hit.response;
         response.request_id = request_id;
         response.cache_hit = Some(true);
         response.cache_age_ms = Some(hit.age_ms);
 
         if hit.should_refresh {
+            debug!("Starting background cache refresh (stale-while-revalidate)");
             let refresh_request = request.clone();
             let refresh_config = config.clone();
             let refresh_sessions = sessions.clone();
@@ -335,6 +344,10 @@ async fn process_request(
                 let insert_now = now_millis();
                 let is_negative = response.error.is_some() || response.suggestions.is_empty();
                 let ttl_ms = cache_ttl_ms(&refresh_shell_mode, &refresh_config, is_negative);
+                debug!(
+                    ttl_ms = ttl_ms,
+                    "Background refresh complete, updating cache"
+                );
                 let mut cache = refresh_cache.lock().await;
                 cache.insert(refresh_key, response, insert_now, ttl_ms, is_negative);
             });
@@ -343,11 +356,17 @@ async fn process_request(
         return response;
     }
 
+    debug!(cache_hit = false, "Cache miss, computing completion");
     let response = compute_completion(&request, config, request_id.clone()).await;
     let insert_now = now_millis();
     let is_negative = response.error.is_some() || response.suggestions.is_empty();
     let ttl_ms = cache_ttl_ms(&shell_mode, config, is_negative);
 
+    debug!(
+        ttl_ms = ttl_ms,
+        is_negative = is_negative,
+        "Inserting into cache"
+    );
     {
         let mut cache = cache.lock().await;
         cache.insert(cache_key, response.clone(), insert_now, ttl_ms, is_negative);
