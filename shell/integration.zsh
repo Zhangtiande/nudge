@@ -488,6 +488,115 @@ _nudge_auto_line_change() {
 }
 
 # ============================================================================
+# Widget Wrapping Infrastructure
+# ============================================================================
+
+# Track bind counts to handle multiple bindings of same widget
+typeset -gA _NUDGE_BIND_COUNTS
+
+# Increment and return bind count for a widget
+_nudge_incr_bind_count() {
+    local widget=$1
+    typeset -gi bind_count=$((_NUDGE_BIND_COUNTS[$widget]+1))
+    _NUDGE_BIND_COUNTS[$widget]=$bind_count
+}
+
+# Bind a widget to a nudge action, saving reference to original
+_nudge_bind_widget() {
+    local widget=$1
+    local action=$2
+    local prefix=$NUDGE_ORIG_WIDGET_PREFIX
+    local -i bind_count
+
+    # Check widget type and save original
+    case $widgets[$widget] in
+        # Already bound by us
+        user:_nudge_bound_*|user:_nudge_orig_*)
+            bind_count=$((_NUDGE_BIND_COUNTS[$widget]))
+            ;;
+        # User-defined widget
+        user:*)
+            _nudge_incr_bind_count $widget
+            bind_count=$_NUDGE_BIND_COUNTS[$widget]
+            zle -N $prefix$bind_count-$widget ${widgets[$widget]#*:}
+            ;;
+        # Built-in widget
+        builtin)
+            _nudge_incr_bind_count $widget
+            bind_count=$_NUDGE_BIND_COUNTS[$widget]
+            eval "_nudge_orig_${(q)widget}() { zle .${(q)widget} }"
+            zle -N $prefix$bind_count-$widget _nudge_orig_$widget
+            ;;
+        # Completion widget
+        completion:*)
+            _nudge_incr_bind_count $widget
+            bind_count=$_NUDGE_BIND_COUNTS[$widget]
+            eval "zle -C $prefix$bind_count-${(q)widget} ${${(s.:.)widgets[$widget]}[2,3]}"
+            ;;
+        # Unknown - skip
+        *)
+            return 1
+            ;;
+    esac
+
+    # Create bound widget that calls our action handler
+    eval "_nudge_bound_${bind_count}_${(q)widget}() {
+        _nudge_widget_$action $prefix$bind_count-${(q)widget} \$@
+    }"
+
+    # Register the new widget
+    zle -N -- $widget _nudge_bound_${bind_count}_$widget
+}
+
+# Invoke original widget by name
+_nudge_invoke_original_widget() {
+    (( $# )) || return 0
+    local original_widget_name="$1"
+    shift
+    if (( ${+widgets[$original_widget_name]} )); then
+        zle $original_widget_name -- $@
+    fi
+}
+
+# Check if widget matches any pattern in an array
+_nudge_widget_in_list() {
+    local widget=$1
+    shift
+    local pattern
+    for pattern in $@; do
+        [[ $widget == $~pattern ]] && return 0
+    done
+    return 1
+}
+
+# Bind all widgets based on classification
+_nudge_bind_all_widgets() {
+    emulate -L zsh
+    local widget
+
+    # Patterns to ignore
+    local ignore_patterns=(
+        '.*'
+        '_*'
+        $NUDGE_IGNORE_WIDGETS
+    )
+
+    # Iterate all widgets
+    for widget in ${${(f)"$(builtin zle -la)"}:#${(j:|:)~ignore_patterns}}; do
+        if _nudge_widget_in_list $widget $NUDGE_CLEAR_WIDGETS; then
+            _nudge_bind_widget $widget clear
+        elif _nudge_widget_in_list $widget $NUDGE_ACCEPT_WIDGETS; then
+            _nudge_bind_widget $widget accept
+        elif _nudge_widget_in_list $widget $NUDGE_PARTIAL_ACCEPT_WIDGETS; then
+            _nudge_bind_widget $widget partial_accept
+        elif _nudge_widget_in_list $widget $NUDGE_MODIFY_WIDGETS; then
+            _nudge_bind_widget $widget modify
+        fi
+        # Unclassified widgets are not wrapped (pass through)
+    done
+}
+
+# ============================================================================
 # Widget Registration
 # ============================================================================
 
