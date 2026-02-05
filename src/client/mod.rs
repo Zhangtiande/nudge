@@ -86,8 +86,7 @@ mod tests {
     fn test_plain_output_emits_warning_sentinel() {
         let response = CompletionResponse::success(
             "req-1".to_string(),
-            vec![Suggestion::new("rm -rf /".to_string())
-                .with_warning(Warning::dangerous("danger"))],
+            vec![Suggestion::new("rm -rf /".to_string()).with_warning(Warning::dangerous("danger"))],
             0,
         );
 
