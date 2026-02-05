@@ -53,15 +53,14 @@ impl SuggestionKey {
         let git_hash = hash_hex_16(git_input.as_bytes());
 
         let shell_mode_norm = shell_mode.to_lowercase();
-        let bucket = if shell_mode_norm.ends_with("-auto") {
-            time_bucket.unwrap_or(0)
-        } else {
-            0
-        };
+        // time_bucket is intentionally ignored - see docs/plans/2026-02-05-auto-mode-widget-refactor.md
+        // Auto mode has delay debounce, manual mode users don't repeat same prefix
+        // So "flicker prevention" via time_bucket is unnecessary
+        let _ = time_bucket;
 
         format!(
-            "sk:v1:{}:{}:{}:{}:{}",
-            prefix_hash, cwd_hash, git_hash, shell_mode_norm, bucket
+            "sk:v1:{}:{}:{}:{}",
+            prefix_hash, cwd_hash, git_hash, shell_mode_norm
         )
     }
 }
@@ -246,7 +245,9 @@ mod tests {
     }
 
     #[test]
-    fn test_time_bucket_only_for_auto() {
+    fn test_time_bucket_ignored() {
+        // time_bucket is intentionally ignored in cache key
+        // See docs/plans/2026-02-05-auto-mode-widget-refactor.md
         let req = CompletionRequest::new(
             "zsh-1".into(),
             "git st".into(),
@@ -256,8 +257,14 @@ mod tests {
         );
         let key_manual = SuggestionKey::build(&req, None, None, "zsh-inline", None, 80);
         let key_auto = SuggestionKey::build(&req, None, None, "zsh-auto", Some(123), 80);
-        assert!(key_manual.ends_with(":0"));
-        assert!(key_auto.ends_with(":123"));
+        let key_auto_different_bucket =
+            SuggestionKey::build(&req, None, None, "zsh-auto", Some(456), 80);
+
+        // Key format: sk:v1:{prefix}:{cwd}:{git}:{mode} (no time_bucket)
+        assert!(!key_manual.contains(":0"));
+        assert!(!key_auto.contains(":123"));
+        // Same input with different time_bucket should produce same key
+        assert_eq!(key_auto, key_auto_different_bucket);
     }
 
     #[test]

@@ -282,9 +282,9 @@ impl Default for CacheConfig {
         Self {
             capacity: 1024,
             prefix_bytes: 80,
-            ttl_auto_ms: 3000,
-            ttl_manual_ms: 15000,
-            ttl_negative_ms: 2000,
+            ttl_auto_ms: 300000,    // 5 minutes
+            ttl_manual_ms: 600000,  // 10 minutes
+            ttl_negative_ms: 30000, // 30 seconds
             stale_ratio: 0.8,
         }
     }

@@ -108,7 +108,6 @@ class NudgePredictor : ICommandPredictor {
                     --cwd $cwd `
                     --session $this.SessionId `
                     --shell-mode "ps-auto" `
-                    --time-bucket ([Math]::Floor([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 2000)) `
                     2>$null | ConvertFrom-Json
             } catch {
                 return (& $script:NewSuggestionPackageFunc)

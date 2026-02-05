@@ -192,14 +192,16 @@ cache:
   # Max bytes of prefix used for key hashing
   prefix_bytes: 80
 
-  # TTL for auto mode (milliseconds)
-  ttl_auto_ms: 3000
+  # TTL for auto mode (milliseconds) - 5 minutes
+  # Cache key includes: prefix + cwd + git_state + shell_mode
+  # Context changes (git status, directory) automatically invalidate cache
+  ttl_auto_ms: 300000
 
-  # TTL for manual/inline modes (milliseconds)
-  ttl_manual_ms: 15000
+  # TTL for manual/inline modes (milliseconds) - 10 minutes
+  ttl_manual_ms: 600000
 
-  # TTL for negative cache entries (milliseconds)
-  ttl_negative_ms: 2000
+  # TTL for negative cache entries (milliseconds) - 30 seconds
+  ttl_negative_ms: 30000
 
   # Stale-while-revalidate threshold (0.0 - 1.0)
   stale_ratio: 0.8
