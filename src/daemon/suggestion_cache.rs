@@ -10,6 +10,7 @@ use crate::protocol::CompletionResponse;
 pub struct SuggestionKey;
 
 impl SuggestionKey {
+    #[allow(dead_code)]
     pub fn build(
         req: &CompletionRequest,
         git_root: Option<&PathBuf>,
@@ -110,8 +111,10 @@ pub struct CacheEntry {
 pub struct CacheHit {
     pub response: CompletionResponse,
     pub age_ms: u64,
+    #[allow(dead_code)]
     pub is_stale: bool,
     pub should_refresh: bool,
+    #[allow(dead_code)]
     pub negative: bool,
 }
 
@@ -132,9 +135,9 @@ impl SuggestionCache {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get(&mut self, key: &str, now_ms: u64) -> Option<CompletionResponse> {
-        self.get_with_state(key, now_ms)
-            .map(|hit| hit.response)
+        self.get_with_state(key, now_ms).map(|hit| hit.response)
     }
 
     pub fn get_with_state(&mut self, key: &str, now_ms: u64) -> Option<CacheHit> {
@@ -239,7 +242,7 @@ mod tests {
         let input = "你好世界"; // 12 bytes
         let truncated = truncate_utf8(input, 5);
         assert!(truncated.is_char_boundary(truncated.len()));
-        assert!(truncated.as_bytes().len() <= 5);
+        assert!(truncated.len() <= 5);
     }
 
     #[test]

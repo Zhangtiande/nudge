@@ -333,8 +333,7 @@ async fn process_request(
                 )
                 .await;
                 let insert_now = now_millis();
-                let is_negative =
-                    response.error.is_some() || response.suggestions.is_empty();
+                let is_negative = response.error.is_some() || response.suggestions.is_empty();
                 let ttl_ms = cache_ttl_ms(&refresh_shell_mode, &refresh_config, is_negative);
                 let mut cache = refresh_cache.lock().await;
                 cache.insert(refresh_key, response, insert_now, ttl_ms, is_negative);

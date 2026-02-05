@@ -12,6 +12,7 @@ use crate::cli::OutputFormat;
 use crate::protocol::{CompletionRequest, CompletionResponse};
 
 /// Execute completion request
+#[allow(clippy::too_many_arguments)]
 pub async fn complete(
     buffer: String,
     cursor: usize,
