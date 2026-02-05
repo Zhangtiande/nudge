@@ -77,6 +77,10 @@ trigger:
   mode: "manual"        # "manual" 或 "auto"
   auto_delay_ms: 500    # 自动模式防抖延迟
 
+cache:
+  ttl_auto_ms: 3000     # 自动模式缓存 TTL
+  ttl_manual_ms: 15000  # 手动模式缓存 TTL
+
 diagnosis:
   enabled: true         # 启用错误诊断
 ```

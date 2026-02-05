@@ -77,6 +77,10 @@ trigger:
   mode: "manual"        # "manual" or "auto"
   auto_delay_ms: 500    # Debounce for auto mode
 
+cache:
+  ttl_auto_ms: 3000     # Auto mode cache TTL
+  ttl_manual_ms: 15000  # Manual mode cache TTL
+
 diagnosis:
   enabled: true         # Enable error diagnosis
 ```

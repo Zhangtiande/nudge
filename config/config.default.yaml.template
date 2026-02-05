@@ -179,6 +179,31 @@ trigger:
   # Other examples: "\\C-g" (Ctrl+G), "\\C-x\\C-a" (Ctrl+X Ctrl+A)
   hotkey: "\\C-e"
 
+  # Auto mode debounce delay in milliseconds
+  auto_delay_ms: 500
+
+# ========================================
+# Cache Configuration
+# ========================================
+cache:
+  # Max cache entries (LRU)
+  capacity: 1024
+
+  # Max bytes of prefix used for key hashing
+  prefix_bytes: 80
+
+  # TTL for auto mode (milliseconds)
+  ttl_auto_ms: 3000
+
+  # TTL for manual/inline modes (milliseconds)
+  ttl_manual_ms: 15000
+
+  # TTL for negative cache entries (milliseconds)
+  ttl_negative_ms: 2000
+
+  # Stale-while-revalidate threshold (0.0 - 1.0)
+  stale_ratio: 0.8
+
 # ========================================
 # Privacy & Safety Configuration
 # ========================================
