@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-02-06
+
+### Added
+- **Zsh Ghost Ownership Strategy**: New `trigger.zsh_ghost_owner` mode selection for conflict-safe coexistence with `zsh-autosuggestions`
+  - `auto`: Prefer `zsh-autosuggestions` when available
+  - `nudge`: Force Nudge-owned ghost text
+  - `autosuggestions`: Keep ghost text owned by `zsh-autosuggestions`, use overlay accept key
+- **Overlay Backend Selection**: New `trigger.zsh_overlay_backend` with `message` and `rprompt`
+- **`nudge doctor zsh`**: New diagnostics command for Zsh integration health, key bindings, hooks, and daemon latency sampling
+- **Explanation Layer**: Overlay explanation toggle (`F1`) with `why/risk/diff` details
+- **Zsh Integration Test Coverage**: Added dedicated tests for key bindings, overlay rendering, RPROMPT restore/reapply, and history navigation behavior
+
+### Changed
+- **Event-driven Auto Fetch**: Replaced sleep-based debounce path with event-driven request triggering and async generation arbitration
+- **Mode-specific Overlay UX**:
+  - `message` backend shows full overlay context (`why/risk/diff`)
+  - `rprompt` backend shows compact `diff` only
+- **Partial Accept Scope**: Kept stable `Right Arrow` word accept and removed unstable `Alt+Right` / `Ctrl+Right` bindings
+
+### Fixed
+- Overlay mode no longer clears `zsh-autosuggestions` ghost text (`POSTDISPLAY`)
+- Up/Down history navigation no longer triggers overlay async fetch loops (reduces input lag)
+- RPROMPT overlay now reliably reapplies after external prompt wipes
+- Manual hotkey completion now clears stale inline suggestion display to avoid visual overlap
+- Message backend overlay no longer leaks ANSI escape descriptors as raw text
+
 ## [0.4.3] - 2026-02-05
 
 ### Added

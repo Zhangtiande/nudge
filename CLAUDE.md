@@ -238,7 +238,8 @@ The configuration loader (`src/config.rs::Config::load()`):
 
 ### Zsh Auto Mode Architecture
 
-- **Current**: Uses `zle-line-pre-redraw` hook + `sleep` process debounce (has performance issues)
-- **Planned**: Widget wrapping approach (see `docs/plans/2026-02-05-auto-mode-widget-refactor.md`)
-- **Reference**: zsh-autosuggestions uses `$PENDING` and `$KEYS_QUEUED_COUNT` for input queue detection
-- **Widget classification**: modify (fetch new), clear (history nav), accept, partial_accept, ignore
+- **Current**: Event-driven async fetch with `$PENDING` / `$KEYS_QUEUED_COUNT` gating and generation-based stale response arbitration
+- **Ghost ownership**: `trigger.zsh_ghost_owner` supports `auto`, `nudge`, and `autosuggestions` coexistence mode
+- **Overlay backend**: `trigger.zsh_overlay_backend` supports `message` and `rprompt` rendering
+- **Diagnostics**: `nudge doctor zsh` checks key bindings, hooks, and integration health
+- **Reference**: zsh-autosuggestions compatibility relies on non-invasive hook usage and preserving `POSTDISPLAY` when autosuggestions owns ghost text
