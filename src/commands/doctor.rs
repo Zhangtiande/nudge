@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
@@ -169,7 +169,7 @@ async fn run_zsh_doctor() -> Result<()> {
     Ok(())
 }
 
-fn probe_zsh_bindings(integration_script: &PathBuf) -> Result<HashMap<String, String>> {
+fn probe_zsh_bindings(integration_script: &Path) -> Result<HashMap<String, String>> {
     let exe = std::env::current_exe().context("Failed to resolve current executable path")?;
     let exe_q = shell_quote(exe.to_string_lossy().as_ref());
     let script_q = shell_quote(integration_script.to_string_lossy().as_ref());
