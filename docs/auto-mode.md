@@ -49,8 +49,12 @@ source ~/.zshrc
 3. **Dual presentation**
    - Ghost text (`POSTDISPLAY`) when Nudge owns ghost rendering
    - Overlay line when `autosuggestions` owns ghost rendering
+   - `message` backend uses plain `[nudge] [risk]` badges for max compatibility
+   - `rprompt` backend uses colored badges
 4. **Progressive accept**
-   - Full / word / argument / segment acceptance, depending on key
+   - Full / word acceptance (`Tab` and `Right Arrow`)
+
+`risk` in overlay is driven by daemon safety results (`NUDGE_WARNING`), not local shell-side regex detection.
 
 ## Key Bindings
 
@@ -59,8 +63,6 @@ source ~/.zshrc
 | `Ctrl+E` | Trigger completion | Both |
 | `Tab` | Accept full suggestion | Auto (Nudge ghost owner) |
 | `Right Arrow` | Accept next word | Auto (Zsh) |
-| `Alt+Right Arrow` | Accept next argument | Auto (Zsh) |
-| `Ctrl+Right Arrow` | Accept next segment (`|`, `&&`, `;`) | Auto (Zsh) |
 | `F1` | Toggle explanation details (`why/risk/diff`) | Auto (Zsh) |
 | `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion when ghost owner is `autosuggestions` | Zsh |
 
@@ -73,7 +75,7 @@ Full auto mode support:
 - Overlay mode via hooks (`line-pre-redraw`, `line-finish`)
 - Async completion via `zle -F`
 - Explanation layer with `F1`
-- Partial accept controls (word/argument/segment)
+- Partial accept control by word (`Right Arrow`)
 
 ### Bash
 

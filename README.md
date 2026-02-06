@@ -101,8 +101,6 @@ See [Configuration Reference](docs/configuration.md) for all options.
 | `Ctrl+E` | Trigger completion |
 | `Tab` | Accept suggestion (auto mode) |
 | `Right Arrow` | Accept next word (Zsh) |
-| `Alt+Right Arrow` | Accept next argument (Zsh auto mode) |
-| `Ctrl+Right Arrow` | Accept next segment (`|`, `&&`, `;`) (Zsh auto mode) |
 | `F1` | Toggle explanation details (why/risk/diff) in overlay |
 | `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion when `trigger.zsh_ghost_owner: autosuggestions` |
 

@@ -245,13 +245,13 @@ print -r -- "$f1_binding"
             right_line
         );
         assert!(
-            alt_right_line.contains("_nudge_auto_accept_argument"),
-            "alt+right should accept next argument: {}",
+            !alt_right_line.contains("_nudge_auto_accept_argument"),
+            "alt+right should not be bound to nudge argument-accept: {}",
             alt_right_line
         );
         assert!(
-            ctrl_right_line.contains("_nudge_auto_accept_segment"),
-            "ctrl+right should accept next segment: {}",
+            !ctrl_right_line.contains("_nudge_auto_accept_segment"),
+            "ctrl+right should not be bound to nudge segment-accept: {}",
             ctrl_right_line
         );
         assert!(
@@ -259,6 +259,188 @@ print -r -- "$f1_binding"
             "f1 should toggle explanation: {}",
             f1_line
         );
+    }
+
+    #[test]
+    fn overlay_mode_preserves_existing_postdisplay() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+POSTDISPLAY="__AUTO__"
+BUFFER="echo"
+_nudge_auto_suggestion="echo hi"
+_nudge_auto_display_preview
+print -r -- "$POSTDISPLAY"
+_nudge_auto_cancel
+print -r -- "$POSTDISPLAY"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let after_preview = lines.next().unwrap_or_default();
+        let after_cancel = lines.next().unwrap_or_default();
+
+        assert_eq!(
+            after_preview, "__AUTO__",
+            "overlay rendering should not clear autosuggestions preview"
+        );
+        assert_eq!(
+            after_cancel, "__AUTO__",
+            "overlay cancel should not clear autosuggestions preview"
+        );
+    }
+
+    #[test]
+    fn overlay_marks_warning_as_high_risk() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+BUFFER="rm -rf /"
+_nudge_auto_suggestion="rm -rf /tmp"
+_nudge_auto_warning="daemon safety warning"
+_nudge_overlay_render
+print -r -- "$_nudge_overlay_last_message"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let line = stdout.lines().next().unwrap_or_default();
+        assert!(
+            line.contains("risk:high"),
+            "warning-backed suggestion should be marked as high risk: {}",
+            line
+        );
+    }
+
+    #[test]
+    fn overlay_history_navigation_does_not_trigger_fetch() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+_nudge_overlay_mode_enabled="true"
+_nudge_last_buffer=""
+BUFFER="git status"
+typeset -gi _nudge_fetch_calls=0
+_nudge_fetch_async() { _nudge_fetch_calls=$((_nudge_fetch_calls + 1)); }
+
+LASTWIDGET="up-line-or-history"
+_nudge_overlay_line_pre_redraw
+print -r -- "$_nudge_fetch_calls"
+
+LASTWIDGET="self-insert"
+BUFFER="git status -s"
+_nudge_overlay_line_pre_redraw
+print -r -- "$_nudge_fetch_calls"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let after_history = lines.next().unwrap_or_default();
+        let after_typing = lines.next().unwrap_or_default();
+
+        assert_eq!(after_history, "0");
+        assert_eq!(after_typing, "1");
     }
 
     #[test]
@@ -288,10 +470,13 @@ function nudge() {
 
 source shell/integration.zsh >/dev/null 2>&1
 RPS1="ORIGINAL_RPROMPT"
+RPROMPT="ORIGINAL_RPROMPT"
 _nudge_overlay_set_message "hello"
 print -r -- "$RPS1"
+print -r -- "$RPROMPT"
 _nudge_overlay_clear_message
 print -r -- "$RPS1"
+print -r -- "$RPROMPT"
 "#;
 
         let output = Command::new("zsh")
@@ -310,13 +495,216 @@ print -r -- "$RPS1"
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut lines = stdout.lines();
         let temporary = lines.next().unwrap_or_default();
+        let temporary_rprompt = lines.next().unwrap_or_default();
         let restored = lines.next().unwrap_or_default();
+        let restored_rprompt = lines.next().unwrap_or_default();
 
         assert!(
             temporary.contains("hello"),
             "overlay message should be rendered in rprompt backend: {}",
             temporary
         );
+        assert!(
+            temporary_rprompt.contains("hello"),
+            "overlay message should be rendered in RPROMPT as well: {}",
+            temporary_rprompt
+        );
         assert_eq!(restored, "ORIGINAL_RPROMPT");
+        assert_eq!(restored_rprompt, "ORIGINAL_RPROMPT");
+    }
+
+    #[test]
+    fn message_overlay_keeps_full_fields() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+BUFFER="git st"
+_nudge_auto_suggestion="git status"
+_nudge_auto_warning=""
+_nudge_overlay_render
+print -r -- "$_nudge_overlay_last_message"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let line = stdout.lines().next().unwrap_or_default();
+        assert!(
+            line.contains("why:"),
+            "message overlay should include why field: {}",
+            line
+        );
+        assert!(
+            line.contains("risk:"),
+            "message overlay should include risk field: {}",
+            line
+        );
+        assert!(
+            line.contains("diff:"),
+            "message overlay should include diff field: {}",
+            line
+        );
+    }
+
+    #[test]
+    fn manual_completion_clears_stale_postdisplay() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "manual" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "auto" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  elif [[ "$1" == "complete" ]]; then
+    echo "git status"
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+BUFFER="git st"
+CURSOR=${#BUFFER}
+POSTDISPLAY="__AUTO__"
+_nudge_complete
+print -r -- "$BUFFER"
+print -r -- "$POSTDISPLAY"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let buffer = lines.next().unwrap_or_default();
+        let postdisplay = lines.next().unwrap_or_default();
+
+        assert_eq!(buffer, "git status");
+        assert_eq!(postdisplay, "");
+    }
+
+    #[test]
+    fn rprompt_overlay_reapplies_when_prompt_is_wiped() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "rprompt" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+BUFFER="git st"
+_nudge_auto_suggestion="git status"
+_nudge_auto_warning=""
+_nudge_overlay_render
+RPS1=""
+RPROMPT=""
+_nudge_overlay_render
+print -r -- "$RPS1"
+print -r -- "$RPROMPT"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let rps1 = lines.next().unwrap_or_default();
+        let rprompt = lines.next().unwrap_or_default();
+
+        assert!(
+            rps1.contains("diff"),
+            "RPS1 should render compact diff label: {}",
+            rps1
+        );
+        assert!(
+            rprompt.contains("diff"),
+            "RPROMPT should render compact diff label: {}",
+            rprompt
+        );
+        assert!(
+            !rprompt.contains("why:"),
+            "rprompt should not include full overlay fields: {}",
+            rprompt
+        );
     }
 }

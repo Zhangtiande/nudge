@@ -110,8 +110,6 @@ async fn run_zsh_doctor() -> Result<()> {
     print_binding(&probe, "TAB");
     print_binding(&probe, "CTRL_G");
     print_binding(&probe, "RIGHT");
-    print_binding(&probe, "ALT_RIGHT");
-    print_binding(&probe, "CTRL_RIGHT");
     print_binding(&probe, "F1");
     print_binding(&probe, "HOOK_LINE_PRE_REDRAW");
     print_binding(&probe, "HOOK_LINE_FINISH");
@@ -146,14 +144,6 @@ async fn run_zsh_doctor() -> Result<()> {
             println!("[ok] F1 explanation toggle is active");
         } else {
             println!("[warn] F1 is not bound to _nudge_toggle_explanation");
-        }
-    }
-
-    if let Some(ctrl_right) = probe.get("CTRL_RIGHT") {
-        if ctrl_right.contains("_nudge_auto_accept_segment") {
-            println!("[ok] Ctrl+Right segment accept is active");
-        } else {
-            println!("[warn] Ctrl+Right segment accept is missing");
         }
     }
 
@@ -193,8 +183,6 @@ source {script} >/dev/null 2>&1
 print -r -- "TAB=$(bindkey '^I' 2>/dev/null || true)"
 print -r -- "CTRL_G=$(bindkey '^G' 2>/dev/null || true)"
 print -r -- "RIGHT=$(bindkey '^[[C' 2>/dev/null || true)"
-print -r -- "ALT_RIGHT=$(bindkey $'\e[1;3C' 2>/dev/null || true)"
-print -r -- "CTRL_RIGHT=$(bindkey $'\e[1;5C' 2>/dev/null || true)"
 print -r -- "F1=$(bindkey $'\eOP' 2>/dev/null || true)"
 print -r -- "HOOK_LINE_PRE_REDRAW=$(( ${{+widgets[_nudge_overlay_line_pre_redraw]}} ))"
 print -r -- "HOOK_LINE_FINISH=$(( ${{+widgets[_nudge_overlay_line_finish]}} ))"

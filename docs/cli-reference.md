@@ -118,7 +118,7 @@ nudge doctor zsh
 Checks include:
 - Config summary (`trigger.mode`, `zsh_ghost_owner`, `zsh_overlay_backend`)
 - Zsh availability and integration script syntax
-- Key binding snapshot (`Tab`, `Ctrl+G`, `Right`, `Alt+Right`, `Ctrl+Right`, `F1`)
+- Key binding snapshot (`Tab`, `Ctrl+G`, `Right`, `F1`)
 - Hook presence (`line-pre-redraw`, `line-finish`)
 - Daemon completion latency sample (`p50`, `p95`)
 

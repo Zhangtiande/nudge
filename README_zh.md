@@ -101,8 +101,6 @@ diagnosis:
 | `Ctrl+E` | 触发补全 |
 | `Tab` | 接受建议（自动模式） |
 | `Right Arrow` | 接受下一个单词（Zsh） |
-| `Alt+Right Arrow` | 接受下一个参数（Zsh 自动模式） |
-| `Ctrl+Right Arrow` | 接受下一个命令段（`|`、`&&`、`;`）（Zsh 自动模式） |
 | `F1` | 切换解释详情（why/risk/diff） |
 | `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议 |
 
