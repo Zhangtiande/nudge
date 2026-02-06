@@ -97,6 +97,12 @@ pub enum Command {
         field: Option<String>,
     },
 
+    /// Diagnose shell integration health
+    Doctor {
+        /// Shell target (currently: zsh)
+        shell: Option<String>,
+    },
+
     /// Setup shell integration automatically
     Setup {
         /// Shell type (bash, zsh, powershell) - auto-detect if not specified

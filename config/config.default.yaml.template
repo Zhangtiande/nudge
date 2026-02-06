@@ -188,6 +188,11 @@ trigger:
   # - autosuggestions: Reserve ghost text for zsh-autosuggestions
   zsh_ghost_owner: auto
 
+  # Zsh overlay rendering backend
+  # - message: Render overlay with `zle -M` (default, less prompt redraw)
+  # - rprompt: Render overlay in right prompt (`RPS1`)
+  zsh_overlay_backend: message
+
 # ========================================
 # Cache Configuration
 # ========================================

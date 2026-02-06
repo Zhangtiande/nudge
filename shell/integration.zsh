@@ -8,6 +8,7 @@ NUDGE_SOCKET=$(nudge info --field socket_path 2>/dev/null)
 NUDGE_TRIGGER_MODE=$(nudge info --field trigger_mode 2>/dev/null)
 NUDGE_AUTO_DELAY=$(nudge info --field auto_delay_ms 2>/dev/null)
 NUDGE_ZSH_GHOST_OWNER=$(nudge info --field zsh_ghost_owner 2>/dev/null)
+NUDGE_ZSH_OVERLAY_BACKEND=$(nudge info --field zsh_overlay_backend 2>/dev/null)
 NUDGE_WARNING_PREFIX="NUDGE_WARNING:"
 
 # Fallback if nudge binary not in PATH
@@ -24,6 +25,7 @@ if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
     NUDGE_TRIGGER_MODE="manual"
     NUDGE_AUTO_DELAY="500"
     NUDGE_ZSH_GHOST_OWNER="auto"
+    NUDGE_ZSH_OVERLAY_BACKEND="message"
 fi
 
 NUDGE_LOCK="/tmp/nudge.lock"
@@ -31,12 +33,14 @@ NUDGE_LOCK="/tmp/nudge.lock"
 if [[ -z "$NUDGE_ZSH_GHOST_OWNER" ]]; then
     NUDGE_ZSH_GHOST_OWNER="auto"
 fi
+if [[ -z "$NUDGE_ZSH_OVERLAY_BACKEND" ]]; then
+    NUDGE_ZSH_OVERLAY_BACKEND="message"
+fi
 
 # Auto mode state
 typeset -g _nudge_auto_suggestion=""
 typeset -g _nudge_auto_warning=""
 typeset -g _nudge_last_buffer=""
-typeset -g _nudge_pending_buffer=""
 typeset -g _nudge_last_warning_buffer=""
 typeset -g _nudge_region_highlight_entry=""
 typeset -g _nudge_ghost_owner_effective="nudge"
@@ -44,6 +48,10 @@ typeset -g _nudge_auto_mode_enabled="false"
 typeset -g _nudge_overlay_mode_enabled="false"
 typeset -g _nudge_overlay_hooks_installed="false"
 typeset -g _nudge_overlay_last_message=""
+typeset -g _nudge_overlay_backend_effective="message"
+typeset -g _nudge_overlay_saved_rprompt=""
+typeset -g _nudge_overlay_rprompt_active="false"
+typeset -g _nudge_explain_expanded="false"
 
 _nudge_has_autosuggestions() {
     (( ${+functions[_zsh_autosuggest_start]} )) && return 0
@@ -88,6 +96,21 @@ _nudge_resolve_ghost_owner() {
 
 _nudge_resolve_ghost_owner
 
+_nudge_resolve_overlay_backend() {
+    local configured_backend="${NUDGE_ZSH_OVERLAY_BACKEND:l}"
+
+    case "$configured_backend" in
+        message|rprompt)
+            _nudge_overlay_backend_effective="$configured_backend"
+            ;;
+        *)
+            _nudge_overlay_backend_effective="message"
+            ;;
+    esac
+}
+
+_nudge_resolve_overlay_backend
+
 _nudge_clear_own_highlight() {
     [[ -z "$_nudge_region_highlight_entry" ]] && return
 
@@ -112,17 +135,34 @@ _nudge_set_own_highlight() {
 }
 
 _nudge_overlay_clear_message() {
-    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
     [[ -z "$_nudge_overlay_last_message" ]] && return
-    zle -M "" 2>/dev/null
+
+    if [[ "$_nudge_overlay_backend_effective" == "rprompt" ]]; then
+        if [[ "$_nudge_overlay_rprompt_active" == "true" ]]; then
+            RPS1="$_nudge_overlay_saved_rprompt"
+            _nudge_overlay_rprompt_active="false"
+            zle -R 2>/dev/null
+        fi
+    else
+        zle -M "" 2>/dev/null
+    fi
     _nudge_overlay_last_message=""
 }
 
 _nudge_overlay_set_message() {
     local message="$1"
-    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
     [[ "$message" == "$_nudge_overlay_last_message" ]] && return
-    zle -M -- "$message" 2>/dev/null
+    if [[ "$_nudge_overlay_backend_effective" == "rprompt" ]]; then
+        if [[ "$_nudge_overlay_rprompt_active" != "true" ]]; then
+            _nudge_overlay_saved_rprompt="$RPS1"
+            _nudge_overlay_rprompt_active="true"
+        fi
+        local prompt_msg="${message//\%/%%}"
+        RPS1="%F{8}${prompt_msg}%f"
+        zle -R 2>/dev/null
+    else
+        zle -M -- "$message" 2>/dev/null
+    fi
     _nudge_overlay_last_message="$message"
 }
 
@@ -258,6 +298,7 @@ _nudge_diagnosis_preexec() {
     # Clear any pending diagnosis suggestion when user executes a new command
     # This prevents stale suggestions from appearing on next Tab press
     _nudge_auto_suggestion=""
+    _nudge_overlay_clear_message
 
     _nudge_last_command="$1"
     _nudge_skip_capture=""
@@ -283,6 +324,7 @@ _nudge_diagnosis_precmd() {
     # This handles cases where user pressed Enter without accepting the suggestion
     # or when preexec wasn't called (e.g., empty command)
     _nudge_auto_suggestion=""
+    _nudge_overlay_clear_message
 
     # Restore stderr immediately (only if we captured it)
     if [[ -n "$_nudge_stderr_fd" ]]; then
@@ -416,9 +458,7 @@ _nudge_complete() {
 
 # Cancel any pending auto completion (wrapper for compatibility)
 _nudge_auto_cancel() {
-    _nudge_debounce_cancel
     _nudge_async_cancel
-    _nudge_pending_buffer=""
     _nudge_auto_suggestion=""
     POSTDISPLAY=""
     _nudge_clear_own_highlight
@@ -426,19 +466,17 @@ _nudge_auto_cancel() {
 }
 
 # ============================================================================
-# Async Suggestion Fetching (with time-based debounce)
+# Async Suggestion Fetching (event-driven)
 # ============================================================================
 
 # State for async operations
 typeset -g _nudge_async_fd=""
 typeset -g _nudge_child_pid=""
-typeset -g _nudge_last_fetch_time=0
-typeset -g _nudge_debounce_pending=""
+typeset -g _nudge_child_generation=0
+typeset -g _nudge_generation_seq=0
+typeset -g _nudge_last_applied_generation=0
 typeset -g _nudge_async_suggestion_temp=""
-
-# Calculate debounce delay in seconds (from ms config)
-typeset -g _nudge_debounce_sec
-_nudge_debounce_sec=$(printf "%.3f" "$(echo "scale=3; ${NUDGE_AUTO_DELAY:-500} / 1000" | bc 2>/dev/null || echo "0.5")")
+typeset -g _nudge_async_generation_temp=0
 
 # Cancel any pending async request
 _nudge_async_cancel() {
@@ -461,76 +499,15 @@ _nudge_async_cancel() {
 
         _nudge_async_fd=""
         _nudge_child_pid=""
+        _nudge_child_generation=0
     fi
 }
 
-# State for debounce timer
-typeset -g _nudge_debounce_fd=""
-
-# Cancel debounce timer
-_nudge_debounce_cancel() {
-    if [[ -n "$_nudge_debounce_fd" ]]; then
-        zle -F "$_nudge_debounce_fd" 2>/dev/null
-        exec {_nudge_debounce_fd}<&- 2>/dev/null
-        _nudge_debounce_fd=""
-    fi
-    _nudge_debounce_pending=""
-}
-
-# Debounced fetch - waits for delay before actually fetching
-_nudge_debounced_fetch() {
-
-    # Cancel any pending debounce timer
-    _nudge_debounce_cancel
-
-    # Cancel any pending async request
-    _nudge_async_cancel
-
-    # Mark that we have a pending fetch
-    _nudge_debounce_pending="$BUFFER"
-
-    # Start debounce timer using sleep in subshell (same pattern as original)
-    {
-        exec {_nudge_debounce_fd}< <(
-            setopt LOCAL_OPTIONS NO_NOTIFY NO_MONITOR
-            sleep "$_nudge_debounce_sec"
-            echo "ready"
-        )
-
-
-        # Register handler for when timer fires
-        zle -F "$_nudge_debounce_fd" _nudge_debounce_ready
-    } 2>/dev/null
-}
-
-# Called when debounce timer fires
-_nudge_debounce_ready() {
-    local fd=$1
-
-
-    # Read and discard
-    local dummy
-    read -r -u "$fd" dummy 2>/dev/null
-
-    # Clean up fd
-    zle -F "$fd" 2>/dev/null
-    builtin exec {fd}<&- 2>/dev/null
-    _nudge_debounce_fd=""
-
-    # Trigger widget to check buffer and fetch (can't access $BUFFER in fd handler)
-    zle _nudge_debounce_check
-}
-
-# Widget to check buffer after debounce and trigger fetch
-_nudge_debounce_check() {
-
-    # Only fetch if buffer hasn't changed since debounce started
-    if [[ -n "$_nudge_debounce_pending" && "$BUFFER" == "$_nudge_debounce_pending" ]]; then
-        _nudge_debounce_pending=""
-        _nudge_fetch_async
-    else
-        _nudge_debounce_pending=""
-    fi
+_nudge_should_fetch_on_event() {
+    # Only available in zsh >= 5.4
+    local -i KEYS_QUEUED_COUNT 2>/dev/null
+    (( PENDING > 0 || KEYS_QUEUED_COUNT > 0 )) && return 1
+    return 0
 }
 
 # Fetch suggestion asynchronously
@@ -549,17 +526,22 @@ _nudge_fetch_async() {
     _nudge_ensure_daemon
 
     local current_buffer="$BUFFER"
+    local current_cursor="$CURSOR"
+    _nudge_generation_seq=$((_nudge_generation_seq + 1))
+    local current_generation=$_nudge_generation_seq
 
     # Fork process to fetch suggestion
     builtin exec {_nudge_async_fd}< <(
         # Send PID first for cancellation
         echo $sysparams[pid]
+        # Send request generation for response arbitration
+        echo "$current_generation"
 
         # Fetch suggestion
         local suggestion
         suggestion=$(nudge complete --format plain \
             --buffer "$current_buffer" \
-            --cursor "$CURSOR" \
+            --cursor "$current_cursor" \
             --cwd "$PWD" \
             --session "zsh-$$" \
             --shell-mode "zsh-auto" \
@@ -575,6 +557,9 @@ _nudge_fetch_async() {
 
     # Read child PID
     read _nudge_child_pid <&$_nudge_async_fd
+    # Read request generation
+    _nudge_child_generation=0
+    read _nudge_child_generation <&$_nudge_async_fd || _nudge_child_generation=0
 
     # Register handler for when result is ready
     zle -F "$_nudge_async_fd" _nudge_async_response
@@ -597,6 +582,7 @@ _nudge_async_response() {
         # Store suggestion for widget to use (can't access $BUFFER in fd handler)
         if [[ -n "$suggestion" ]]; then
             _nudge_async_suggestion_temp="$suggestion"
+            _nudge_async_generation_temp="${_nudge_child_generation:-0}"
             # Trigger widget to update display
             zle _nudge_async_update
         fi
@@ -607,15 +593,25 @@ _nudge_async_response() {
     zle -F "$fd" 2>/dev/null
     _nudge_async_fd=""
     _nudge_child_pid=""
+    _nudge_child_generation=0
 }
 
 # Widget to update display after async response
 _nudge_async_update() {
 
+    # Drop stale responses by generation before touching UI state
+    if (( _nudge_async_generation_temp < _nudge_last_applied_generation )); then
+        _nudge_async_suggestion_temp=""
+        _nudge_async_generation_temp=0
+        return
+    fi
+
     # Only update if buffer hasn't changed
     if [[ "$BUFFER" == "$_nudge_last_buffer" && -n "$_nudge_async_suggestion_temp" ]]; then
         local suggestion="$_nudge_async_suggestion_temp"
         _nudge_async_suggestion_temp=""
+        _nudge_last_applied_generation="$_nudge_async_generation_temp"
+        _nudge_async_generation_temp=0
 
         # Check for warning prefix
         if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
@@ -628,14 +624,12 @@ _nudge_async_update() {
             _nudge_auto_suggestion="$suggestion"
         fi
 
-        if [[ "$_nudge_overlay_mode_enabled" == "true" ]]; then
-            _nudge_overlay_render
-        else
-            _nudge_auto_display_preview
-        fi
+        _nudge_auto_display_preview
+        _nudge_overlay_render
         zle -R
     else
         _nudge_async_suggestion_temp=""
+        _nudge_async_generation_temp=0
     fi
 }
 
@@ -683,19 +677,62 @@ _nudge_auto_display_preview() {
 }
 
 _nudge_overlay_render() {
-    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
+    if [[ "$_nudge_auto_mode_enabled" != "true" && "$_nudge_overlay_mode_enabled" != "true" ]]; then
+        return
+    fi
 
     local message=""
-    local key_hint="Ctrl+G"
+    local key_hint="Tab"
+    local detail_hint="F1 details"
+    local suggestion="$BUFFER"
+    local why="prefix completion"
+    local risk="low"
+    local diff="+<none>"
+
+    if [[ -n "$_nudge_auto_suggestion" ]]; then
+        suggestion="$_nudge_auto_suggestion"
+    fi
+
     if [[ -n "$_nudge_auto_warning" ]]; then
-        message="nudge warning: $_nudge_auto_warning ($key_hint)"
-    elif [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
-        local preview="$_nudge_auto_suggestion"
-        local max_len=72
-        if (( ${#preview} > max_len )); then
-            preview="${preview:0:$((max_len - 3))}..."
+        risk="high"
+        why="safety check flagged"
+    elif [[ "$suggestion" == "$BUFFER"* ]]; then
+        local tail="${suggestion:${#BUFFER}}"
+        if [[ -n "$tail" ]]; then
+            diff="+$tail"
         fi
-        message="nudge: $preview ($key_hint accept)"
+    else
+        why="context rewrite"
+        diff="~ ${BUFFER} -> ${suggestion}"
+    fi
+
+    diff="${diff//$'\n'/ }"
+    diff="${diff//$'\t'/ }"
+    suggestion="${suggestion//$'\n'/ }"
+    suggestion="${suggestion//$'\t'/ }"
+
+    if [[ -n "$_nudge_auto_warning" ]]; then
+        local warning_text="${_nudge_auto_warning//$'\n'/ }"
+        warning_text="${warning_text//$'\t'/ }"
+        if [[ "$_nudge_explain_expanded" == "true" ]]; then
+            message="why=$why | risk=$risk | warning=$warning_text | diff=$diff | $key_hint accept"
+        else
+            message="why:$why | risk:$risk | diff:$diff ($detail_hint)"
+        fi
+    elif [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
+        if [[ "$_nudge_explain_expanded" == "true" ]]; then
+            local full_diff="$diff"
+            if (( ${#full_diff} > 56 )); then
+                full_diff="${full_diff:0:53}..."
+            fi
+            message="why=$why | risk=$risk | diff=$full_diff | suggest=$suggestion | $key_hint accept"
+        else
+            local preview="$diff"
+            if (( ${#preview} > 50 )); then
+                preview="${preview:0:47}..."
+            fi
+            message="why:$why | risk:$risk | diff:$preview ($detail_hint)"
+        fi
     fi
 
     if [[ -n "$message" ]]; then
@@ -718,7 +755,9 @@ _nudge_overlay_line_pre_redraw() {
     _nudge_last_warning_buffer=""
 
     if (( ${#BUFFER} >= 2 )); then
-        _nudge_debounced_fetch
+        if _nudge_should_fetch_on_event; then
+            _nudge_fetch_async
+        fi
     else
         _nudge_auto_cancel
     fi
@@ -727,6 +766,22 @@ _nudge_overlay_line_pre_redraw() {
 _nudge_overlay_line_finish() {
     [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
     _nudge_auto_cancel
+}
+
+_nudge_toggle_explanation() {
+    if [[ -z "$_nudge_auto_suggestion" && -z "$_nudge_auto_warning" ]]; then
+        zle run-help 2>/dev/null || return 0
+        return 0
+    fi
+
+    if [[ "$_nudge_explain_expanded" == "true" ]]; then
+        _nudge_explain_expanded="false"
+    else
+        _nudge_explain_expanded="true"
+    fi
+
+    _nudge_overlay_render
+    zle -R
 }
 
 # Accept auto suggestion
@@ -763,8 +818,191 @@ _nudge_overlay_accept() {
     fi
 }
 
+_nudge_extract_argument_chunk() {
+    local remaining="$1"
+    local chunk=""
+    local quote=""
+    local escaped=0
+    local -i i=1
+    local -i len=${#remaining}
+    local ch=""
+
+    # Preserve leading spaces before the next argument
+    while (( i <= len )); do
+        ch="${remaining[i]}"
+        if [[ "$ch" == " " || "$ch" == $'\t' ]]; then
+            chunk+="$ch"
+            ((i++))
+        else
+            break
+        fi
+    done
+
+    while (( i <= len )); do
+        ch="${remaining[i]}"
+        chunk+="$ch"
+
+        if (( escaped )); then
+            escaped=0
+            ((i++))
+            continue
+        fi
+
+        if [[ "$ch" == "\\" ]]; then
+            escaped=1
+            ((i++))
+            continue
+        fi
+
+        if [[ -z "$quote" ]]; then
+            if [[ "$ch" == "'" || "$ch" == '"' ]]; then
+                quote="$ch"
+            elif [[ "$ch" == " " || "$ch" == $'\t' ]]; then
+                # Include consecutive spaces after this argument
+                while (( i < len )); do
+                    local next_ch="${remaining[i+1]}"
+                    if [[ "$next_ch" == " " || "$next_ch" == $'\t' ]]; then
+                        chunk+="$next_ch"
+                        ((i++))
+                    else
+                        break
+                    fi
+                done
+                break
+            fi
+        else
+            [[ "$ch" == "$quote" ]] && quote=""
+        fi
+
+        ((i++))
+    done
+
+    print -r -- "$chunk"
+}
+
+_nudge_extract_segment_chunk() {
+    local remaining="$1"
+    local chunk=""
+    local quote=""
+    local escaped=0
+    local -i i=1
+    local -i len=${#remaining}
+    local ch=""
+    local two=""
+
+    while (( i <= len )); do
+        ch="${remaining[i]}"
+
+        if (( escaped )); then
+            chunk+="$ch"
+            escaped=0
+            ((i++))
+            continue
+        fi
+
+        if [[ "$ch" == "\\" ]]; then
+            chunk+="$ch"
+            escaped=1
+            ((i++))
+            continue
+        fi
+
+        if [[ -z "$quote" ]]; then
+            two="${remaining[i,i+1]}"
+            if [[ "$two" == "&&" || "$two" == "||" ]]; then
+                chunk+="$two"
+                i=$((i + 2))
+                while (( i <= len )); do
+                    local ws="${remaining[i]}"
+                    if [[ "$ws" == " " || "$ws" == $'\t' ]]; then
+                        chunk+="$ws"
+                        ((i++))
+                    else
+                        break
+                    fi
+                done
+                break
+            fi
+
+            if [[ "$ch" == "|" || "$ch" == ";" ]]; then
+                chunk+="$ch"
+                ((i++))
+                while (( i <= len )); do
+                    local ws2="${remaining[i]}"
+                    if [[ "$ws2" == " " || "$ws2" == $'\t' ]]; then
+                        chunk+="$ws2"
+                        ((i++))
+                    else
+                        break
+                    fi
+                done
+                break
+            fi
+
+            if [[ "$ch" == "'" || "$ch" == '"' ]]; then
+                quote="$ch"
+            fi
+        else
+            [[ "$ch" == "$quote" ]] && quote=""
+        fi
+
+        chunk+="$ch"
+        ((i++))
+    done
+
+    print -r -- "$chunk"
+}
+
+_nudge_auto_accept_argument() {
+    if [[ -n "$_nudge_auto_warning" ]]; then
+        _nudge_auto_accept
+        return
+    fi
+    if [[ -n "$_nudge_auto_suggestion" ]]; then
+        local remaining="${_nudge_auto_suggestion:${#BUFFER}}"
+        local chunk="$(_nudge_extract_argument_chunk "$remaining")"
+        if [[ -z "$chunk" ]]; then
+            BUFFER="$_nudge_auto_suggestion"
+        else
+            BUFFER="$BUFFER$chunk"
+        fi
+        CURSOR=${#BUFFER}
+        _nudge_auto_display_preview
+        _nudge_overlay_render
+        zle -R
+    else
+        zle forward-word
+    fi
+}
+
+_nudge_auto_accept_segment() {
+    if [[ -n "$_nudge_auto_warning" ]]; then
+        _nudge_auto_accept
+        return
+    fi
+    if [[ -n "$_nudge_auto_suggestion" ]]; then
+        local remaining="${_nudge_auto_suggestion:${#BUFFER}}"
+        local chunk="$(_nudge_extract_segment_chunk "$remaining")"
+        if [[ -z "$chunk" ]]; then
+            BUFFER="$_nudge_auto_suggestion"
+        else
+            BUFFER="$BUFFER$chunk"
+        fi
+        CURSOR=${#BUFFER}
+        _nudge_auto_display_preview
+        _nudge_overlay_render
+        zle -R
+    else
+        zle forward-word
+    fi
+}
+
 # Accept partial suggestion (word by word)
 _nudge_auto_accept_word() {
+    if [[ -n "$_nudge_auto_warning" ]]; then
+        _nudge_auto_accept
+        return
+    fi
     if [[ -n "$_nudge_auto_suggestion" ]]; then
         # Get the next word from suggestion
         local remaining="${_nudge_auto_suggestion:${#BUFFER}}"
@@ -777,6 +1015,7 @@ _nudge_auto_accept_word() {
         fi
         CURSOR=${#BUFFER}
         _nudge_auto_display_preview
+        _nudge_overlay_render
         zle -R
     else
         # Fall back to default Right Arrow behavior
@@ -934,6 +1173,7 @@ _nudge_widget_modify() {
             POSTDISPLAY="${orig_postdisplay:$typed_len}"
             _nudge_auto_suggestion="$BUFFER$POSTDISPLAY"
             _nudge_highlight_suggestion
+            _nudge_overlay_render
             return $retval
         fi
     fi
@@ -941,12 +1181,12 @@ _nudge_widget_modify() {
     # Fetch new suggestion if buffer is not empty
     if (( ${#BUFFER} >= 2 )); then
         _nudge_last_buffer="$BUFFER"
-        # Use debounced fetch instead of immediate fetch
-        _nudge_debounced_fetch
+        _nudge_fetch_async
     else
         _nudge_auto_suggestion=""
         POSTDISPLAY=""
         _nudge_clear_own_highlight
+        _nudge_overlay_clear_message
     fi
 
     return $retval
@@ -961,6 +1201,7 @@ _nudge_widget_clear() {
     _nudge_auto_suggestion=""
     POSTDISPLAY=""
     _nudge_clear_own_highlight
+    _nudge_overlay_clear_message
 
     # Call original widget
     _nudge_invoke_original_widget $orig_widget $@
@@ -978,6 +1219,7 @@ _nudge_widget_accept() {
         _nudge_auto_suggestion=""
         POSTDISPLAY=""
         _nudge_clear_own_highlight
+        _nudge_overlay_clear_message
         CURSOR=${#BUFFER}
     fi
 
@@ -1011,6 +1253,7 @@ _nudge_widget_partial_accept() {
             POSTDISPLAY="${BUFFER:$cursor_pos}"
             BUFFER="${BUFFER:0:$cursor_pos}"
             _nudge_highlight_suggestion
+            _nudge_overlay_render
         else
             # Restore original buffer
             BUFFER="$original_buffer"
@@ -1043,6 +1286,39 @@ _nudge_bind_widget_to_keymaps() {
     bindkey -M viins "$key" "$widget" 2>/dev/null
 }
 
+_nudge_bind_accept_navigation_keys() {
+    zmodload zsh/terminfo 2>/dev/null
+
+    # Word acceptance (Right Arrow)
+    _nudge_bind_widget_to_keymaps '^[[C' _nudge_auto_accept_word
+    if [[ -n "${terminfo[kcuf1]}" && "${terminfo[kcuf1]}" != '^[[C' ]]; then
+        _nudge_bind_widget_to_keymaps "${terminfo[kcuf1]}" _nudge_auto_accept_word
+    fi
+
+    # Argument acceptance (Alt+Right)
+    _nudge_bind_widget_to_keymaps $'\e[1;3C' _nudge_auto_accept_argument
+    _nudge_bind_widget_to_keymaps $'\e\e[C' _nudge_auto_accept_argument
+    if [[ -n "${terminfo[kRIT3]}" ]]; then
+        _nudge_bind_widget_to_keymaps "${terminfo[kRIT3]}" _nudge_auto_accept_argument
+    fi
+
+    # Segment acceptance (Ctrl+Right)
+    _nudge_bind_widget_to_keymaps $'\e[1;5C' _nudge_auto_accept_segment
+    if [[ -n "${terminfo[kRIT5]}" ]]; then
+        _nudge_bind_widget_to_keymaps "${terminfo[kRIT5]}" _nudge_auto_accept_segment
+    fi
+}
+
+_nudge_bind_explanation_toggle_keys() {
+    zmodload zsh/terminfo 2>/dev/null
+
+    _nudge_bind_widget_to_keymaps $'\eOP' _nudge_toggle_explanation
+    _nudge_bind_widget_to_keymaps $'\e[11~' _nudge_toggle_explanation
+    if [[ -n "${terminfo[kf1]}" ]]; then
+        _nudge_bind_widget_to_keymaps "${terminfo[kf1]}" _nudge_toggle_explanation
+    fi
+}
+
 _nudge_setup_overlay_hooks() {
     autoload -Uz add-zle-hook-widget 2>/dev/null
     (( ${+functions[add-zle-hook-widget]} )) || return
@@ -1062,8 +1338,10 @@ zle -N _nudge_complete
 zle -N _nudge_auto_accept
 zle -N _nudge_overlay_accept
 zle -N _nudge_auto_accept_word
+zle -N _nudge_auto_accept_argument
+zle -N _nudge_auto_accept_segment
+zle -N _nudge_toggle_explanation
 zle -N _nudge_async_update
-zle -N _nudge_debounce_check
 zle -N _nudge_overlay_line_pre_redraw
 zle -N _nudge_overlay_line_finish
 
@@ -1081,12 +1359,9 @@ if [[ "$_nudge_auto_mode_enabled" == "true" ]]; then
     # Bind Tab to accept suggestion (override default)
     _nudge_bind_widget_to_keymaps '^I' _nudge_auto_accept
 
-    # Bind Right Arrow to accept word
-    zmodload zsh/terminfo 2>/dev/null
-    _nudge_bind_widget_to_keymaps '^[[C' _nudge_auto_accept_word
-    if [[ -n "${terminfo[kcuf1]}" && "${terminfo[kcuf1]}" != '^[[C' ]]; then
-        _nudge_bind_widget_to_keymaps "${terminfo[kcuf1]}" _nudge_auto_accept_word
-    fi
+    # Bind Right/Alt+Right/Ctrl+Right for progressive acceptance
+    _nudge_bind_accept_navigation_keys
+    _nudge_bind_explanation_toggle_keys
 
     # Clean up on exit
     _nudge_cleanup() {
@@ -1098,6 +1373,8 @@ elif [[ "$_nudge_overlay_mode_enabled" == "true" ]]; then
     setopt NO_NOTIFY NO_MONITOR
     _nudge_setup_overlay_hooks
     _nudge_bind_widget_to_keymaps '^G' _nudge_overlay_accept
+    _nudge_bind_accept_navigation_keys
+    _nudge_bind_explanation_toggle_keys
 fi
 
 # Setup diagnosis if enabled
@@ -1133,3 +1410,6 @@ if [[ -z "$_NUDGE_LOADED" ]]; then
         echo "Nudge loaded ($mode_msg)."
     fi
 fi
+    if [[ "$_nudge_overlay_mode_enabled" == "true" || "$_nudge_ghost_owner_effective" == "autosuggestions" ]]; then
+        key_hint="Ctrl+G"
+    fi

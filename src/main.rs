@@ -133,6 +133,9 @@ async fn main() -> Result<()> {
         Command::Info { json, field } => {
             commands::info::run_info(json, field)?;
         }
+        Command::Doctor { shell } => {
+            commands::doctor::run_doctor(shell).await?;
+        }
         Command::Setup { shell, force } => {
             commands::setup::run_setup(shell, force).await?;
         }

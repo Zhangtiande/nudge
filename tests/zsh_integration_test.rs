@@ -21,6 +21,7 @@ function nudge() {
       trigger_mode) echo "auto" ;;
       auto_delay_ms) echo "500" ;;
       zsh_ghost_owner) echo "nudge" ;;
+      zsh_overlay_backend) echo "message" ;;
       diagnosis_enabled) echo "false" ;;
       interactive_commands) echo "" ;;
       *) echo "" ;;
@@ -73,6 +74,7 @@ function nudge() {
       trigger_mode) echo "auto" ;;
       auto_delay_ms) echo "500" ;;
       zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "message" ;;
       diagnosis_enabled) echo "true" ;;
       interactive_commands) echo "" ;;
       *) echo "" ;;
@@ -134,6 +136,7 @@ function nudge() {
       trigger_mode) echo "auto" ;;
       auto_delay_ms) echo "500" ;;
       zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "message" ;;
       diagnosis_enabled) echo "false" ;;
       interactive_commands) echo "" ;;
       *) echo "" ;;
@@ -178,5 +181,142 @@ print -r -- "$ctrl_g_binding"
             "ctrl+g should accept overlay suggestion in autosuggestions mode: {}",
             ctrl_g_line
         );
+    }
+
+    #[test]
+    fn auto_mode_binds_flagship_accept_and_explain_keys() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "nudge" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+right_binding=$(bindkey '^[[C' 2>/dev/null || true)
+alt_right_binding=$(bindkey $'\e[1;3C' 2>/dev/null || true)
+ctrl_right_binding=$(bindkey $'\e[1;5C' 2>/dev/null || true)
+f1_binding=$(bindkey $'\eOP' 2>/dev/null || true)
+print -r -- "$right_binding"
+print -r -- "$alt_right_binding"
+print -r -- "$ctrl_right_binding"
+print -r -- "$f1_binding"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let right_line = lines.next().unwrap_or_default();
+        let alt_right_line = lines.next().unwrap_or_default();
+        let ctrl_right_line = lines.next().unwrap_or_default();
+        let f1_line = lines.next().unwrap_or_default();
+
+        assert!(
+            right_line.contains("_nudge_auto_accept_word"),
+            "right arrow should accept next word: {}",
+            right_line
+        );
+        assert!(
+            alt_right_line.contains("_nudge_auto_accept_argument"),
+            "alt+right should accept next argument: {}",
+            alt_right_line
+        );
+        assert!(
+            ctrl_right_line.contains("_nudge_auto_accept_segment"),
+            "ctrl+right should accept next segment: {}",
+            ctrl_right_line
+        );
+        assert!(
+            f1_line.contains("_nudge_toggle_explanation"),
+            "f1 should toggle explanation: {}",
+            f1_line
+        );
+    }
+
+    #[test]
+    fn rprompt_overlay_backend_restores_prompt_after_clear() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "rprompt" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+RPS1="ORIGINAL_RPROMPT"
+_nudge_overlay_set_message "hello"
+print -r -- "$RPS1"
+_nudge_overlay_clear_message
+print -r -- "$RPS1"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let temporary = lines.next().unwrap_or_default();
+        let restored = lines.next().unwrap_or_default();
+
+        assert!(
+            temporary.contains("hello"),
+            "overlay message should be rendered in rprompt backend: {}",
+            temporary
+        );
+        assert_eq!(restored, "ORIGINAL_RPROMPT");
     }
 }

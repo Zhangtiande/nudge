@@ -9,6 +9,7 @@
 | `nudge restart` | Restart daemon |
 | `nudge status` | Check daemon status |
 | `nudge info` | Show runtime information |
+| `nudge doctor` | Diagnose shell integration health |
 | `nudge setup` | Configure shell integration |
 | `nudge daemon` | Run daemon (internal) |
 | `nudge complete` | Request completion (internal) |
@@ -65,15 +66,25 @@ nudge info --json
 nudge info --field config_dir
 nudge info --field shell_type
 nudge info --field daemon_status
+nudge info --field zsh_ghost_owner
+nudge info --field zsh_overlay_backend
 ```
 
 **Available fields:**
 - `platform` - Platform name (e.g., "linux-x86_64")
 - `config_dir` - Configuration directory
 - `config_file` - User config file path
+- `default_config_file` - Built-in config template path
 - `socket_path` - IPC socket/pipe path
+- `integration_script` - Generated shell integration script path
 - `daemon_status` - Daemon status
 - `shell_type` - Detected shell
+- `trigger_mode` - Trigger mode (`manual` or `auto`)
+- `trigger_hotkey` - Manual trigger key
+- `auto_delay_ms` - Auto mode delay in milliseconds
+- `zsh_ghost_owner` - Effective Zsh ghost owner strategy
+- `zsh_overlay_backend` - Overlay backend (`message` or `rprompt`)
+- `diagnosis_enabled` - Diagnosis feature status
 
 ## nudge setup
 
@@ -91,6 +102,25 @@ nudge setup powershell
 # Force reinstall
 nudge setup --force
 ```
+
+## nudge doctor
+
+Diagnose shell integration health and key bindings.
+
+```bash
+# Auto target (defaults to zsh)
+nudge doctor
+
+# Explicit zsh target
+nudge doctor zsh
+```
+
+Checks include:
+- Config summary (`trigger.mode`, `zsh_ghost_owner`, `zsh_overlay_backend`)
+- Zsh availability and integration script syntax
+- Key binding snapshot (`Tab`, `Ctrl+G`, `Right`, `Alt+Right`, `Ctrl+Right`, `F1`)
+- Hook presence (`line-pre-redraw`, `line-finish`)
+- Daemon completion latency sample (`p50`, `p95`)
 
 ## nudge daemon
 

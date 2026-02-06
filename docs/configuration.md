@@ -49,6 +49,7 @@ trigger:
   hotkey: "\\C-e"
   auto_delay_ms: 500
   zsh_ghost_owner: "auto"
+  zsh_overlay_backend: "message"
 
 # Cache Settings
 cache:
@@ -164,10 +165,15 @@ Higher priority = kept longer during truncation (1-100).
 |--------|------|---------|-------------|
 | `mode` | string | `manual` | `manual` or `auto` |
 | `hotkey` | string | `\C-e` | Manual trigger key |
-| `auto_delay_ms` | integer | 500 | Auto mode debounce |
+| `auto_delay_ms` | integer | 500 | Delay hint (legacy for Zsh auto mode) |
 | `zsh_ghost_owner` | string | `auto` | Zsh ghost text owner: `auto`, `nudge`, or `autosuggestions` |
+| `zsh_overlay_backend` | string | `message` | Zsh overlay backend: `message` or `rprompt` |
 
 When `zsh_ghost_owner` resolves to `autosuggestions`, Nudge keeps `Tab` for autosuggestions and uses `Ctrl+G` to accept Nudge overlay/diagnosis suggestions.
+
+When `zsh_overlay_backend` is:
+- `message`: use `zle -M` message line (default, lower prompt redraw impact)
+- `rprompt`: render overlay in right prompt (`RPS1`) with save/restore
 
 ### Cache
 
@@ -281,6 +287,7 @@ trigger:
   mode: auto
   auto_delay_ms: 400
   zsh_ghost_owner: auto
+  zsh_overlay_backend: message
 ```
 
 ## Environment Variables

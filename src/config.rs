@@ -254,6 +254,7 @@ pub struct TriggerConfig {
     pub hotkey: String,
     pub auto_delay_ms: u64,
     pub zsh_ghost_owner: ZshGhostOwner,
+    pub zsh_overlay_backend: ZshOverlayBackend,
 }
 
 impl Default for TriggerConfig {
@@ -263,6 +264,7 @@ impl Default for TriggerConfig {
             hotkey: r"\C-e".to_string(),
             auto_delay_ms: 500,
             zsh_ghost_owner: ZshGhostOwner::Auto,
+            zsh_overlay_backend: ZshOverlayBackend::Message,
         }
     }
 }
@@ -312,6 +314,17 @@ pub enum ZshGhostOwner {
     Nudge,
     /// Use zsh-autosuggestions as ghost text owner
     Autosuggestions,
+}
+
+/// Zsh overlay rendering backend
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ZshOverlayBackend {
+    /// Render using `zle -M` message line
+    #[default]
+    Message,
+    /// Render in right prompt (RPS1)
+    Rprompt,
 }
 
 /// Privacy settings
@@ -928,7 +941,7 @@ impl std::fmt::Display for ShellType {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, ZshGhostOwner};
+    use super::{Config, ZshGhostOwner, ZshOverlayBackend};
 
     #[test]
     fn trigger_defaults_to_auto_ghost_owner() {
@@ -946,6 +959,28 @@ trigger:
         assert_eq!(
             config.trigger.zsh_ghost_owner,
             ZshGhostOwner::Autosuggestions
+        );
+    }
+
+    #[test]
+    fn trigger_defaults_to_message_overlay_backend() {
+        let config = Config::default();
+        assert_eq!(
+            config.trigger.zsh_overlay_backend,
+            ZshOverlayBackend::Message
+        );
+    }
+
+    #[test]
+    fn parses_zsh_overlay_backend_from_yaml() {
+        let yaml = r#"
+trigger:
+  zsh_overlay_backend: rprompt
+"#;
+        let config: Config = serde_yaml::from_str(yaml).expect("yaml should parse");
+        assert_eq!(
+            config.trigger.zsh_overlay_backend,
+            ZshOverlayBackend::Rprompt
         );
     }
 }

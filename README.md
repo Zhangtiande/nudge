@@ -75,8 +75,9 @@ model:
 
 trigger:
   mode: "manual"        # "manual" or "auto"
-  auto_delay_ms: 500    # Debounce for auto mode
+  auto_delay_ms: 500    # Delay hint (legacy; Zsh auto mode is event-driven)
   zsh_ghost_owner: "auto"  # "auto", "nudge", or "autosuggestions" (Zsh only)
+  zsh_overlay_backend: "message"  # "message" or "rprompt" (Zsh only)
 
 cache:
   ttl_auto_ms: 3000     # Auto mode cache TTL
@@ -100,6 +101,9 @@ See [Configuration Reference](docs/configuration.md) for all options.
 | `Ctrl+E` | Trigger completion |
 | `Tab` | Accept suggestion (auto mode) |
 | `Right Arrow` | Accept next word (Zsh) |
+| `Alt+Right Arrow` | Accept next argument (Zsh auto mode) |
+| `Ctrl+Right Arrow` | Accept next segment (`|`, `&&`, `;`) (Zsh auto mode) |
+| `F1` | Toggle explanation details (why/risk/diff) in overlay |
 | `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion when `trigger.zsh_ghost_owner: autosuggestions` |
 
 ## Error Diagnosis
