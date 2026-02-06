@@ -48,6 +48,7 @@ trigger:
   mode: "manual"
   hotkey: "\\C-e"
   auto_delay_ms: 500
+  zsh_ghost_owner: "auto"
 
 # Cache Settings
 cache:
@@ -164,6 +165,9 @@ Higher priority = kept longer during truncation (1-100).
 | `mode` | string | `manual` | `manual` or `auto` |
 | `hotkey` | string | `\C-e` | Manual trigger key |
 | `auto_delay_ms` | integer | 500 | Auto mode debounce |
+| `zsh_ghost_owner` | string | `auto` | Zsh ghost text owner: `auto`, `nudge`, or `autosuggestions` |
+
+When `zsh_ghost_owner` resolves to `autosuggestions`, Nudge keeps `Tab` for autosuggestions and uses `Ctrl+G` to accept Nudge overlay/diagnosis suggestions.
 
 ### Cache
 
@@ -276,6 +280,7 @@ privacy:
 trigger:
   mode: auto
   auto_delay_ms: 400
+  zsh_ghost_owner: auto
 ```
 
 ## Environment Variables

@@ -76,6 +76,7 @@ model:
 trigger:
   mode: "manual"        # "manual" or "auto"
   auto_delay_ms: 500    # Debounce for auto mode
+  zsh_ghost_owner: "auto"  # "auto", "nudge", or "autosuggestions" (Zsh only)
 
 cache:
   ttl_auto_ms: 3000     # Auto mode cache TTL
@@ -99,6 +100,7 @@ See [Configuration Reference](docs/configuration.md) for all options.
 | `Ctrl+E` | Trigger completion |
 | `Tab` | Accept suggestion (auto mode) |
 | `Right Arrow` | Accept next word (Zsh) |
+| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion when `trigger.zsh_ghost_owner: autosuggestions` |
 
 ## Error Diagnosis
 
@@ -110,7 +112,7 @@ $ gti status
 zsh: command not found: gti
 ❌ Typo: 'gti' should be 'git'
 
-git status          ← Tab to accept
+git status          ← Tab to accept (or Ctrl+G when autosuggestions owns ghost text)
 ```
 
 **PowerShell:**

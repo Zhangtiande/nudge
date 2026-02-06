@@ -1,4 +1,4 @@
-use crate::config::{Config, Platform, TriggerMode};
+use crate::config::{Config, Platform, TriggerMode, ZshGhostOwner};
 use anyhow::Result;
 use serde::Serialize;
 use std::fs;
@@ -20,6 +20,7 @@ pub struct InfoOutput {
     pub trigger_mode: String,
     pub trigger_hotkey: String,
     pub auto_delay_ms: u64,
+    pub zsh_ghost_owner: String,
     // Diagnosis configuration
     pub diagnosis_enabled: bool,
 }
@@ -50,6 +51,11 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
     };
     let trigger_hotkey = config.trigger.hotkey.clone();
     let auto_delay_ms = config.trigger.auto_delay_ms;
+    let zsh_ghost_owner = match config.trigger.zsh_ghost_owner {
+        ZshGhostOwner::Auto => "auto".to_string(),
+        ZshGhostOwner::Nudge => "nudge".to_string(),
+        ZshGhostOwner::Autosuggestions => "autosuggestions".to_string(),
+    };
 
     let info = InfoOutput {
         platform: platform.to_string(),
@@ -64,6 +70,7 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
         trigger_mode,
         trigger_hotkey,
         auto_delay_ms,
+        zsh_ghost_owner,
         diagnosis_enabled: config.diagnosis.enabled,
     };
 
@@ -86,6 +93,7 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
             "trigger_mode" => info.trigger_mode.clone(),
             "trigger_hotkey" => info.trigger_hotkey.clone(),
             "auto_delay_ms" => info.auto_delay_ms.to_string(),
+            "zsh_ghost_owner" => info.zsh_ghost_owner.clone(),
             "diagnosis_enabled" => info.diagnosis_enabled.to_string(),
             "interactive_commands" => config.diagnosis.interactive_commands.join(","),
             _ => anyhow::bail!("Unknown field: {}", field_name),
@@ -123,6 +131,7 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
         println!("Mode:                 {}", info.trigger_mode);
         println!("Hotkey:               {}", info.trigger_hotkey);
         println!("Auto Delay:           {}ms", info.auto_delay_ms);
+        println!("Zsh Ghost Owner:      {}", info.zsh_ghost_owner);
         println!();
         println!("Diagnosis Configuration");
         println!("-----------------------");

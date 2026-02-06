@@ -253,6 +253,7 @@ pub struct TriggerConfig {
     pub mode: TriggerMode,
     pub hotkey: String,
     pub auto_delay_ms: u64,
+    pub zsh_ghost_owner: ZshGhostOwner,
 }
 
 impl Default for TriggerConfig {
@@ -261,6 +262,7 @@ impl Default for TriggerConfig {
             mode: TriggerMode::Manual,
             hotkey: r"\C-e".to_string(),
             auto_delay_ms: 500,
+            zsh_ghost_owner: ZshGhostOwner::Auto,
         }
     }
 }
@@ -297,6 +299,19 @@ pub enum TriggerMode {
     #[default]
     Manual,
     Auto,
+}
+
+/// Zsh ghost text owner selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ZshGhostOwner {
+    /// Auto-detect: prefer zsh-autosuggestions when available
+    #[default]
+    Auto,
+    /// Use nudge as ghost text owner
+    Nudge,
+    /// Use zsh-autosuggestions as ghost text owner
+    Autosuggestions,
 }
 
 /// Privacy settings
@@ -908,5 +923,29 @@ impl std::fmt::Display for ShellType {
             ShellType::Cmd => write!(f, "cmd"),
             ShellType::Unknown => write!(f, "unknown"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Config, ZshGhostOwner};
+
+    #[test]
+    fn trigger_defaults_to_auto_ghost_owner() {
+        let config = Config::default();
+        assert_eq!(config.trigger.zsh_ghost_owner, ZshGhostOwner::Auto);
+    }
+
+    #[test]
+    fn parses_zsh_ghost_owner_from_yaml() {
+        let yaml = r#"
+trigger:
+  zsh_ghost_owner: autosuggestions
+"#;
+        let config: Config = serde_yaml::from_str(yaml).expect("yaml should parse");
+        assert_eq!(
+            config.trigger.zsh_ghost_owner,
+            ZshGhostOwner::Autosuggestions
+        );
     }
 }

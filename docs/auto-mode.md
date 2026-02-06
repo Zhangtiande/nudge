@@ -15,7 +15,13 @@ Edit your config file:
 trigger:
   mode: auto
   auto_delay_ms: 500    # Debounce delay (ms)
+  zsh_ghost_owner: auto # auto | nudge | autosuggestions
 ```
+
+- `auto`: Prefer `zsh-autosuggestions` when available, otherwise use Nudge ghost text
+- `nudge`: Force Nudge to render ghost text
+- `autosuggestions`: Reserve ghost text for `zsh-autosuggestions`
+  - Nudge still fetches slow suggestions via overlay; accept key falls back to `Ctrl+G` to avoid taking over `Tab`
 
 Restart your shell:
 ```bash
@@ -43,6 +49,7 @@ $ git status|                    # After Tab
 | `Ctrl+E` | Trigger completion | Both |
 | `Tab` | Accept full suggestion | Auto |
 | `Right Arrow` | Accept next word | Auto (Zsh) |
+| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion when ghost owner is `autosuggestions` | Zsh |
 
 ## Shell Support
 
@@ -76,6 +83,7 @@ Use manual mode (`Ctrl+E`) instead.
 | `trigger.mode` | string | `manual` | `manual` or `auto` |
 | `trigger.hotkey` | string | `\C-e` | Manual trigger key |
 | `trigger.auto_delay_ms` | integer | 500 | Debounce delay |
+| `trigger.zsh_ghost_owner` | string | `auto` | `auto`, `nudge`, or `autosuggestions` |
 
 ## Troubleshooting
 

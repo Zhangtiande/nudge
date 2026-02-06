@@ -7,6 +7,7 @@ NUDGE_CONFIG_DIR=$(nudge info --field config_dir 2>/dev/null)
 NUDGE_SOCKET=$(nudge info --field socket_path 2>/dev/null)
 NUDGE_TRIGGER_MODE=$(nudge info --field trigger_mode 2>/dev/null)
 NUDGE_AUTO_DELAY=$(nudge info --field auto_delay_ms 2>/dev/null)
+NUDGE_ZSH_GHOST_OWNER=$(nudge info --field zsh_ghost_owner 2>/dev/null)
 NUDGE_WARNING_PREFIX="NUDGE_WARNING:"
 
 # Fallback if nudge binary not in PATH
@@ -22,9 +23,14 @@ if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
     NUDGE_SOCKET="$NUDGE_CONFIG_DIR/nudge.sock"
     NUDGE_TRIGGER_MODE="manual"
     NUDGE_AUTO_DELAY="500"
+    NUDGE_ZSH_GHOST_OWNER="auto"
 fi
 
 NUDGE_LOCK="/tmp/nudge.lock"
+
+if [[ -z "$NUDGE_ZSH_GHOST_OWNER" ]]; then
+    NUDGE_ZSH_GHOST_OWNER="auto"
+fi
 
 # Auto mode state
 typeset -g _nudge_auto_suggestion=""
@@ -32,6 +38,93 @@ typeset -g _nudge_auto_warning=""
 typeset -g _nudge_last_buffer=""
 typeset -g _nudge_pending_buffer=""
 typeset -g _nudge_last_warning_buffer=""
+typeset -g _nudge_region_highlight_entry=""
+typeset -g _nudge_ghost_owner_effective="nudge"
+typeset -g _nudge_auto_mode_enabled="false"
+typeset -g _nudge_overlay_mode_enabled="false"
+typeset -g _nudge_overlay_hooks_installed="false"
+typeset -g _nudge_overlay_last_message=""
+
+_nudge_has_autosuggestions() {
+    (( ${+functions[_zsh_autosuggest_start]} )) && return 0
+    (( ${+functions[_zsh_autosuggest_bind_widgets]} )) && return 0
+    (( ${+widgets[autosuggest-accept]} )) && return 0
+    (( ${+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE} )) && return 0
+    return 1
+}
+
+_nudge_resolve_ghost_owner() {
+    local configured_owner="${NUDGE_ZSH_GHOST_OWNER:l}"
+
+    case "$configured_owner" in
+        auto|nudge|autosuggestions)
+            ;;
+        *)
+            configured_owner="auto"
+            ;;
+    esac
+
+    if [[ "$configured_owner" == "auto" ]]; then
+        if _nudge_has_autosuggestions; then
+            _nudge_ghost_owner_effective="autosuggestions"
+        else
+            _nudge_ghost_owner_effective="nudge"
+        fi
+    else
+        _nudge_ghost_owner_effective="$configured_owner"
+    fi
+
+    if [[ "$NUDGE_TRIGGER_MODE" == "auto" && "$_nudge_ghost_owner_effective" == "nudge" ]]; then
+        _nudge_auto_mode_enabled="true"
+        _nudge_overlay_mode_enabled="false"
+    elif [[ "$NUDGE_TRIGGER_MODE" == "auto" && "$_nudge_ghost_owner_effective" == "autosuggestions" ]]; then
+        _nudge_auto_mode_enabled="false"
+        _nudge_overlay_mode_enabled="true"
+    else
+        _nudge_auto_mode_enabled="false"
+        _nudge_overlay_mode_enabled="false"
+    fi
+}
+
+_nudge_resolve_ghost_owner
+
+_nudge_clear_own_highlight() {
+    [[ -z "$_nudge_region_highlight_entry" ]] && return
+
+    local -a filtered_highlights
+    local entry
+    for entry in "${region_highlight[@]}"; do
+        if [[ "$entry" != "$_nudge_region_highlight_entry" ]]; then
+            filtered_highlights+=("$entry")
+        fi
+    done
+    region_highlight=("${filtered_highlights[@]}")
+    _nudge_region_highlight_entry=""
+}
+
+_nudge_set_own_highlight() {
+    local start="$1"
+    local end="$2"
+
+    _nudge_clear_own_highlight
+    _nudge_region_highlight_entry="$start $end fg=8"
+    region_highlight+=("$_nudge_region_highlight_entry")
+}
+
+_nudge_overlay_clear_message() {
+    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
+    [[ -z "$_nudge_overlay_last_message" ]] && return
+    zle -M "" 2>/dev/null
+    _nudge_overlay_last_message=""
+}
+
+_nudge_overlay_set_message() {
+    local message="$1"
+    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
+    [[ "$message" == "$_nudge_overlay_last_message" ]] && return
+    zle -M -- "$message" 2>/dev/null
+    _nudge_overlay_last_message="$message"
+}
 
 # Widget classification for auto mode (inspired by zsh-autosuggestions)
 # Widgets that modify the buffer - trigger new suggestion fetch
@@ -328,6 +421,8 @@ _nudge_auto_cancel() {
     _nudge_pending_buffer=""
     _nudge_auto_suggestion=""
     POSTDISPLAY=""
+    _nudge_clear_own_highlight
+    _nudge_overlay_clear_message
 }
 
 # ============================================================================
@@ -533,7 +628,11 @@ _nudge_async_update() {
             _nudge_auto_suggestion="$suggestion"
         fi
 
-        _nudge_auto_display_preview
+        if [[ "$_nudge_overlay_mode_enabled" == "true" ]]; then
+            _nudge_overlay_render
+        else
+            _nudge_auto_display_preview
+        fi
         zle -R
     else
         _nudge_async_suggestion_temp=""
@@ -542,6 +641,12 @@ _nudge_async_update() {
 
 # Display inline preview (gray text after cursor)
 _nudge_auto_display_preview() {
+    if [[ "$_nudge_overlay_mode_enabled" == "true" ]]; then
+        POSTDISPLAY=""
+        _nudge_clear_own_highlight
+        return
+    fi
+
     # Ensure POSTDISPLAY is writable
     typeset -g POSTDISPLAY
 
@@ -559,20 +664,69 @@ _nudge_auto_display_preview() {
                 local start=${#BUFFER}
                 local end=$((start + ${#preview}))
 
-                # Remove old suggestion highlights, add new one
-                region_highlight=("${(@)region_highlight:#*fg=8*}")
-                region_highlight+=("$start $end fg=8")
+                # Keep other plugin highlights intact and manage only nudge highlight
+                _nudge_set_own_highlight "$start" "$end"
 
             else
                 POSTDISPLAY=""
+                _nudge_clear_own_highlight
             fi
         else
             # Suggestion doesn't start with buffer, show full suggestion as replacement
             POSTDISPLAY=""
+            _nudge_clear_own_highlight
         fi
     else
         POSTDISPLAY=""
+        _nudge_clear_own_highlight
     fi
+}
+
+_nudge_overlay_render() {
+    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
+
+    local message=""
+    local key_hint="Ctrl+G"
+    if [[ -n "$_nudge_auto_warning" ]]; then
+        message="nudge warning: $_nudge_auto_warning ($key_hint)"
+    elif [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
+        local preview="$_nudge_auto_suggestion"
+        local max_len=72
+        if (( ${#preview} > max_len )); then
+            preview="${preview:0:$((max_len - 3))}..."
+        fi
+        message="nudge: $preview ($key_hint accept)"
+    fi
+
+    if [[ -n "$message" ]]; then
+        _nudge_overlay_set_message "$message"
+    else
+        _nudge_overlay_clear_message
+    fi
+}
+
+_nudge_overlay_line_pre_redraw() {
+    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
+
+    if [[ "$BUFFER" == "$_nudge_last_buffer" ]]; then
+        return
+    fi
+
+    _nudge_last_buffer="$BUFFER"
+    _nudge_auto_suggestion=""
+    _nudge_auto_warning=""
+    _nudge_last_warning_buffer=""
+
+    if (( ${#BUFFER} >= 2 )); then
+        _nudge_debounced_fetch
+    else
+        _nudge_auto_cancel
+    fi
+}
+
+_nudge_overlay_line_finish() {
+    [[ "$_nudge_overlay_mode_enabled" != "true" ]] && return
+    _nudge_auto_cancel
 }
 
 # Accept auto suggestion
@@ -584,6 +738,7 @@ _nudge_auto_accept() {
         fi
         _nudge_auto_warning=""
         _nudge_auto_suggestion=""
+        _nudge_overlay_clear_message
         return
     fi
     if [[ -n "$_nudge_auto_suggestion" ]]; then
@@ -591,11 +746,20 @@ _nudge_auto_accept() {
         CURSOR=${#BUFFER}
         _nudge_auto_suggestion=""
         typeset -g POSTDISPLAY=""
-        region_highlight=("${(@)region_highlight:#*}")
+        _nudge_clear_own_highlight
+        _nudge_overlay_clear_message
         zle -R
     else
         # Fall back to default Tab behavior (completion)
         zle expand-or-complete
+    fi
+}
+
+_nudge_overlay_accept() {
+    if [[ -n "$_nudge_auto_warning" || -n "$_nudge_auto_suggestion" ]]; then
+        _nudge_auto_accept
+    else
+        zle send-break
     fi
 }
 
@@ -782,6 +946,7 @@ _nudge_widget_modify() {
     else
         _nudge_auto_suggestion=""
         POSTDISPLAY=""
+        _nudge_clear_own_highlight
     fi
 
     return $retval
@@ -795,7 +960,7 @@ _nudge_widget_clear() {
     # Clear suggestion
     _nudge_auto_suggestion=""
     POSTDISPLAY=""
-    region_highlight=("${(@)region_highlight:#*fg=8*}")
+    _nudge_clear_own_highlight
 
     # Call original widget
     _nudge_invoke_original_widget $orig_widget $@
@@ -812,7 +977,7 @@ _nudge_widget_accept() {
         BUFFER="$_nudge_auto_suggestion"
         _nudge_auto_suggestion=""
         POSTDISPLAY=""
-        region_highlight=("${(@)region_highlight:#*fg=8*}")
+        _nudge_clear_own_highlight
         CURSOR=${#BUFFER}
     fi
 
@@ -863,10 +1028,29 @@ _nudge_highlight_suggestion() {
     if [[ -n "$POSTDISPLAY" ]]; then
         local start=${#BUFFER}
         local end=$((start + ${#POSTDISPLAY}))
-        # Remove old suggestion highlights, add new one
-        region_highlight=("${(@)region_highlight:#*fg=8*}")
-        region_highlight+=("$start $end fg=8")
+        _nudge_set_own_highlight "$start" "$end"
+    else
+        _nudge_clear_own_highlight
     fi
+}
+
+_nudge_bind_widget_to_keymaps() {
+    local key="$1"
+    local widget="$2"
+
+    bindkey "$key" "$widget" 2>/dev/null
+    bindkey -M emacs "$key" "$widget" 2>/dev/null
+    bindkey -M viins "$key" "$widget" 2>/dev/null
+}
+
+_nudge_setup_overlay_hooks() {
+    autoload -Uz add-zle-hook-widget 2>/dev/null
+    (( ${+functions[add-zle-hook-widget]} )) || return
+    [[ "$_nudge_overlay_hooks_installed" == "true" ]] && return
+
+    add-zle-hook-widget line-pre-redraw _nudge_overlay_line_pre_redraw
+    add-zle-hook-widget line-finish _nudge_overlay_line_finish
+    _nudge_overlay_hooks_installed="true"
 }
 
 # ============================================================================
@@ -876,15 +1060,18 @@ _nudge_highlight_suggestion() {
 # Register widgets
 zle -N _nudge_complete
 zle -N _nudge_auto_accept
+zle -N _nudge_overlay_accept
 zle -N _nudge_auto_accept_word
 zle -N _nudge_async_update
 zle -N _nudge_debounce_check
+zle -N _nudge_overlay_line_pre_redraw
+zle -N _nudge_overlay_line_finish
 
 # Bind manual mode hotkey
 bindkey '^E' _nudge_complete
 
 # Setup auto mode if enabled
-if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+if [[ "$_nudge_auto_mode_enabled" == "true" ]]; then
     # Disable job notifications for background processes
     setopt NO_NOTIFY NO_MONITOR
 
@@ -892,16 +1079,25 @@ if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
     _nudge_bind_all_widgets
 
     # Bind Tab to accept suggestion (override default)
-    bindkey '^I' _nudge_auto_accept
+    _nudge_bind_widget_to_keymaps '^I' _nudge_auto_accept
 
     # Bind Right Arrow to accept word
-    bindkey '^[[C' _nudge_auto_accept_word
+    zmodload zsh/terminfo 2>/dev/null
+    _nudge_bind_widget_to_keymaps '^[[C' _nudge_auto_accept_word
+    if [[ -n "${terminfo[kcuf1]}" && "${terminfo[kcuf1]}" != '^[[C' ]]; then
+        _nudge_bind_widget_to_keymaps "${terminfo[kcuf1]}" _nudge_auto_accept_word
+    fi
 
     # Clean up on exit
     _nudge_cleanup() {
         _nudge_async_cancel
     }
     zshexit_functions+=(_nudge_cleanup)
+elif [[ "$_nudge_overlay_mode_enabled" == "true" ]]; then
+    # Keep async requests for slow suggestions without owning ghost text
+    setopt NO_NOTIFY NO_MONITOR
+    _nudge_setup_overlay_hooks
+    _nudge_bind_widget_to_keymaps '^G' _nudge_overlay_accept
 fi
 
 # Setup diagnosis if enabled
@@ -911,8 +1107,10 @@ if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
     precmd_functions=(_nudge_diagnosis_precmd "${precmd_functions[@]}")
 
     # Bind Tab to accept diagnosis suggestion (if not already bound by auto mode)
-    if [[ "$NUDGE_TRIGGER_MODE" != "auto" ]]; then
-        bindkey '^I' _nudge_auto_accept
+    if [[ "$_nudge_auto_mode_enabled" != "true" && "$_nudge_ghost_owner_effective" != "autosuggestions" ]]; then
+        _nudge_bind_widget_to_keymaps '^I' _nudge_auto_accept
+    elif [[ "$_nudge_ghost_owner_effective" == "autosuggestions" ]]; then
+        _nudge_bind_widget_to_keymaps '^G' _nudge_overlay_accept
     fi
 fi
 
@@ -922,8 +1120,10 @@ if [[ -z "$_NUDGE_LOADED" ]]; then
     # Only print messages in interactive shells to avoid breaking scp, rsync, etc.
     if [[ $- == *i* ]]; then
         local mode_msg=""
-        if [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+        if [[ "$_nudge_auto_mode_enabled" == "true" ]]; then
             mode_msg="auto mode"
+        elif [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
+            mode_msg="auto mode (ghost owned by $_nudge_ghost_owner_effective)"
         else
             mode_msg="manual mode (Ctrl+E)"
         fi

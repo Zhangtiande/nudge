@@ -76,6 +76,7 @@ model:
 trigger:
   mode: "manual"        # "manual" 或 "auto"
   auto_delay_ms: 500    # 自动模式防抖延迟
+  zsh_ghost_owner: "auto"  # "auto"、"nudge" 或 "autosuggestions"（仅 Zsh）
 
 cache:
   ttl_auto_ms: 3000     # 自动模式缓存 TTL
@@ -99,6 +100,7 @@ diagnosis:
 | `Ctrl+E` | 触发补全 |
 | `Tab` | 接受建议（自动模式） |
 | `Right Arrow` | 接受下一个单词（Zsh） |
+| `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议 |
 
 ## 错误诊断
 
@@ -110,7 +112,7 @@ $ gti status
 zsh: command not found: gti
 ❌ Typo: 'gti' should be 'git'
 
-git status          ← 按 Tab 接受
+git status          ← 按 Tab 接受（若幽灵文字由 autosuggestions 管理则按 Ctrl+G）
 ```
 
 **PowerShell:**

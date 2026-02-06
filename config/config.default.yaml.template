@@ -182,6 +182,12 @@ trigger:
   # Auto mode debounce delay in milliseconds
   auto_delay_ms: 500
 
+  # Zsh ghost text owner strategy
+  # - auto:            Prefer zsh-autosuggestions if available, otherwise nudge
+  # - nudge:           Force nudge to render ghost text
+  # - autosuggestions: Reserve ghost text for zsh-autosuggestions
+  zsh_ghost_owner: auto
+
 # ========================================
 # Cache Configuration
 # ========================================
