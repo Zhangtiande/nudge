@@ -19,10 +19,6 @@ pub struct PythonContext {
     pub version: Option<String>,
     /// Python version requirement (requires-python)
     pub python_version: Option<String>,
-    /// Dependencies
-    pub dependencies: Vec<String>,
-    /// Development dependencies
-    pub dev_dependencies: Vec<String>,
     /// Available scripts/entry points
     pub scripts: Vec<String>,
 }
@@ -73,7 +69,7 @@ impl ContextPlugin for PythonPlugin {
 }
 
 /// Collect Python project context
-async fn collect_python_context(cwd: &Path, config: &PythonPluginConfig) -> Result<PythonContext> {
+async fn collect_python_context(cwd: &Path, _config: &PythonPluginConfig) -> Result<PythonContext> {
     let mut context = PythonContext {
         package_manager: detect_python_package_manager(cwd),
         ..Default::default()
@@ -84,28 +80,7 @@ async fn collect_python_context(cwd: &Path, config: &PythonPluginConfig) -> Resu
     if pyproject_path.exists() {
         if let Ok(content) = tokio::fs::read_to_string(&pyproject_path).await {
             if let Ok(pyproject) = toml::from_str::<Value>(&content) {
-                parse_pyproject(&mut context, &pyproject, config.max_dependencies);
-            }
-        }
-    }
-
-    // Fallback: read requirements.txt for dependencies
-    if context.dependencies.is_empty() {
-        if let Ok(content) = tokio::fs::read_to_string(cwd.join("requirements.txt")).await {
-            context.dependencies = parse_requirements(&content, config.max_dependencies);
-        }
-    }
-
-    // Read dev requirements if exists
-    if context.dev_dependencies.is_empty() {
-        for dev_file in [
-            "requirements-dev.txt",
-            "requirements_dev.txt",
-            "dev-requirements.txt",
-        ] {
-            if let Ok(content) = tokio::fs::read_to_string(cwd.join(dev_file)).await {
-                context.dev_dependencies = parse_requirements(&content, config.max_dependencies);
-                break;
+                parse_pyproject(&mut context, &pyproject);
             }
         }
     }
@@ -127,7 +102,7 @@ fn detect_python_package_manager(cwd: &Path) -> PythonPackageManager {
 }
 
 /// Parse pyproject.toml for project info
-fn parse_pyproject(context: &mut PythonContext, pyproject: &Value, max_deps: usize) {
+fn parse_pyproject(context: &mut PythonContext, pyproject: &Value) {
     // PEP 621 standard: [project] section
     if let Some(project) = pyproject.get("project") {
         context.name = project
@@ -142,33 +117,6 @@ fn parse_pyproject(context: &mut PythonContext, pyproject: &Value, max_deps: usi
             .get("requires-python")
             .and_then(|v| v.as_str())
             .map(String::from);
-
-        // Extract dependencies
-        if let Some(deps) = project.get("dependencies").and_then(|v| v.as_array()) {
-            context.dependencies = deps
-                .iter()
-                .filter_map(|d| d.as_str())
-                .map(extract_package_name)
-                .take(max_deps)
-                .collect();
-            context.dependencies.sort();
-        }
-
-        // Extract optional dependencies (often used for dev deps)
-        if let Some(optional) = project
-            .get("optional-dependencies")
-            .and_then(|v| v.as_table())
-        {
-            if let Some(dev) = optional.get("dev").and_then(|v| v.as_array()) {
-                context.dev_dependencies = dev
-                    .iter()
-                    .filter_map(|d| d.as_str())
-                    .map(extract_package_name)
-                    .take(max_deps)
-                    .collect();
-                context.dev_dependencies.sort();
-            }
-        }
 
         // Extract scripts
         if let Some(scripts) = project.get("scripts").and_then(|v| v.as_table()) {
@@ -193,32 +141,6 @@ fn parse_pyproject(context: &mut PythonContext, pyproject: &Value, max_deps: usi
                     .map(String::from);
             }
 
-            // Poetry dependencies
-            if context.dependencies.is_empty() {
-                if let Some(deps) = poetry.get("dependencies").and_then(|v| v.as_table()) {
-                    context.dependencies = deps
-                        .keys()
-                        .filter(|k| *k != "python")
-                        .take(max_deps)
-                        .cloned()
-                        .collect();
-                    context.dependencies.sort();
-                }
-            }
-
-            // Poetry dev dependencies (group.dev.dependencies)
-            if context.dev_dependencies.is_empty() {
-                if let Some(group) = poetry.get("group") {
-                    if let Some(dev) = group.get("dev") {
-                        if let Some(deps) = dev.get("dependencies").and_then(|v| v.as_table()) {
-                            context.dev_dependencies =
-                                deps.keys().take(max_deps).cloned().collect();
-                            context.dev_dependencies.sort();
-                        }
-                    }
-                }
-            }
-
             // Poetry scripts
             if context.scripts.is_empty() {
                 if let Some(scripts) = poetry.get("scripts").and_then(|v| v.as_table()) {
@@ -228,26 +150,4 @@ fn parse_pyproject(context: &mut PythonContext, pyproject: &Value, max_deps: usi
             }
         }
     }
-}
-
-/// Parse requirements.txt format
-fn parse_requirements(content: &str, max_deps: usize) -> Vec<String> {
-    content
-        .lines()
-        .filter(|line| {
-            let trimmed = line.trim();
-            !trimmed.is_empty() && !trimmed.starts_with('#') && !trimmed.starts_with('-')
-        })
-        .map(|line| extract_package_name(line.trim()))
-        .take(max_deps)
-        .collect()
-}
-
-/// Extract package name from dependency string (e.g., "requests>=2.28.0" -> "requests")
-fn extract_package_name(dep: &str) -> String {
-    // Find first occurrence of version specifier characters
-    let name_end = dep
-        .find(['>', '<', '=', '!', '~', '[', ';'])
-        .unwrap_or(dep.len());
-    dep[..name_end].trim().to_string()
 }

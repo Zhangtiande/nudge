@@ -197,11 +197,11 @@ fn build_diagnosis_prompt(
         if !git.unstaged.is_empty() {
             prompt.push_str(&format!("Modified files: {}\n", git.unstaged.join(", ")));
         }
-        if !git.recent_commits.is_empty() {
-            prompt.push_str("Recent commits:\n");
-            for commit in git.recent_commits.iter().take(3) {
-                prompt.push_str(&format!("  - {}\n", commit));
-            }
+        if !git.local_branches.is_empty() {
+            prompt.push_str(&format!(
+                "Local branches: {}\n",
+                git.local_branches.join(", ")
+            ));
         }
         prompt.push('\n');
     }

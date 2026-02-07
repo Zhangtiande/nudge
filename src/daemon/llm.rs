@@ -205,19 +205,6 @@ fn build_user_prompt(buffer: &str, context: &ContextData, shell_mode: ShellMode)
         prompt.push_str(&format!("## Last Command Exit Code: {}\n\n", exit_code));
     }
 
-    // Add git context (legacy)
-    if let Some(git) = &context.git {
-        prompt.push_str("## Git Status\n");
-        if let Some(branch) = &git.branch {
-            prompt.push_str(&format!("Branch: {}\n", branch));
-        }
-        prompt.push_str(&format!("Status: {:?}\n", git.status));
-        if !git.staged.is_empty() {
-            prompt.push_str(&format!("Staged: {}\n", git.staged.join(", ")));
-        }
-        prompt.push('\n');
-    }
-
     // Add plugin contexts (new unified approach)
     for (plugin_id, data) in &context.plugins {
         // Format plugin name for display

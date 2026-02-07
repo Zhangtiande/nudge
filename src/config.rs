@@ -132,7 +132,7 @@ pub struct PluginsConfig {
 pub struct GitPluginConfig {
     pub enabled: bool,
     pub depth: GitDepth,
-    pub recent_commits: usize,
+    pub max_branches: usize,
     pub priority: Option<u8>,
 }
 
@@ -141,7 +141,7 @@ impl Default for GitPluginConfig {
         Self {
             enabled: true,
             depth: GitDepth::Standard,
-            recent_commits: 5,
+            max_branches: 20,
             priority: Some(50),
         }
     }
@@ -168,7 +168,6 @@ pub struct DockerPluginConfig {
     pub max_images: usize,
     pub show_containers: bool,
     pub include_compose: bool,
-    pub include_dockerfile: bool,
 }
 
 impl Default for DockerPluginConfig {
@@ -181,7 +180,6 @@ impl Default for DockerPluginConfig {
             max_images: 10,
             show_containers: true,
             include_compose: true,
-            include_dockerfile: true,
         }
     }
 }
@@ -193,7 +191,6 @@ pub struct NodePluginConfig {
     pub enabled: bool,
     pub timeout_ms: u64,
     pub priority: Option<u8>,
-    pub max_dependencies: usize,
 }
 
 impl Default for NodePluginConfig {
@@ -202,7 +199,6 @@ impl Default for NodePluginConfig {
             enabled: true,
             timeout_ms: 100,
             priority: Some(45),
-            max_dependencies: 50,
         }
     }
 }
@@ -214,7 +210,6 @@ pub struct RustPluginConfig {
     pub enabled: bool,
     pub timeout_ms: u64,
     pub priority: Option<u8>,
-    pub max_dependencies: usize,
 }
 
 impl Default for RustPluginConfig {
@@ -223,7 +218,6 @@ impl Default for RustPluginConfig {
             enabled: true,
             timeout_ms: 100,
             priority: Some(45),
-            max_dependencies: 50,
         }
     }
 }
@@ -235,7 +229,6 @@ pub struct PythonPluginConfig {
     pub enabled: bool,
     pub timeout_ms: u64,
     pub priority: Option<u8>,
-    pub max_dependencies: usize,
 }
 
 impl Default for PythonPluginConfig {
@@ -244,7 +237,6 @@ impl Default for PythonPluginConfig {
             enabled: true,
             timeout_ms: 100,
             priority: Some(45),
-            max_dependencies: 50,
         }
     }
 }

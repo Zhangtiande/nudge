@@ -77,8 +77,8 @@ model:
 | 键 | 类型 | 默认值 | 描述 |
 |---|---|---|---|
 | `enabled` | bool | `true` | 启用 Git 上下文 |
-| `depth` | string | `standard` | `light`（仅分支）、`standard`（+暂存/未暂存）、`detailed`（+提交记录） |
-| `recent_commits` | int | `5` | `detailed` 模式下显示的提交数 |
+| `depth` | string | `standard` | `light`（分支/状态）、`standard`（+暂存/本地分支）、`detailed`（+未暂存） |
+| `max_branches` | int | `20` | 最多包含的本地分支数 |
 
 Git 操作有严格的 50ms 内部超时，以防止阻塞。
 
@@ -92,7 +92,6 @@ Git 操作有严格的 50ms 内部超时，以防止阻塞。
 | `max_images` | int | `10` | 上下文中的最大镜像数 |
 | `show_containers` | bool | `true` | 包含正在运行的容器 |
 | `include_compose` | bool | `true` | 包含 docker-compose 服务 |
-| `include_dockerfile` | bool | `true` | 包含 Dockerfile 预览（前 50 行） |
 
 #### `plugins.node`
 
@@ -100,9 +99,8 @@ Git 操作有严格的 50ms 内部超时，以防止阻塞。
 |---|---|---|---|
 | `enabled` | bool | `true` | 启用 Node.js 上下文 |
 | `timeout_ms` | int | `100` | 文件操作超时 |
-| `max_dependencies` | int | `50` | 列出的最大依赖数 |
 
-读取 `package.json` 获取脚本和依赖信息。
+读取 `package.json` 获取包管理器、脚本和运行时元数据。
 
 #### `plugins.rust`
 
@@ -110,9 +108,8 @@ Git 操作有严格的 50ms 内部超时，以防止阻塞。
 |---|---|---|---|
 | `enabled` | bool | `true` | 启用 Rust/Cargo 上下文 |
 | `timeout_ms` | int | `100` | 文件操作超时 |
-| `max_dependencies` | int | `50` | 列出的最大依赖数 |
 
-读取 `Cargo.toml` 获取工作区和依赖信息。
+读取 `Cargo.toml` 获取工作区、可执行目标和工具链元数据。
 
 #### `plugins.python`
 
@@ -120,9 +117,8 @@ Git 操作有严格的 50ms 内部超时，以防止阻塞。
 |---|---|---|---|
 | `enabled` | bool | `true` | 启用 Python 上下文 |
 | `timeout_ms` | int | `100` | 文件操作超时 |
-| `max_dependencies` | int | `50` | 列出的最大依赖数 |
 
-读取 `pyproject.toml`、`requirements.txt`，并检测虚拟环境（uv、poetry、pip）。
+读取 `pyproject.toml`，并检测包管理器（uv、poetry、pip）。
 
 ### `trigger` — 补全触发方式
 

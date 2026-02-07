@@ -21,10 +21,6 @@ pub struct RustContext {
     pub is_workspace: bool,
     /// Workspace members (if workspace)
     pub workspace_members: Vec<String>,
-    /// Dependencies
-    pub dependencies: Vec<String>,
-    /// Dev dependencies
-    pub dev_dependencies: Vec<String>,
     /// Binary targets
     pub binaries: Vec<String>,
 }
@@ -62,7 +58,7 @@ impl ContextPlugin for RustPlugin {
 }
 
 /// Collect Rust project context
-async fn collect_rust_context(cwd: &Path, config: &RustPluginConfig) -> Result<RustContext> {
+async fn collect_rust_context(cwd: &Path, _config: &RustPluginConfig) -> Result<RustContext> {
     let mut context = RustContext::default();
 
     // Read Cargo.toml
@@ -100,19 +96,6 @@ async fn collect_rust_context(cwd: &Path, config: &RustPluginConfig) -> Result<R
             .get("rust-version")
             .and_then(|v| v.as_str())
             .map(String::from);
-    }
-
-    // Extract dependencies
-    let max = config.max_dependencies;
-    if let Some(deps) = cargo.get("dependencies").and_then(|v| v.as_table()) {
-        context.dependencies = deps.keys().take(max).cloned().collect();
-        context.dependencies.sort();
-    }
-
-    // Extract dev-dependencies
-    if let Some(dev_deps) = cargo.get("dev-dependencies").and_then(|v| v.as_table()) {
-        context.dev_dependencies = dev_deps.keys().take(max).cloned().collect();
-        context.dev_dependencies.sort();
     }
 
     // Extract binary targets

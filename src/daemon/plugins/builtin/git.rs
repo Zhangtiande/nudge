@@ -15,14 +15,14 @@ pub struct GitContext {
     pub depth: GitDepth,
     /// Current branch name
     pub branch: Option<String>,
+    /// Local branch names (for switch/checkout completion)
+    pub local_branches: Vec<String>,
     /// Repository status
     pub status: GitStatus,
     /// Staged files
     pub staged: Vec<String>,
     /// Unstaged files (detailed depth only)
     pub unstaged: Vec<String>,
-    /// Recent commit messages
-    pub recent_commits: Vec<String>,
 }
 
 /// Git depth level
@@ -59,7 +59,7 @@ pub async fn collect(cwd: &Path, config: &GitPluginConfig) -> Result<GitContext>
     let depth: GitDepth = config.depth.into();
     let start = Instant::now();
 
-    let context = collect_git_context(cwd, depth, config.recent_commits).await?;
+    let context = collect_git_context(cwd, depth, config.max_branches).await?;
     debug!("Git context collected in {:?}", start.elapsed());
     Ok(context)
 }
@@ -84,7 +84,7 @@ fn is_git_repo(cwd: &Path) -> bool {
 async fn collect_git_context(
     cwd: &Path,
     depth: GitDepth,
-    recent_commits_count: usize,
+    max_branches: usize,
 ) -> Result<GitContext> {
     let mut context = GitContext {
         depth,
@@ -95,10 +95,18 @@ async fn collect_git_context(
     context.branch = get_branch(cwd).await;
     context.status = get_status(cwd).await;
 
-    // Standard and detailed: get staged files and commits
+    // Standard and detailed: get staged files and local branch list
     if matches!(depth, GitDepth::Standard | GitDepth::Detailed) {
         context.staged = get_staged_files(cwd).await;
-        context.recent_commits = get_recent_commits(cwd, recent_commits_count).await;
+        context.local_branches = get_local_branches(cwd, max_branches).await;
+        if let Some(current) = &context.branch {
+            if let Some(pos) = context.local_branches.iter().position(|b| b == current) {
+                if pos != 0 {
+                    let current_branch = context.local_branches.remove(pos);
+                    context.local_branches.insert(0, current_branch);
+                }
+            }
+        }
     }
 
     // Detailed only: get unstaged files
@@ -204,28 +212,26 @@ async fn get_unstaged_files(cwd: &Path) -> Vec<String> {
     .unwrap_or_default()
 }
 
-/// Get recent commits
-async fn get_recent_commits(cwd: &Path, count: usize) -> Vec<String> {
+/// Get local branch names
+async fn get_local_branches(cwd: &Path, max: usize) -> Vec<String> {
     let cwd = cwd.to_path_buf();
     tokio::task::spawn_blocking(move || {
         let output = Command::new("git")
-            .args(["log", "--oneline", &format!("-{}", count)])
+            .args(["for-each-ref", "--format=%(refname:short)", "refs/heads"])
             .current_dir(&cwd)
             .output();
 
         match output {
             Ok(o) if o.status.success() => {
-                String::from_utf8_lossy(&o.stdout)
+                let mut branches: Vec<String> = String::from_utf8_lossy(&o.stdout)
                     .lines()
+                    .map(str::trim)
                     .filter(|l| !l.is_empty())
-                    .map(|l| {
-                        // Extract just the commit message (remove hash)
-                        l.split_once(' ')
-                            .map(|(_, msg)| msg)
-                            .unwrap_or(l)
-                            .to_string()
-                    })
-                    .collect()
+                    .map(|l| l.to_string())
+                    .collect();
+                branches.sort();
+                branches.truncate(max);
+                branches
             }
             _ => Vec::new(),
         }

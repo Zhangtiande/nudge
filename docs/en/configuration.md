@@ -77,8 +77,8 @@ Each plugin follows the same pattern: `enabled`, `timeout_ms`, optional `priorit
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | bool | `true` | Enable Git context |
-| `depth` | string | `standard` | `light` (branch only), `standard` (+staged/unstaged), `detailed` (+commits) |
-| `recent_commits` | int | `5` | Commits shown in `detailed` mode |
+| `depth` | string | `standard` | `light` (branch/status), `standard` (+staged/local branches), `detailed` (+unstaged) |
+| `max_branches` | int | `20` | Max local branches listed |
 
 Git operations have a strict 50ms internal timeout to prevent stalling.
 
@@ -92,7 +92,6 @@ Git operations have a strict 50ms internal timeout to prevent stalling.
 | `max_images` | int | `10` | Max images in context |
 | `show_containers` | bool | `true` | Include running containers |
 | `include_compose` | bool | `true` | Include docker-compose services |
-| `include_dockerfile` | bool | `true` | Include Dockerfile preview (first 50 lines) |
 
 #### `plugins.node`
 
@@ -100,9 +99,8 @@ Git operations have a strict 50ms internal timeout to prevent stalling.
 |---|---|---|---|
 | `enabled` | bool | `true` | Enable Node.js context |
 | `timeout_ms` | int | `100` | File operation timeout |
-| `max_dependencies` | int | `50` | Max dependencies listed |
 
-Reads `package.json` for scripts and dependency information.
+Reads `package.json` for package manager, scripts, and runtime metadata.
 
 #### `plugins.rust`
 
@@ -110,9 +108,8 @@ Reads `package.json` for scripts and dependency information.
 |---|---|---|---|
 | `enabled` | bool | `true` | Enable Rust/Cargo context |
 | `timeout_ms` | int | `100` | File operation timeout |
-| `max_dependencies` | int | `50` | Max dependencies listed |
 
-Reads `Cargo.toml` for workspace and dependency information.
+Reads `Cargo.toml` for workspace, binaries, and toolchain metadata.
 
 #### `plugins.python`
 
@@ -120,9 +117,8 @@ Reads `Cargo.toml` for workspace and dependency information.
 |---|---|---|---|
 | `enabled` | bool | `true` | Enable Python context |
 | `timeout_ms` | int | `100` | File operation timeout |
-| `max_dependencies` | int | `50` | Max dependencies listed |
 
-Reads `pyproject.toml`, `requirements.txt`, and detects virtual environments (uv, poetry, pip).
+Reads `pyproject.toml` and detects package manager (uv, poetry, pip).
 
 ### `trigger` — How Completion Is Activated
 

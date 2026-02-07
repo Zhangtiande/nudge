@@ -93,12 +93,12 @@ plugins:
 
     # Detail level: light, standard, or detailed
     # - light:    branch name, clean/dirty status
-    # - standard: + staged/unstaged files
-    # - detailed: + recent commits
+    # - standard: + staged files + local branches
+    # - detailed: + unstaged files
     depth: standard
 
-    # Number of recent commits to include (only in detailed mode)
-    recent_commits: 5
+    # Maximum number of local branches to include
+    max_branches: 20
 
   docker:
     # Enable Docker plugin to include container/image context
@@ -122,9 +122,6 @@ plugins:
     # Include docker-compose service information
     include_compose: true
 
-    # Include Dockerfile preview (first 50 lines)
-    include_dockerfile: true
-
   node:
     # Enable Node.js plugin to include project context
     enabled: true
@@ -134,9 +131,6 @@ plugins:
 
     # Plugin priority for truncation (1-100, higher = kept longer)
     # priority: 45
-
-    # Maximum dependencies to include in context
-    max_dependencies: 50
 
   rust:
     # Enable Rust plugin to include Cargo project context
@@ -148,9 +142,6 @@ plugins:
     # Plugin priority for truncation (1-100, higher = kept longer)
     # priority: 45
 
-    # Maximum dependencies to include in context
-    max_dependencies: 50
-
   python:
     # Enable Python plugin to include project context (uv, poetry, pip)
     enabled: true
@@ -160,9 +151,6 @@ plugins:
 
     # Plugin priority for truncation (1-100, higher = kept longer)
     # priority: 45
-
-    # Maximum dependencies to include in context
-    max_dependencies: 50
 
 # ========================================
 # Trigger Configuration

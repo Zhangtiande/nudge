@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -173,13 +174,14 @@ impl ActivationStrategy for CombinedActivation {
 // ========================================
 
 use std::time::Instant;
+use tokio::task::JoinSet;
 use tokio::time::timeout;
 use tracing::{debug, warn};
 
 /// Plugin registration entry
 pub struct PluginRegistration {
-    pub plugin: Box<dyn ContextPlugin>,
-    pub activation: Box<dyn ActivationStrategy>,
+    pub plugin: Arc<dyn ContextPlugin>,
+    pub activation: Arc<dyn ActivationStrategy>,
     pub enabled: bool,
     pub timeout_ms: u64,
     pub priority: u8,
@@ -207,8 +209,8 @@ impl PluginManager {
         priority: u8,
     ) -> Self {
         self.plugins.push(PluginRegistration {
-            plugin,
-            activation,
+            plugin: plugin.into(),
+            activation: activation.into(),
             enabled,
             timeout_ms,
             priority,
@@ -218,9 +220,10 @@ impl PluginManager {
 
     /// Collect context from all activated plugins
     pub async fn collect_all(&self, cwd: &Path, buffer: &str) -> Vec<PluginContextData> {
-        let mut results = Vec::new();
+        let mut join_set = JoinSet::new();
+        let cwd_buf = cwd.to_path_buf();
 
-        for registration in &self.plugins {
+        for (idx, registration) in self.plugins.iter().enumerate() {
             if !registration.enabled {
                 continue;
             }
@@ -233,36 +236,53 @@ impl PluginManager {
                 continue;
             }
 
-            let plugin_id = registration.plugin.id().to_string();
+            let plugin = Arc::clone(&registration.plugin);
+            let plugin_id = plugin.id().to_string();
             let timeout_duration = Duration::from_millis(registration.timeout_ms);
             let priority = registration.priority;
+            let cwd = cwd_buf.clone();
 
-            let start = Instant::now();
+            join_set.spawn(async move {
+                let start = Instant::now();
+                match timeout(timeout_duration, plugin.collect(&cwd)).await {
+                    Ok(Ok(mut data)) => {
+                        data.priority = priority;
+                        data.collection_time_ms = start.elapsed().as_millis() as u64;
+                        debug!(
+                            "Plugin '{}' collected in {}ms",
+                            plugin_id, data.collection_time_ms
+                        );
+                        Some((idx, data))
+                    }
+                    Ok(Err(e)) => {
+                        debug!("Plugin '{}' collection failed: {}", plugin_id, e);
+                        None
+                    }
+                    Err(_) => {
+                        warn!(
+                            "Plugin '{}' timed out after {}ms",
+                            plugin_id,
+                            timeout_duration.as_millis()
+                        );
+                        None
+                    }
+                }
+            });
+        }
 
-            match timeout(timeout_duration, registration.plugin.collect(cwd)).await {
-                Ok(Ok(mut data)) => {
-                    data.priority = priority;
-                    data.collection_time_ms = start.elapsed().as_millis() as u64;
-                    debug!(
-                        "Plugin '{}' collected in {}ms",
-                        plugin_id, data.collection_time_ms
-                    );
-                    results.push(data);
-                }
-                Ok(Err(e)) => {
-                    debug!("Plugin '{}' collection failed: {}", plugin_id, e);
-                }
-                Err(_) => {
-                    warn!(
-                        "Plugin '{}' timed out after {}ms",
-                        plugin_id,
-                        timeout_duration.as_millis()
-                    );
+        let mut ordered = Vec::new();
+        while let Some(result) = join_set.join_next().await {
+            match result {
+                Ok(Some((idx, data))) => ordered.push((idx, data)),
+                Ok(None) => {}
+                Err(err) => {
+                    warn!("Plugin task join error: {}", err);
                 }
             }
         }
 
-        results
+        ordered.sort_by_key(|(idx, _)| *idx);
+        ordered.into_iter().map(|(_, data)| data).collect()
     }
 }
 

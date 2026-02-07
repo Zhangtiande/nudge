@@ -21,10 +21,6 @@ pub struct NodeContext {
     pub node_version: Option<String>,
     /// Available npm scripts
     pub scripts: Vec<String>,
-    /// Production dependencies
-    pub dependencies: Vec<String>,
-    /// Development dependencies
-    pub dev_dependencies: Vec<String>,
     /// Whether this is a monorepo (has workspaces)
     pub is_monorepo: bool,
 }
@@ -73,7 +69,7 @@ impl ContextPlugin for NodePlugin {
 }
 
 /// Collect Node.js project context
-async fn collect_node_context(cwd: &Path, config: &NodePluginConfig) -> Result<NodeContext> {
+async fn collect_node_context(cwd: &Path, _config: &NodePluginConfig) -> Result<NodeContext> {
     let mut context = NodeContext::default();
 
     // Read package.json
@@ -100,18 +96,6 @@ async fn collect_node_context(cwd: &Path, config: &NodePluginConfig) -> Result<N
     if let Some(scripts) = pkg.get("scripts").and_then(|v| v.as_object()) {
         context.scripts = scripts.keys().cloned().collect();
         context.scripts.sort();
-    }
-
-    // Extract dependencies (limited by max_dependencies)
-    let max = config.max_dependencies;
-    if let Some(deps) = pkg.get("dependencies").and_then(|v| v.as_object()) {
-        context.dependencies = deps.keys().take(max).cloned().collect();
-        context.dependencies.sort();
-    }
-
-    if let Some(dev_deps) = pkg.get("devDependencies").and_then(|v| v.as_object()) {
-        context.dev_dependencies = dev_deps.keys().take(max).cloned().collect();
-        context.dev_dependencies.sort();
     }
 
     // Check for monorepo (workspaces)

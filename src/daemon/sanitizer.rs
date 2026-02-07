@@ -71,15 +71,6 @@ pub fn sanitize(
         events.extend(cmd_events);
     }
 
-    // Sanitize git commit messages
-    if let Some(ref mut git) = result.git {
-        for commit in &mut git.recent_commits {
-            let (sanitized, commit_events) = sanitize_text(commit, &custom_regexes);
-            *commit = sanitized;
-            events.extend(commit_events);
-        }
-    }
-
     if !events.is_empty() {
         debug!("Sanitized {} sensitive items", events.len());
     }

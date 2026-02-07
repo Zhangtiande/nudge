@@ -59,6 +59,8 @@ pub struct GatherParams {
     pub last_exit_code: Option<i32>,
     /// Whether to search for similar commands (completion: true, diagnosis: false)
     pub include_similar_commands: bool,
+    /// Whether to populate legacy git field for backward compatibility.
+    pub include_legacy_git: bool,
 }
 
 impl From<&CompletionRequest> for GatherParams {
@@ -69,6 +71,7 @@ impl From<&CompletionRequest> for GatherParams {
             command: req.buffer.clone(),
             last_exit_code: req.last_exit_code,
             include_similar_commands: true,
+            include_legacy_git: false,
         }
     }
 }
@@ -81,6 +84,7 @@ impl From<&DiagnosisRequest> for GatherParams {
             command: req.command.clone(),
             last_exit_code: Some(req.exit_code),
             include_similar_commands: false,
+            include_legacy_git: true,
         }
     }
 }
@@ -138,8 +142,8 @@ pub async fn gather(params: &GatherParams, config: &Config) -> Result<ContextDat
         // Store in plugins map
         context.plugins.insert(plugin_id.clone(), value.clone());
 
-        // Legacy: populate git field for backward compatibility
-        if plugin_id == "git" {
+        // Legacy: populate git field only for diagnosis/backward-compat paths
+        if params.include_legacy_git && plugin_id == "git" {
             if let Ok(git_ctx) = serde_json::from_value::<GitContext>(value) {
                 context.git = Some(git_ctx);
             }
@@ -177,15 +181,6 @@ fn estimate_tokens(context: &ContextData) -> usize {
     // Files: roughly 1 token per file name
     total += context.files.len();
 
-    // Legacy git context: estimate based on content
-    if let Some(git) = &context.git {
-        if git.branch.is_some() {
-            total += 5;
-        }
-        total += git.staged.len();
-        total += git.recent_commits.len() * 10;
-    }
-
     // Plugin context: estimate based on JSON size (rough approximation)
     for data in context.plugins.values() {
         // Conservative estimate: JSON string length / 4 characters per token
@@ -214,13 +209,11 @@ fn truncate_by_priority(context: &mut ContextData, config: &Config) {
 
         // First: Remove plugin contexts (priority ~40-50, lowest)
         if !context.plugins.is_empty() && priorities.plugins <= priorities.cwd_listing {
-            // Simple MVP: clear all plugins at once
-            // Future: could sort by priority and remove lowest first
-            context.plugins.clear();
-            context.git = None; // Also clear legacy git field
-            context.estimated_tokens = estimate_tokens(context);
-            if context.estimated_tokens != before_tokens {
-                continue;
+            if remove_lowest_priority_plugin(context, config) {
+                context.estimated_tokens = estimate_tokens(context);
+                if context.estimated_tokens != before_tokens {
+                    continue;
+                }
             }
         }
 
@@ -270,6 +263,35 @@ fn truncate_by_priority(context: &mut ContextData, config: &Config) {
         if context.estimated_tokens == before_tokens {
             break;
         }
+    }
+}
+
+fn remove_lowest_priority_plugin(context: &mut ContextData, config: &Config) -> bool {
+    let candidate = context
+        .plugins
+        .keys()
+        .map(|plugin_id| (plugin_id.clone(), plugin_priority(config, plugin_id)))
+        .min_by(|(id_a, p_a), (id_b, p_b)| p_a.cmp(p_b).then_with(|| id_a.cmp(id_b)));
+
+    if let Some((plugin_id, _)) = candidate {
+        context.plugins.remove(&plugin_id);
+        if plugin_id == "git" {
+            context.git = None;
+        }
+        true
+    } else {
+        false
+    }
+}
+
+fn plugin_priority(config: &Config, plugin_id: &str) -> u8 {
+    match plugin_id {
+        "git" => config.plugins.git.priority.unwrap_or(50),
+        "docker" => config.plugins.docker.priority.unwrap_or(45),
+        "node" => config.plugins.node.priority.unwrap_or(45),
+        "rust" => config.plugins.rust.priority.unwrap_or(45),
+        "python" => config.plugins.python.priority.unwrap_or(45),
+        _ => config.context.priorities.plugins,
     }
 }
 

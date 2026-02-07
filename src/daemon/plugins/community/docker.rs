@@ -12,8 +12,6 @@ use crate::daemon::context::plugin::{ContextPlugin, PluginContextData};
 /// Docker context data
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DockerContext {
-    /// Has Dockerfile in current directory
-    pub has_dockerfile: bool,
     /// Has docker-compose.yml
     pub has_compose: bool,
     /// Docker compose service names
@@ -82,11 +80,6 @@ impl ContextPlugin for DockerPlugin {
 /// Collect Docker context (MVP version)
 async fn collect_docker_context(cwd: &Path, config: &DockerPluginConfig) -> Result<DockerContext> {
     let mut context = DockerContext::default();
-
-    // Check for Dockerfile
-    if config.include_dockerfile {
-        context.has_dockerfile = cwd.join("Dockerfile").exists();
-    }
 
     // Check for docker-compose files and extract services
     if config.include_compose {
