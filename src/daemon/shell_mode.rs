@@ -7,6 +7,7 @@
 pub enum ShellMode {
     ZshAuto,
     ZshInline,
+    BashInline,
     BashPopup,
     PsInline,
     CmdInline,
@@ -30,6 +31,7 @@ impl ShellMode {
         match self {
             Self::ZshAuto => "zsh-auto",
             Self::ZshInline => "zsh-inline",
+            Self::BashInline => "bash-inline",
             Self::BashPopup => "bash-popup",
             Self::PsInline => "ps-inline",
             Self::CmdInline => "cmd-inline",
@@ -51,6 +53,7 @@ impl ShellMode {
         match raw.trim().to_lowercase().as_str() {
             "zsh-auto" => Self::ZshAuto,
             "zsh-inline" => Self::ZshInline,
+            "bash-inline" => Self::BashInline,
             "bash-popup" => Self::BashPopup,
             "ps-inline" => Self::PsInline,
             "cmd-inline" => Self::CmdInline,
@@ -62,7 +65,8 @@ impl ShellMode {
         if session_id.starts_with("zsh-") {
             Self::ZshInline
         } else if session_id.starts_with("bash-") {
-            Self::BashPopup
+            // Keep session fallback on the fastest/safest baseline path.
+            Self::BashInline
         } else if session_id.starts_with("pwsh-") || session_id.starts_with("powershell-") {
             Self::PsInline
         } else if session_id.starts_with("cmd-") {
@@ -92,7 +96,14 @@ mod tests {
     #[test]
     fn supports_multi_candidates_only_for_popup_modes() {
         assert!(ShellMode::BashPopup.supports_multi_candidates());
+        assert!(!ShellMode::BashInline.supports_multi_candidates());
         assert!(!ShellMode::ZshInline.supports_multi_candidates());
         assert!(!ShellMode::PsInline.supports_multi_candidates());
+    }
+
+    #[test]
+    fn session_fallback_prefers_bash_inline_mode() {
+        let mode = ShellMode::resolve(None, "bash-123");
+        assert_eq!(mode, ShellMode::BashInline);
     }
 }

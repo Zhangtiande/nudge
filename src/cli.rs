@@ -53,7 +53,7 @@ pub enum Command {
         #[arg(long)]
         git_state: Option<String>,
 
-        /// Shell mode (zsh-auto, zsh-inline, ps-inline, bash-popup, etc.)
+        /// Shell mode (zsh-auto, zsh-inline, bash-inline, bash-popup, ps-inline, cmd-inline, etc.)
         #[arg(long)]
         shell_mode: Option<String>,
 

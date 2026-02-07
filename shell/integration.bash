@@ -67,6 +67,7 @@ _nudge_ensure_daemon() {
 # Request completion output in a specific format.
 _nudge_request_completion() {
     local format="$1"
+    local shell_mode="${2:-bash-inline}"
     _nudge_ensure_daemon
 
     nudge complete --format "$format" \
@@ -74,14 +75,14 @@ _nudge_request_completion() {
         --cursor "$READLINE_POINT" \
         --cwd "$PWD" \
         --session "bash-$$" \
-        --shell-mode "bash-popup" \
+        --shell-mode "$shell_mode" \
         --last-exit-code "$_nudge_last_exit" 2>/dev/null
 }
 
 # Main completion function (manual mode)
 _nudge_complete() {
     local suggestion
-    suggestion=$(_nudge_request_completion plain)
+    suggestion=$(_nudge_request_completion plain bash-inline)
     if [[ $? -eq 0 && -n "$suggestion" ]]; then
         if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
             local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
@@ -213,7 +214,7 @@ _nudge_select_candidate_builtin() {
 
 _nudge_popup_complete() {
     local candidates
-    candidates=$(_nudge_request_completion list)
+    candidates=$(_nudge_request_completion list bash-popup)
     if [[ $? -ne 0 || -z "$candidates" ]]; then
         _nudge_complete
         return

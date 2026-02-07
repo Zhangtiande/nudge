@@ -258,13 +258,14 @@ async fn run_bash_doctor() -> Result<()> {
     println!();
     println!("Latency (daemon)");
     println!("----------------");
-    match collect_latency_samples("bash-popup").await {
+    println!("[info] Ctrl+E fast path mode: bash-inline");
+    match collect_latency_samples("bash-inline").await {
         Ok(samples) if !samples.is_empty() => {
             let p50 = percentile(&samples, 50);
             let p95 = percentile(&samples, 95);
-            println!("samples: {:?}", samples);
-            println!("p50: {} ms", p50);
-            println!("p95: {} ms", p95);
+            println!("inline samples: {:?}", samples);
+            println!("inline p50: {} ms", p50);
+            println!("inline p95: {} ms", p95);
         }
         Ok(_) => {
             println!("no successful latency samples");
@@ -272,6 +273,18 @@ async fn run_bash_doctor() -> Result<()> {
         Err(err) => {
             println!("latency sampling unavailable: {}", err);
         }
+    }
+
+    match collect_latency_samples("bash-popup").await {
+        Ok(samples) if !samples.is_empty() => {
+            let p50 = percentile(&samples, 50);
+            let p95 = percentile(&samples, 95);
+            println!("popup samples: {:?}", samples);
+            println!("popup p50: {} ms", p50);
+            println!("popup p95: {} ms", p95);
+        }
+        Ok(_) => {}
+        Err(_) => {}
     }
 
     Ok(())

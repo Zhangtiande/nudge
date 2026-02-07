@@ -26,7 +26,7 @@ pub struct CompletionRequest {
     /// Git state summary (repo_id|branch|dirty|staged)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git_state: Option<String>,
-    /// Shell mode (zsh-auto, zsh-inline, ps-inline, bash-popup, etc.)
+    /// Shell mode (zsh-auto, zsh-inline, bash-inline, bash-popup, ps-inline, cmd-inline, etc.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_mode: Option<String>,
     /// Optional time bucket for auto mode (floor(now_ms / 2000))
