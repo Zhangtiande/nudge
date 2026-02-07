@@ -4,14 +4,7 @@ set -e
 
 # Detect platform and get config directory
 get_config_dir() {
-    case "$(uname -s)" in
-        Darwin)
-            echo "$HOME/Library/Application Support/nudge"
-            ;;
-        *)
-            echo "${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
-            ;;
-    esac
+    echo "$HOME/.nudge"
 }
 
 CONFIG_DIR="${NUDGE_CONFIG_DIR:-$(get_config_dir)}"

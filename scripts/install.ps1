@@ -27,6 +27,7 @@ $ErrorActionPreference = "Stop"
 $GitHubRepo = "Zhangtiande/nudge"
 $DefaultInstallDir = Join-Path $env:LOCALAPPDATA "nudge"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$NudgeHome = Join-Path ([Environment]::GetFolderPath('UserProfile')) ".nudge"
 
 # Color output functions
 function Write-Info {
@@ -395,7 +396,6 @@ function Get-ShellIntegrationFiles {
 
     try {
         $files = @(
-            "shell/setup-shell.ps1",
             "shell/integration.ps1",
             "shell/integration.cmd",
             "shell/NudgePredictor/NudgePredictor.psm1",
@@ -443,7 +443,7 @@ function Install-NudgePredictorModule {
 
     try {
         # Install to nudge config directory
-        $configDir = Join-Path $env:APPDATA "nudge"
+        $configDir = $NudgeHome
         $modulesDir = Join-Path $configDir "modules\NudgePredictor"
 
         # Create modules directory
@@ -502,7 +502,7 @@ function Setup-ShellIntegration {
         Write-Warning "You can try running 'nudge setup powershell' manually later"
 
         # Provide fallback configuration setup
-        $configDir = Join-Path $env:APPDATA "nudge"
+        $configDir = $NudgeHome
         Write-Info "Creating basic configuration manually..."
         New-Item -ItemType Directory -Force -Path (Join-Path $configDir "config") | Out-Null
 
@@ -630,9 +630,9 @@ function Uninstall-Nudge {
     }
 
     Write-Host ""
-    Write-Warning "Configuration files in $env:APPDATA\nudge were not removed."
+    Write-Warning "Configuration files in $NudgeHome were not removed."
     Write-Host "To remove them manually, run:"
-    Write-Host "  Remove-Item -Path `"$env:APPDATA\nudge`" -Recurse -Force"
+    Write-Host "  Remove-Item -Path `"$NudgeHome`" -Recurse -Force"
     Write-Host ""
 
     Write-Success "Uninstallation complete!"
@@ -703,7 +703,7 @@ function Main {
     Add-ToPath -Directory $binDir
 
     # Determine config file locations (layered config system)
-    $configDir = Join-Path $env:APPDATA "nudge\config"
+    $configDir = Join-Path $NudgeHome "config"
     $defaultConfigFile = Join-Path $configDir "config.default.yaml"
     $userConfigFile = Join-Path $configDir "config.yaml"
 

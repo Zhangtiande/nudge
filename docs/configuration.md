@@ -6,9 +6,8 @@ This document describes all configuration options available in Nudge.
 
 | Platform | Path |
 |----------|------|
-| Linux | `~/.config/nudge/config.yaml` |
-| macOS | `~/Library/Application Support/nudge/config.yaml` |
-| Windows | `%APPDATA%\nudge\config\config.yaml` |
+| Linux/macOS | `~/.nudge/config/config.yaml` |
+| Windows | `%USERPROFILE%\.nudge\config\config.yaml` |
 
 Use `nudge info` to view your configuration paths:
 
@@ -55,14 +54,14 @@ trigger:
 cache:
   capacity: 1024
   prefix_bytes: 80
-  ttl_auto_ms: 3000
-  ttl_manual_ms: 15000
-  ttl_negative_ms: 2000
+  ttl_auto_ms: 300000
+  ttl_manual_ms: 600000
+  ttl_negative_ms: 30000
   stale_ratio: 0.8
 
 # Error Diagnosis
 diagnosis:
-  enabled: true
+  enabled: false
   timeout_ms: 5000
 
 # Plugins
@@ -169,7 +168,7 @@ Higher priority = kept longer during truncation (1-100).
 | `zsh_ghost_owner` | string | `auto` | Zsh ghost text owner: `auto`, `nudge`, or `autosuggestions` |
 | `zsh_overlay_backend` | string | `message` | Zsh overlay backend: `message` or `rprompt` |
 
-When `zsh_ghost_owner` resolves to `autosuggestions`, Nudge keeps `Tab` for autosuggestions and uses `Ctrl+G` to accept Nudge overlay/diagnosis suggestions.
+When `zsh_ghost_owner` resolves to `autosuggestions`, Nudge keeps `Tab` for autosuggestions and uses `Ctrl+G` to accept Nudge overlay/diagnosis suggestions while clearing autosuggestions gray preview text.
 
 When `zsh_overlay_backend` is:
 - `message`: use `zle -M` message line (default, lower prompt redraw impact)
@@ -181,16 +180,16 @@ When `zsh_overlay_backend` is:
 |--------|------|---------|-------------|
 | `capacity` | integer | 1024 | Max cache entries (LRU) |
 | `prefix_bytes` | integer | 80 | Max bytes of prefix for key hashing |
-| `ttl_auto_ms` | integer | 3000 | Auto mode TTL (ms) |
-| `ttl_manual_ms` | integer | 15000 | Manual mode TTL (ms) |
-| `ttl_negative_ms` | integer | 2000 | Negative cache TTL (ms) |
+| `ttl_auto_ms` | integer | 300000 | Auto mode TTL (ms) |
+| `ttl_manual_ms` | integer | 600000 | Manual mode TTL (ms) |
+| `ttl_negative_ms` | integer | 30000 | Negative cache TTL (ms) |
 | `stale_ratio` | float | 0.8 | Stale-while-revalidate threshold |
 
 ### Diagnosis
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | boolean | true | Enable error diagnosis |
+| `enabled` | boolean | false | Enable error diagnosis |
 | `timeout_ms` | integer | 5000 | Diagnosis timeout (ms) |
 
 When enabled, Nudge analyzes failed commands with full project context:
@@ -250,9 +249,8 @@ Depth levels:
 | `file_enabled` | boolean | false | Enable file logging |
 
 Log file locations:
-- Linux: `~/.local/share/nudge/logs/`
-- macOS: `~/Library/Application Support/nudge/logs/`
-- Windows: `%LOCALAPPDATA%\nudge\data\logs\`
+- Linux/macOS: `~/.nudge/logs/`
+- Windows: `%USERPROFILE%\.nudge\logs\`
 
 ## Example Configurations
 
@@ -294,8 +292,11 @@ trigger:
 
 | Variable | Description |
 |----------|-------------|
-| `SMARTSHELL_CONFIG` | Override config file path |
+| `NUDGE_CONFIG` | Override config file path (preferred) |
+| `SMARTSHELL_CONFIG` | Legacy override variable (fallback; deprecated) |
 | `RUST_LOG` | Override log level (e.g., `nudge=debug`) |
+
+When both `NUDGE_CONFIG` and `SMARTSHELL_CONFIG` are set, `NUDGE_CONFIG` takes precedence.
 
 ## See Also
 

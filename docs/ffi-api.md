@@ -44,8 +44,8 @@ mkdir -p ~/Library/Application\ Support/nudge/lib
 cp target/release/libnudge.dylib ~/Library/Application\ Support/nudge/lib/
 
 # Linux
-mkdir -p ~/.config/nudge/lib
-cp target/release/libnudge.so ~/.config/nudge/lib/
+mkdir -p ~/.nudge/lib
+cp target/release/libnudge.so ~/.nudge/lib/
 ```
 
 ## API Reference

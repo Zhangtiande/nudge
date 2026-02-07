@@ -105,17 +105,17 @@ nudge setup
 
 **Bash** (`~/.bashrc`):
 ```bash
-[ -f "$HOME/.config/nudge/shell/integration.bash" ] && source "$HOME/.config/nudge/shell/integration.bash"
+[ -f "$HOME/.nudge/shell/integration.bash" ] && source "$HOME/.nudge/shell/integration.bash"
 ```
 
 **Zsh** (`~/.zshrc`):
 ```zsh
-[ -f "$HOME/.config/nudge/shell/integration.zsh" ] && source "$HOME/.config/nudge/shell/integration.zsh"
+[ -f "$HOME/.nudge/shell/integration.zsh" ] && source "$HOME/.nudge/shell/integration.zsh"
 ```
 
 **PowerShell** (`$PROFILE`):
 ```powershell
-$nudgeIntegration = Join-Path $env:APPDATA "nudge\shell\integration.ps1"
+$nudgeIntegration = Join-Path $HOME ".nudge\shell\integration.ps1"
 if (Test-Path $nudgeIntegration) { . $nudgeIntegration }
 ```
 
@@ -134,7 +134,7 @@ nudge info
 
 ### Configure LLM
 
-Edit `~/.config/nudge/config.yaml`:
+Edit `~/.nudge/config/config.yaml`:
 
 ```yaml
 # Ollama (local)

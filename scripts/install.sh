@@ -276,12 +276,7 @@ setup_shell_integration() {
         warning "You can try running 'nudge setup' manually later"
 
         # Provide fallback configuration setup
-        local config_dir=""
-        if [[ "$(uname -s)" == "Darwin" ]]; then
-            config_dir="$HOME/Library/Application Support/nudge"
-        else
-            config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
-        fi
+        local config_dir="$HOME/.nudge"
 
         info "Creating basic configuration manually..."
         mkdir -p "$config_dir/config"
@@ -382,13 +377,9 @@ uninstall() {
     done
 
     echo ""
-    warning "Configuration files in ~/.config/nudge (or ~/Library/Application Support/nudge) were not removed."
+    warning "Configuration files in ~/.nudge were not removed."
     echo "To remove them manually, run:"
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        echo "  rm -rf ~/Library/Application\\ Support/nudge"
-    else
-        echo "  rm -rf ~/.config/nudge"
-    fi
+    echo "  rm -rf ~/.nudge"
 
     echo ""
     success "Uninstallation complete!"
@@ -498,20 +489,10 @@ main() {
     echo ""
     
     # Determine config file location
-    local config_file=""
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        config_file="$HOME/Library/Application Support/nudge/config.yaml"
-    else
-        config_file="${XDG_CONFIG_HOME:-$HOME/.config}/nudge/config.yaml"
-    fi
+    local config_file="$HOME/.nudge/config/config.yaml"
     
     # Determine config directory
-    local config_dir=""
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-        config_dir="$HOME/Library/Application Support/nudge"
-    else
-        config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
-    fi
+    local config_dir="$HOME/.nudge"
     
     echo "========================================="
     echo "    Configuration"

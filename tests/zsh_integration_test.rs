@@ -325,6 +325,69 @@ print -r -- "$POSTDISPLAY"
     }
 
     #[test]
+    fn overlay_accept_clears_autosuggestions_preview() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "auto" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "autosuggestions" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+BUFFER="git st"
+CURSOR=${#BUFFER}
+POSTDISPLAY="atus"
+_nudge_auto_suggestion="git status"
+_nudge_overlay_accept
+print -r -- "$BUFFER"
+print -r -- "$POSTDISPLAY"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let accepted_buffer = lines.next().unwrap_or_default();
+        let postdisplay_after_accept = lines.next().unwrap_or_default();
+
+        assert_eq!(
+            accepted_buffer, "git status",
+            "ctrl+g should accept overlay suggestion buffer"
+        );
+        assert_eq!(
+            postdisplay_after_accept, "",
+            "overlay accept should clear autosuggestions preview"
+        );
+    }
+
+    #[test]
     fn overlay_marks_warning_as_high_risk() {
         if !has_zsh() {
             return;

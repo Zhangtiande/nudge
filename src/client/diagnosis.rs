@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use crate::cli::OutputFormat;
 use crate::client::ipc;
+use crate::config::Config;
 use crate::protocol::DiagnosisRequest;
 
 /// Replace emojis with ASCII text for terminals that don't support them well (e.g., Windows PowerShell)
@@ -41,14 +42,21 @@ pub async fn diagnose(
 ) -> Result<()> {
     // Build request
     let mut request = DiagnosisRequest::new(session, command, exit_code, cwd);
+    let max_stderr_size = Config::load()
+        .map(|cfg| cfg.diagnosis.max_stderr_size)
+        .unwrap_or(4096);
 
     // Read stderr from file if provided
     if let Some(path) = stderr_file {
         if path.exists() {
             let stderr = std::fs::read_to_string(&path).unwrap_or_default();
-            // Truncate if too large (will be configurable later)
-            let stderr = if stderr.len() > 4096 {
-                stderr[..4096].to_string()
+            // Truncate stderr based on configured max size.
+            let stderr = if stderr.len() > max_stderr_size {
+                let mut truncate_at = max_stderr_size;
+                while truncate_at > 0 && !stderr.is_char_boundary(truncate_at) {
+                    truncate_at -= 1;
+                }
+                stderr[..truncate_at].to_string()
             } else {
                 stderr
             };

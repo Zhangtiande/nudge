@@ -4,9 +4,8 @@
 # Documentation: https://github.com/Zhangtiande/nudge
 #
 # Configuration file locations:
-#   Linux:   ~/.config/nudge/config.yaml
-#   macOS:   ~/Library/Application Support/nudge/config.yaml
-#   Windows: %APPDATA%\nudge\config.yaml
+#   Linux/macOS: ~/.nudge/config/config.yaml
+#   Windows:     %USERPROFILE%\.nudge\config\config.yaml
 
 # ========================================
 # LLM Model Configuration
@@ -249,8 +248,8 @@ log:
 
   # Enable file logging with daily rotation
   # Logs are written to:
-  #   Linux/macOS: ~/.config/nudge/logs/ or ~/Library/Application Support/nudge/logs/
-  #   Windows:     %APPDATA%\nudge\logs\
+  #   Linux/macOS: ~/.nudge/logs/
+  #   Windows:     %USERPROFILE%\.nudge\logs\
   file_enabled: false
 
 # ========================================

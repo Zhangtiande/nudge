@@ -47,8 +47,8 @@ model:
 
 # cache:
 #   capacity: 1024
-#   ttl_auto_ms: 3000
-#   ttl_manual_ms: 15000
+#   ttl_auto_ms: 300000
+#   ttl_manual_ms: 600000
 
 # privacy:
 #   sanitize_enabled: true

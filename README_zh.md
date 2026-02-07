@@ -66,7 +66,7 @@ nudge info
 
 ### 配置
 
-创建配置文件 `~/.config/nudge/config.yaml`（Linux/macOS）或 `%APPDATA%\nudge\config\config.yaml`（Windows）：
+创建配置文件 `~/.nudge/config/config.yaml`：
 
 ```yaml
 model:
@@ -80,8 +80,8 @@ trigger:
   zsh_overlay_backend: "message"  # "message" 或 "rprompt"（仅 Zsh）
 
 cache:
-  ttl_auto_ms: 3000     # 自动模式缓存 TTL
-  ttl_manual_ms: 15000  # 手动模式缓存 TTL
+  ttl_auto_ms: 300000   # 自动模式缓存 TTL
+  ttl_manual_ms: 600000 # 手动模式缓存 TTL
 
 diagnosis:
   enabled: true         # 启用错误诊断
@@ -102,7 +102,7 @@ diagnosis:
 | `Tab` | 接受建议（自动模式） |
 | `Right Arrow` | 接受下一个单词（Zsh） |
 | `F1` | 切换解释详情（why/risk/diff） |
-| `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议 |
+| `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议，并清理 autosuggestions 灰色预览 |
 
 ## 错误诊断
 

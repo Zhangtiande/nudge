@@ -3,6 +3,7 @@ mod client;
 mod commands;
 mod config;
 mod daemon;
+mod paths;
 mod protocol;
 
 use anyhow::Result;
@@ -32,32 +33,47 @@ fn init_logging(config: &Config, foreground_daemon: bool) {
     let enable_console = foreground_daemon || explicit_rust_log;
 
     if config.log.file_enabled {
-        // Ensure log directory exists
+        // Ensure log directory exists before constructing file appender.
         let log_dir = Config::log_dir();
-        std::fs::create_dir_all(&log_dir).ok();
-
-        // Daily rolling file appender
-        let file_appender = RollingFileAppender::new(Rotation::DAILY, log_dir, "nudge.log");
-
-        if enable_console {
-            // Both file and console output (for foreground daemon or debugging)
-            registry
-                .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
-                .with(
-                    tracing_subscriber::fmt::layer()
-                        .with_writer(file_appender)
-                        .with_ansi(false),
-                )
-                .init();
+        let file_logging_ready = std::fs::create_dir_all(&log_dir).is_ok();
+        let file_appender = if file_logging_ready {
+            std::panic::catch_unwind(|| {
+                RollingFileAppender::new(Rotation::DAILY, &log_dir, "nudge.log")
+            })
+            .ok()
         } else {
-            // File only (no console output) - normal CLI behavior
-            registry
-                .with(
-                    tracing_subscriber::fmt::layer()
-                        .with_writer(file_appender)
-                        .with_ansi(false),
-                )
-                .init();
+            None
+        };
+
+        if let Some(file_appender) = file_appender {
+            if enable_console {
+                // Both file and console output (for foreground daemon or debugging)
+                registry
+                    .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .with_writer(file_appender)
+                            .with_ansi(false),
+                    )
+                    .init();
+            } else {
+                // File only (no console output) - normal CLI behavior
+                registry
+                    .with(
+                        tracing_subscriber::fmt::layer()
+                            .with_writer(file_appender)
+                            .with_ansi(false),
+                    )
+                    .init();
+            }
+        } else if enable_console {
+            eprintln!(
+                "Warning: failed to initialize file logging at {}. Falling back to console logging.",
+                log_dir.display()
+            );
+            registry.with(tracing_subscriber::fmt::layer()).init();
+        } else {
+            registry.init();
         }
     } else if enable_console {
         // Console only (when file logging is disabled but console is needed)
@@ -126,10 +142,6 @@ async fn main() -> Result<()> {
         Command::Status => {
             daemon::status().await?;
         }
-        #[allow(deprecated)]
-        Command::Config { show } => {
-            show_config(show)?;
-        }
         Command::Info { json, field } => {
             commands::info::run_info(json, field)?;
         }
@@ -159,67 +171,6 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-    }
-
-    Ok(())
-}
-
-fn show_config(show_full: bool) -> Result<()> {
-    println!("Nudge Configuration\n");
-
-    // Show file locations
-    if let Some(base_path) = Config::base_config_path() {
-        println!("Default config: {}", base_path.display());
-        println!("  Exists: {}", base_path.exists());
-    }
-
-    if let Some(user_path) = Config::default_config_path() {
-        println!("User config:    {}", user_path.display());
-        println!("  Exists: {}", user_path.exists());
-    }
-
-    println!("\nSocket path:    {}", Config::socket_path().display());
-    println!("PID file:       {}", Config::pid_path().display());
-    println!("Log directory:  {}", Config::log_dir().display());
-
-    if show_full {
-        println!("\n{}", "=".repeat(50));
-        println!("Loading Configuration (with layered merge)...\n");
-
-        match Config::load() {
-            Ok(config) => {
-                println!("✓ Configuration loaded successfully\n");
-                println!("{}", config.llm_config_summary());
-                println!("\nContext Settings:");
-                println!("  History window: {}", config.context.history_window);
-                println!(
-                    "  Include CWD listing: {}",
-                    config.context.include_cwd_listing
-                );
-                println!(
-                    "  Include system info: {}",
-                    config.context.include_system_info
-                );
-                println!("  Max total tokens: {}", config.context.max_total_tokens);
-                println!("\nPlugin Settings:");
-                println!("  Git enabled: {}", config.plugins.git.enabled);
-                println!("\nPrivacy Settings:");
-                println!(
-                    "  Sanitization enabled: {}",
-                    config.privacy.sanitize_enabled
-                );
-                println!(
-                    "  Block dangerous commands: {}",
-                    config.privacy.block_dangerous
-                );
-            }
-            Err(e) => {
-                println!("✗ Failed to load configuration: {}", e);
-                return Err(e);
-            }
-        }
-    } else {
-        println!("\nTip: Use 'nudge config --show' to see full configuration");
     }
 
     Ok(())
