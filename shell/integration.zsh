@@ -768,7 +768,11 @@ _nudge_overlay_render() {
         if [[ "$_nudge_explain_expanded" == "true" ]]; then
             message="why:${why} | risk:${risk} | warn:${warning_text} | diff:${diff} | $key_hint accept"
         else
-            message="why:${why} | risk:${risk} | diff:${diff} (${detail_hint})"
+            local compact_warn="$warning_text"
+            if (( ${#compact_warn} > 42 )); then
+                compact_warn="${compact_warn:0:39}..."
+            fi
+            message="risk:${risk} | warn:${compact_warn} | ${key_hint} accept (${detail_hint})"
         fi
     elif [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
         if [[ "$_nudge_explain_expanded" == "true" ]]; then
@@ -779,10 +783,10 @@ _nudge_overlay_render() {
             message="why:${why} | risk:${risk} | diff:${full_diff} | suggest=${suggestion} | $key_hint accept"
         else
             local preview="$diff"
-            if (( ${#preview} > 50 )); then
-                preview="${preview:0:47}..."
+            if (( ${#preview} > 40 )); then
+                preview="${preview:0:37}..."
             fi
-            message="why:${why} | risk:${risk} | diff:${preview} (${detail_hint})"
+            message="risk:${risk} | diff:${preview} | ${key_hint} accept (${detail_hint})"
         fi
     fi
 
