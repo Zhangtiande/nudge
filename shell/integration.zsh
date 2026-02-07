@@ -33,6 +33,8 @@ fi
 # Auto mode state
 typeset -g _nudge_auto_suggestion=""
 typeset -g _nudge_auto_warning=""
+typeset -g _nudge_auto_reason=""
+typeset -g _nudge_auto_diff_hint=""
 typeset -g _nudge_last_buffer=""
 typeset -g _nudge_last_warning_buffer=""
 typeset -g _nudge_region_highlight_entry=""
@@ -151,6 +153,13 @@ _nudge_clear_autosuggest_preview() {
     if (( ${+widgets[autosuggest-clear]} )); then
         zle autosuggest-clear 2>/dev/null
     fi
+}
+
+_nudge_clear_auto_state() {
+    _nudge_auto_suggestion=""
+    _nudge_auto_warning=""
+    _nudge_auto_reason=""
+    _nudge_auto_diff_hint=""
 }
 
 _nudge_overlay_set_message() {
@@ -324,7 +333,7 @@ _nudge_diagnosis_preexec() {
 
     # Clear any pending diagnosis suggestion when user executes a new command
     # This prevents stale suggestions from appearing on next Tab press
-    _nudge_auto_suggestion=""
+    _nudge_clear_auto_state
     _nudge_overlay_clear_message
 
     _nudge_last_command="$1"
@@ -350,7 +359,7 @@ _nudge_diagnosis_precmd() {
     # Clear any stale diagnosis suggestion at the start of each prompt
     # This handles cases where user pressed Enter without accepting the suggestion
     # or when preexec wasn't called (e.g., empty command)
-    _nudge_auto_suggestion=""
+    _nudge_clear_auto_state
     _nudge_overlay_clear_message
 
     # Restore stderr immediately (only if we captured it)
@@ -423,6 +432,9 @@ _nudge_diagnosis_precmd() {
             # Show suggestion with prompt to accept
             if [[ -n "$suggestion" && "$suggestion" != "$message" ]]; then
                 _nudge_auto_suggestion="$suggestion"
+                _nudge_auto_warning=""
+                _nudge_auto_reason=""
+                _nudge_auto_diff_hint=""
                 # Print suggestion with visual hint
                 echo -e "\033[90m💡 Suggested fix: \033[0m\033[1m$suggestion\033[0m \033[90m(press Tab to accept)\033[0m"
             fi
@@ -466,16 +478,14 @@ _nudge_complete() {
         if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
             local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
             warning_message="${warning_message# }"
-            _nudge_auto_suggestion=""
-            _nudge_auto_warning=""
+            _nudge_clear_auto_state
             _nudge_show_warning "$warning_message"
             return
         fi
         BUFFER="$suggestion"
         CURSOR=${#BUFFER}
         # Clear any auto suggestion
-        _nudge_auto_suggestion=""
-        _nudge_auto_warning=""
+        _nudge_clear_auto_state
         POSTDISPLAY=""
         _nudge_clear_own_highlight
         _nudge_overlay_clear_message
@@ -491,7 +501,7 @@ _nudge_complete() {
 # Cancel any pending auto completion (wrapper for compatibility)
 _nudge_auto_cancel() {
     _nudge_async_cancel
-    _nudge_auto_suggestion=""
+    _nudge_clear_auto_state
     if [[ "$_nudge_overlay_mode_enabled" != "true" ]]; then
         POSTDISPLAY=""
     fi
@@ -571,9 +581,9 @@ _nudge_fetch_async() {
         # Send request generation for response arbitration
         echo "$current_generation"
 
-        # Fetch suggestion
-        local suggestion
-        suggestion=$(nudge complete --format plain \
+        # Fetch suggestion list row (risk, command, warning, why, diff)
+        local list_rows first_row
+        list_rows=$(nudge complete --format list \
             --buffer "$current_buffer" \
             --cursor "$current_cursor" \
             --cwd "$PWD" \
@@ -581,9 +591,23 @@ _nudge_fetch_async() {
             --shell-mode "zsh-auto" \
             --time-bucket $((EPOCHSECONDS / 2)) \
             --last-exit-code "$_nudge_last_exit" 2>/dev/null)
+        first_row="${list_rows%%$'\n'*}"
 
-        # Output suggestion
-        echo -nE "$suggestion"
+        # Backward-compat fallback for older daemons that may not emit list rows.
+        if [[ -z "$first_row" ]]; then
+            local suggestion
+            suggestion=$(nudge complete --format plain \
+                --buffer "$current_buffer" \
+                --cursor "$current_cursor" \
+                --cwd "$PWD" \
+                --session "zsh-$$" \
+                --shell-mode "zsh-auto" \
+                --time-bucket $((EPOCHSECONDS / 2)) \
+                --last-exit-code "$_nudge_last_exit" 2>/dev/null)
+            echo -nE "$suggestion"
+        else
+            echo -nE "__NUDGE_LIST__${first_row}"
+        fi
     )
 
     # Workaround for ^C bug in older zsh versions
@@ -647,13 +671,34 @@ _nudge_async_update() {
         _nudge_last_applied_generation="$_nudge_async_generation_temp"
         _nudge_async_generation_temp=0
 
-        # Check for warning prefix
-        if [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
+        if [[ "$suggestion" == __NUDGE_LIST__* ]]; then
+            local list_row="${suggestion#__NUDGE_LIST__}"
+            local risk command warning why diff
+            IFS=$'\t' read -r risk command warning why diff <<< "$list_row"
+            _nudge_auto_reason="$why"
+            _nudge_auto_diff_hint="$diff"
+
+            if [[ "$risk" == "high" ]]; then
+                _nudge_auto_suggestion=""
+                _nudge_auto_warning="$warning"
+                [[ -z "$_nudge_auto_warning" ]] && _nudge_auto_warning="This suggestion is marked high risk."
+            elif [[ -n "$command" ]]; then
+                _nudge_auto_suggestion="$command"
+                _nudge_auto_warning=""
+            else
+                _nudge_clear_auto_state
+            fi
+        # Check for warning prefix (plain fallback path)
+        elif [[ "$suggestion" == ${NUDGE_WARNING_PREFIX}* ]]; then
             local warning_message="${suggestion#${NUDGE_WARNING_PREFIX}}"
             warning_message="${warning_message# }"
+            _nudge_auto_reason=""
+            _nudge_auto_diff_hint=""
             _nudge_auto_warning="$warning_message"
             _nudge_auto_suggestion=""
         else
+            _nudge_auto_reason=""
+            _nudge_auto_diff_hint=""
             _nudge_auto_warning=""
             _nudge_auto_suggestion="$suggestion"
         fi
@@ -718,9 +763,16 @@ _nudge_overlay_render() {
     local key_hint="Tab"
     local detail_hint="F1 details"
     local suggestion="$BUFFER"
-    local why="prefix completion"
+    local why="$_nudge_auto_reason"
     local risk="low"
-    local diff="+<none>"
+    local diff="$_nudge_auto_diff_hint"
+
+    if [[ -z "$why" ]]; then
+        why="prefix completion"
+    fi
+    if [[ -z "$diff" ]]; then
+        diff="+<none>"
+    fi
 
     if [[ "$_nudge_overlay_mode_enabled" == "true" || "$_nudge_ghost_owner_effective" == "autosuggestions" ]]; then
         key_hint="Ctrl+G"
@@ -732,7 +784,11 @@ _nudge_overlay_render() {
 
     if [[ -n "$_nudge_auto_warning" ]]; then
         risk="high"
-        why="safety check flagged"
+        if [[ -z "$_nudge_auto_reason" ]]; then
+            why="safety check flagged"
+        fi
+    elif [[ -n "$_nudge_auto_diff_hint" ]]; then
+        :
     elif [[ "$suggestion" == "$BUFFER"* ]]; then
         local tail="${suggestion:${#BUFFER}}"
         if [[ -n "$tail" ]]; then
@@ -802,8 +858,7 @@ _nudge_overlay_line_pre_redraw() {
 
     case "$LASTWIDGET" in
         up-line-or-history|down-line-or-history|up-line-or-beginning-search|down-line-or-beginning-search|history-*)
-            _nudge_auto_suggestion=""
-            _nudge_auto_warning=""
+            _nudge_clear_auto_state
             _nudge_overlay_clear_message
             return
             ;;
@@ -814,8 +869,7 @@ _nudge_overlay_line_pre_redraw() {
     fi
 
     _nudge_last_buffer="$BUFFER"
-    _nudge_auto_suggestion=""
-    _nudge_auto_warning=""
+    _nudge_clear_auto_state
     _nudge_last_warning_buffer=""
 
     if (( ${#BUFFER} >= 2 )); then
@@ -855,15 +909,14 @@ _nudge_auto_accept() {
             _nudge_show_warning "$_nudge_auto_warning"
             _nudge_last_warning_buffer="$BUFFER"
         fi
-        _nudge_auto_warning=""
-        _nudge_auto_suggestion=""
+        _nudge_clear_auto_state
         _nudge_overlay_clear_message
         return
     fi
     if [[ -n "$_nudge_auto_suggestion" ]]; then
         BUFFER="$_nudge_auto_suggestion"
         CURSOR=${#BUFFER}
-        _nudge_auto_suggestion=""
+        _nudge_clear_auto_state
         if [[ "$_nudge_overlay_mode_enabled" != "true" ]]; then
             typeset -g POSTDISPLAY=""
         fi
@@ -1071,7 +1124,7 @@ _nudge_widget_modify() {
         _nudge_last_buffer="$BUFFER"
         _nudge_fetch_async
     else
-        _nudge_auto_suggestion=""
+        _nudge_clear_auto_state
         POSTDISPLAY=""
         _nudge_clear_own_highlight
         _nudge_overlay_clear_message
@@ -1086,7 +1139,7 @@ _nudge_widget_clear() {
     shift
 
     # Clear suggestion
-    _nudge_auto_suggestion=""
+    _nudge_clear_auto_state
     POSTDISPLAY=""
     _nudge_clear_own_highlight
     _nudge_overlay_clear_message
@@ -1104,7 +1157,7 @@ _nudge_widget_accept() {
     # If we have a suggestion and cursor is at end, accept it
     if [[ -n "$_nudge_auto_suggestion" && $CURSOR -eq ${#BUFFER} && -n "$POSTDISPLAY" ]]; then
         BUFFER="$_nudge_auto_suggestion"
-        _nudge_auto_suggestion=""
+        _nudge_clear_auto_state
         POSTDISPLAY=""
         _nudge_clear_own_highlight
         _nudge_overlay_clear_message
