@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-02-07
+
 ### Breaking Changes
 - Unified all nudge runtime/config paths under `~/.nudge` (for example: `config/`, `run/`, `logs/`, `data/`, `modules/`, `shell/`, `lib/`).
 - `nudge setup` now initializes fresh configuration under the new root; old path compatibility/migration is intentionally not provided.
 - Removed deprecated configuration entrypoints and legacy shell setup scripts (`nudge config`, `shell/setup-shell.sh`, `shell/setup-shell.ps1`).
+
+### Fixed
+- In autosuggestions-owned ghost mode, `Ctrl+G` now accepts Nudge overlay suggestions and clears stale gray preview text.
 
 ## [0.4.4] - 2026-02-06
 
