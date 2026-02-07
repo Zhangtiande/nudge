@@ -335,10 +335,7 @@ fn parse_json_completion(text: &str) -> Option<CompletionDraft> {
 }
 
 fn sanitize_summary(summary: &str) -> Option<String> {
-    let normalized = summary
-        .replace('\t', " ")
-        .replace('\n', " ")
-        .replace('\r', " ");
+    let normalized = summary.replace(['\t', '\n', '\r'], " ");
     let trimmed = normalized.trim();
     if trimmed.is_empty() {
         return None;

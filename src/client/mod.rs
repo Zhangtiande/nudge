@@ -119,10 +119,7 @@ fn build_list_output(response: &CompletionResponse, buffer: &str) -> Option<Stri
 }
 
 fn sanitize_list_field(input: &str) -> String {
-    input
-        .replace('\t', " ")
-        .replace('\n', " ")
-        .replace('\r', " ")
+    input.replace(['\t', '\n', '\r'], " ")
 }
 
 fn build_why(buffer: &str, suggestion: &crate::protocol::Suggestion) -> String {
