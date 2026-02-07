@@ -1,5 +1,7 @@
 # Nudge
 
+![Nudge Cover](./assets/readme-cover.png)
+
 > Nudge 是一个给开发者用的 Shell 补全助手，用项目上下文帮你更快、更稳地输入命令。
 
 [English](./README.md) | [中文](./README_zh.md)

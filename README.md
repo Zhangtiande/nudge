@@ -1,5 +1,7 @@
 # Nudge
 
+![Nudge Cover](./assets/readme-cover.png)
+
 > Nudge is a shell completion assistant for developers who want faster, safer command entry with project context.
 
 [English](./README.md) | [中文](./README_zh.md)
