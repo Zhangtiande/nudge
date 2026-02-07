@@ -1,140 +1,72 @@
 # Auto Mode Guide
 
-Nudge supports two trigger modes:
+Auto mode provides live ghost-text suggestions while you type.
 
-| Mode | Description | Supported Shells |
-|------|-------------|------------------|
-| **Manual** (default) | Press `Ctrl+E` to trigger | All shells |
-| **Auto** | Ghost/overlay suggestions appear while typing | Zsh only |
+## Scope
 
-## Enabling Auto Mode
+- Supported shell: **Zsh only**
+- Bash/PowerShell/CMD stay on manual trigger mode
 
-Edit your config file:
+## Quick Enable
+
+`~/.nudge/config/config.yaml`:
 
 ```yaml
 trigger:
   mode: auto
-  auto_delay_ms: 500         # Delay hint for non-Zsh integrations (Zsh is event-driven)
-  zsh_ghost_owner: auto      # auto | nudge | autosuggestions
-  zsh_overlay_backend: message # message | rprompt
+  zsh_ghost_owner: auto
+  zsh_overlay_backend: message
 ```
 
-- `zsh_ghost_owner: auto`
-  - Prefer `zsh-autosuggestions` when present
-  - Fallback to Nudge ghost text if not present
-- `zsh_ghost_owner: nudge`
-  - Nudge owns ghost text + partial accept keys
-- `zsh_ghost_owner: autosuggestions`
-  - Keep `Tab` for autosuggestions
-  - Nudge uses overlay accept on `Ctrl+G`
-- `zsh_overlay_backend: message`
-  - Render overlay via `zle -M` message line (default)
-- `zsh_overlay_backend: rprompt`
-  - Render overlay via right prompt (`RPS1`) with save/restore semantics
-
-Restart your shell:
+Apply:
 
 ```bash
-source ~/.zshrc
+nudge restart
 ```
 
-## How It Works
+## Recommended Zsh Paths
 
-1. **Event-driven fetch**
-   - Nudge fetches when input events settle (`PENDING`/`KEYS_QUEUED_COUNT` drained)
-   - No sleep-based debounce loop in Zsh integration
-2. **Daemon cache fast path**
-   - Auto requests are served by daemon cache when hot
-   - Slow refresh can update the preview/overlay asynchronously
-3. **Dual presentation**
-   - Ghost text (`POSTDISPLAY`) when Nudge owns ghost rendering
-   - Overlay line when `autosuggestions` owns ghost rendering
-   - `message` backend uses plain `[nudge] [risk]` badges for max compatibility
-   - `rprompt` backend uses colored badges
-4. **Progressive accept**
-   - Full / word acceptance (`Tab` and `Right Arrow`)
-
-`risk` in overlay is driven by daemon safety results (`NUDGE_WARNING`), not local shell-side regex detection.
-
-## Key Bindings
-
-| Key | Action | Mode |
-|-----|--------|------|
-| `Ctrl+E` | Trigger completion | Both |
-| `Alt+/` | Open popup candidate selector | Bash (manual) |
-| `Tab` | Accept full suggestion | Auto (Nudge ghost owner) |
-| `Right Arrow` | Accept next word | Auto (Zsh) |
-| `F1` | Toggle explanation details (`why/risk/diff`) | Auto (Zsh) |
-| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion and clear autosuggestions gray preview when ghost owner is `autosuggestions` | Zsh |
-
-## Shell Support
-
-### Zsh (Recommended)
-
-Full auto mode support:
-- Ghost text via `POSTDISPLAY` (when Nudge owns ghost)
-- Overlay mode via hooks (`line-pre-redraw`, `line-finish`)
-- Async completion via `zle -F`
-- Explanation layer with `F1`
-- Partial accept control by word (`Right Arrow`)
-
-### Bash
-
-**Auto mode not supported.** Bash readline lacks:
-- Reliable buffer-change hooks
-- ZLE-style async redraw hooks
-- Native ghost/overlay rendering primitives
-
-Use manual mode instead:
-- `Ctrl+E`: quick apply first suggestion
-- `Alt+/`: open popup selector with multiple candidates
-- `Alt+/` with `fzf`/`sk` shows a preview panel (`risk/why/diff/warn`)
-- `high` risk popup candidates require confirmation before apply (set `NUDGE_POPUP_CONFIRM_RISKY=0` to disable)
-
-### PowerShell
-
-**Auto mode not supported.** PSReadLine predictor deadlines are too strict for LLM latency.
-
-Use manual mode (`Ctrl+E`) instead.
-
-## Configuration
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `trigger.mode` | string | `manual` | `manual` or `auto` |
-| `trigger.hotkey` | string | `\C-e` | Manual trigger key |
-| `trigger.auto_delay_ms` | integer | 500 | Delay hint (legacy for Zsh auto mode) |
-| `trigger.zsh_ghost_owner` | string | `auto` | `auto`, `nudge`, or `autosuggestions` |
-| `trigger.zsh_overlay_backend` | string | `message` | `message` or `rprompt` |
-
-## Troubleshooting
-
-**Suggestions not appearing**
-
-```bash
-nudge status
-nudge info
-nudge doctor zsh
-```
-
-**Overlay conflicts with other plugins**
-- Set `trigger.zsh_ghost_owner: autosuggestions`
-- Keep Nudge acceptance on `Ctrl+G`
-- Check `nudge doctor zsh` key-binding output
-
-**Prompt redraw feels noisy**
-- Use `trigger.zsh_overlay_backend: message` (default)
-- `rprompt` backend redraws right prompt by design
-
-## Disabling Auto Mode
+### A) Nudge owns ghost text
 
 ```yaml
 trigger:
-  mode: manual
+  mode: auto
+  zsh_ghost_owner: nudge
 ```
 
-## See Also
+### B) zsh-autosuggestions owns ghost text (overlay mode)
 
-- [Configuration Reference](configuration.md)
-- [CLI Reference](cli-reference.md)
-- [Shell Guides](shells/README.md)
+```yaml
+trigger:
+  mode: auto
+  zsh_ghost_owner: autosuggestions
+```
+
+In overlay mode, use `Ctrl+G` to accept Nudge suggestion.
+
+## Key Bindings (Zsh)
+
+- `Tab`: accept suggestion (when Nudge owns ghost text)
+- `Right Arrow`: accept next word
+- `F1`: toggle explanation detail
+- `Ctrl+G`: accept overlay suggestion when autosuggestions owns ghost text
+
+## Troubleshooting
+
+```bash
+nudge doctor zsh
+nudge info --field zsh_ghost_owner
+nudge info --field zsh_overlay_backend
+```
+
+If behavior looks stale:
+
+```bash
+nudge setup zsh --force
+nudge restart
+```
+
+## Boundaries
+
+- No cross-shell auto mode fallback
+- Some terminals may map function keys differently; verify with `doctor`

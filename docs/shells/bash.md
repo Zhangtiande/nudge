@@ -1,50 +1,32 @@
 # Bash Guide
 
-## Current Behavior
+Bash uses manual trigger mode with optional popup selector for ranked candidates.
 
-- Integration script: `shell/integration.bash`
-- Shell modes sent to daemon:
-  - `bash-inline` for `Ctrl+E` manual completion
-  - `bash-popup` for `Alt+/` selector
-- Primary trigger: `Ctrl+E` (fastest single-candidate path)
-- Popup trigger: `Alt+/` (candidate selector)
-- Popup backends: `fzf`, `sk`, `peco`, `builtin`
+## Modes Used
 
-## Fast Path Guarantee
+- `bash-inline`: `Ctrl+E` fast single-candidate path
+- `bash-popup`: `Alt+/` candidate selector
 
-- `Ctrl+E` must stay available.
-- `Ctrl+E` always uses `bash-inline` and returns one primary suggestion.
-- This path is intentionally the lowest-latency baseline and should not depend on popup ranking.
+## Quick Use
 
-## Candidate and Explanation Model
+- Type partial command, press `Ctrl+E` for immediate apply
+- Press `Alt+/` to open popup list and choose candidate
 
-- Bash popup requests `nudge complete --format list`.
-- List rows are emitted as:
-  - `risk<TAB>command<TAB>warning<TAB>why<TAB>diff`
-- Current max candidates in daemon popup mode: `6`.
-- Popup mode asks LLM for a ranked candidate list; local history ranking is used only as fallback when LLM returns fewer items.
-- `risk` is derived from safety warning presence.
-- `why` prefers model metadata (`reason_short`, then `summary_short`) with local heuristic fallback.
-- `diff` is generated client-side for deterministic display.
+## Popup Behavior
 
-## Known Gaps
+- Candidates are requested with `--format list`
+- Row format: `risk<TAB>command<TAB>warning<TAB>why<TAB>diff`
+- Daemon asks LLM for multiple popup candidates; local history fills gaps only when needed
+- High-risk candidates require confirmation by default
 
-- Candidate count is fixed at daemon constant today (not yet user-configurable).
+## Useful Env Vars
 
-## Recommended Improvements
+- `NUDGE_POPUP_BACKEND=auto|fzf|sk|peco|builtin`
+- `NUDGE_POPUP_SHOW_PREVIEW=0|1`
+- `NUDGE_POPUP_HEIGHT=70%`
+- `NUDGE_POPUP_CONFIRM_RISKY=0|1`
 
-1. Add shell-mode-aware prompt strategy:
-   - For `bash-popup`, request ranked candidates with compact rationale.
-2. Add structured suggestion metadata in protocol:
-   - Candidate fields: `text`, `summary_short`, `reason_short`, `risk_hint`.
-3. Keep local fallback:
-   - If metadata missing, preserve existing heuristic `why/diff` generation.
-4. Add explicit candidate-count control:
-   - Use shell-mode defaults but keep config override for upper bound.
+## Boundaries
 
-## UX Notes
-
-- High-risk candidates already require confirmation (`NUDGE_POPUP_CONFIRM_RISKY`).
-- `fzf`/`sk` default to list-only popup (no bottom preview panel), so you can see more candidates at once.
-- Set `NUDGE_POPUP_SHOW_PREVIEW=1` if you want the preview panel (`risk/why/diff/warn`) back.
-- `NUDGE_POPUP_HEIGHT` controls selector height (default `70%`).
+- No true auto ghost-text in Bash
+- Popup UX depends on selector backend availability

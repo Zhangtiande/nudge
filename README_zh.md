@@ -1,177 +1,104 @@
 # Nudge
 
-> 给你的终端一个温柔的提示 - LLM 驱动的命令行自动补全
+> Nudge 是一个给开发者用的 Shell 补全助手，用项目上下文帮你更快、更稳地输入命令。
 
 [English](./README.md) | [中文](./README_zh.md)
 
 [![CI](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml)
 [![Release](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/Zhangtiande/nudge)](https://github.com/Zhangtiande/nudge/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-
-Nudge 使用大语言模型，根据你的 Shell 历史记录、当前目录上下文和项目状态来预测和补全命令行输入。
-
-## 功能特性
-
-- **AI 智能补全** - 使用 LLM 理解上下文，提供相关命令建议
-- **项目感知** - 自动检测 Git、Node.js、Python、Rust、Docker 项目并提供深度上下文
-- **历史感知** - 从 Shell 历史记录中学习，支持相似命令搜索（类似 Ctrl+R）
-- **系统感知** - 根据操作系统、架构和 Shell 类型调整建议
-- **错误诊断** - 命令失败时自动分析错误并提供修复建议
-- **隐私优先** - 发送给 LLM 前自动清理敏感数据（API 密钥、密码等）
-- **安全警告** - 标记潜在危险命令（rm -rf、mkfs 等）
-- **多 Shell 支持** - 支持 Bash、Zsh、PowerShell 和 CMD
-- **跨平台** - 支持 Linux、macOS 和 Windows
-- **响应迅速** - 本地 LLM 响应时间 <200ms
-- **自动模式** - 输入时实时显示幽灵文字建议（仅 Zsh）
-
-## 演示
-
-**Zsh 自动模式** - 输入时实时显示幽灵文字建议：
-
-https://github.com/user-attachments/assets/766247e1-1cf2-47da-96e7-045415ede013
+[![License](https://img.shields.io/badge/license-personal%20free%20%7C%20commercial%20restricted-orange)](./LICENSE)
 
 ## 快速开始
 
-### 安装
+Linux/macOS：
 
-**Linux/macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash
 ```
 
-**Windows (PowerShell):**
+Windows（PowerShell）：
+
 ```powershell
 irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1 | iex
 ```
 
-安装脚本会自动下载二进制文件、配置 Shell 集成并启动守护进程。
-
-手动安装或从源码构建，请参阅 [安装指南](docs/installation.md)。
-
-### 基本使用
-
-安装完成后，在输入命令时按 `Ctrl+E` 即可触发补全。
+基础检查：
 
 ```bash
-# 启动守护进程（如果未自动启动）
-nudge start
-
-# 查看状态
 nudge status
-
-# 显示运行时信息
 nudge info
 ```
 
-### 配置
+试一下补全：
 
-创建配置文件 `~/.nudge/config/config.yaml`：
+1. 输入半截命令，例如 `git st`
+2. 按 `Ctrl+E` 应用建议
+3. 在 Bash 下按 `Alt+/` 打开多候选列表
 
-```yaml
-model:
-  endpoint: "http://localhost:11434/v1"  # Ollama 默认地址
-  model_name: "codellama:7b"
+## 为什么做这个
 
-trigger:
-  mode: "manual"        # "manual" 或 "auto"
-  auto_delay_ms: 500    # 延迟提示（兼容字段；Zsh 自动模式已改为事件驱动）
-  zsh_ghost_owner: "auto"  # "auto"、"nudge" 或 "autosuggestions"（仅 Zsh）
-  zsh_overlay_backend: "message"  # "message" 或 "rprompt"（仅 Zsh）
+- 减少重复敲命令的时间
+- 让建议跟当前项目状态相关
+- 在应用高风险命令前给出明确提示
 
-cache:
-  ttl_auto_ms: 300000   # 自动模式缓存 TTL
-  ttl_manual_ms: 600000 # 手动模式缓存 TTL
+## 能力
 
-diagnosis:
-  enabled: true         # 启用错误诊断
-```
+- LLM 补全（结合历史、当前目录、插件上下文）
+- 项目上下文感知：Git、Node.js、Python、Rust、Docker
+- 高风险命令警告
+- 失败命令诊断（Zsh / PowerShell）
+- 多 Shell 支持：Zsh、Bash、PowerShell、CMD
 
-完整配置选项请参阅 [配置参考](docs/configuration.md)。
+## 边界
 
-## 触发模式
+- Nudge 只给建议，不会替你执行命令
+- 自动幽灵补全目前只有 Zsh 支持
+- Bash/PowerShell/CMD 走手动触发（`Ctrl+E`）
+- Bash popup 支持多候选，其它 shell 目前仍以单候选快速路径为主
 
-| 模式 | 描述 | 支持的 Shell |
-|------|------|--------------|
-| **手动模式** | 按 `Ctrl+E` 触发 | 所有 Shell |
-| **自动模式** | 输入时自动显示幽灵文字 | 仅 Zsh |
+## 用法
 
-| 按键 | 操作 |
-|------|------|
-| `Ctrl+E` | 触发补全 |
-| `Alt+/` | 打开候选 popup（Bash 手动模式） |
-| `Tab` | 接受建议（自动模式） |
-| `Right Arrow` | 接受下一个单词（Zsh） |
-| `F1` | 切换解释详情（why/risk/diff） |
-| `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议，并清理 autosuggestions 灰色预览 |
+常用按键：
 
-Bash popup 说明：
-- `fzf` / `sk` 默认只显示候选列表（高亮当前项，不显示下方面板）
-- 设置 `NUDGE_POPUP_SHOW_PREVIEW=1` 可恢复预览面板（`risk/why/diff/warn`）
-- `high` 风险候选默认需要二次确认；设置 `NUDGE_POPUP_CONFIRM_RISKY=0` 可关闭确认
+- `Ctrl+E`：手动补全（所有 shell，最快基础路径）
+- `Alt+/`：Bash popup 候选选择
+- `Tab`：Zsh 自动模式接受建议
+- `Ctrl+G`：Zsh autosuggestions 接管 ghost text 时接受 overlay 建议
+- `F1`：切换 Zsh 解释详情
 
-按 Shell 拆分文档：
-- [Shell 指南总览](docs/shells/README.md)
-
-## 错误诊断
-
-当命令失败时，Nudge 会结合完整的项目上下文分析错误并提供修复建议。
-
-**Zsh:**
-```
-$ gti status
-zsh: command not found: gti
-❌ Typo: 'gti' should be 'git'
-
-git status          ← 按 Tab 接受（若幽灵文字由 autosuggestions 管理则按 Ctrl+G）
-```
-
-**PowerShell:**
-```
-PS> gti status
-[Error] Command not found: 'gti'
-[Tip] Typo: did you mean 'git'?
-
-PS> █               ← 按 Tab 接受
-```
-
-在配置中启用：
-```yaml
-diagnosis:
-  enabled: true
-```
-
-> [!CAUTION]
-> 启用错误诊断时，命令执行期间 stderr 会被临时捕获。这意味着 `cargo build`、`npm install`、`docker pull` 等工具的进度输出会在命令**完成后**才显示，而非实时显示。如需实时查看 stderr 输出，请设置 `diagnosis.enabled: false` 禁用诊断功能。
-
-## 项目感知上下文
-
-Nudge 自动检测项目类型并为 LLM 提供相关上下文：
-
-| 项目类型 | 检测方式 | 提供的上下文 |
-|----------|----------|--------------|
-| **Git** | `.git` 目录 | 分支、暂存文件、最近提交 |
-| **Node.js** | `package.json` | 脚本、依赖、包管理器 |
-| **Python** | `pyproject.toml`、`requirements.txt` | 依赖、虚拟环境、Python 版本 |
-| **Rust** | `Cargo.toml` | 依赖、编译目标、workspace 信息 |
-| **Docker** | `Dockerfile`、`compose.yaml` | 服务、镜像、运行中的容器 |
-
-## LLM 提供商
-
-### Ollama（本地部署）
+核心命令：
 
 ```bash
-ollama pull codellama:7b
-ollama serve
+nudge start
+nudge stop
+nudge restart
+nudge status
+nudge info
+nudge doctor zsh
+nudge doctor bash
 ```
+
+## 安装方式
+
+- 一键安装脚本：见 [docs/installation.md](docs/installation.md)
+- 源码构建：`cargo build --release`
+- 重装 shell 集成：`nudge setup <bash|zsh|powershell> --force`
+
+## 配置
+
+最小本地模型示例（`~/.nudge/config/config.yaml`）：
 
 ```yaml
 model:
   endpoint: "http://localhost:11434/v1"
   model_name: "codellama:7b"
+
+trigger:
+  mode: manual
 ```
 
-### OpenAI
+远程 API 示例：
 
 ```yaml
 model:
@@ -180,74 +107,34 @@ model:
   api_key_env: "OPENAI_API_KEY"
 ```
 
-### 阿里云 DashScope（通义千问）
+更多配置： [docs/configuration.md](docs/configuration.md)
 
-```yaml
-model:
-  endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-  model_name: "qwen-coder-plus"
-  api_key_env: "DASHSCOPE_API_KEY"
-```
+## 平台与 Shell 支持
 
-## 平台支持
+| Shell | 手动 (`Ctrl+E`) | 自动 | 诊断 | 说明 |
+|---|---|---|---|---|
+| Zsh | 支持 | 支持 | 支持 | 功能最完整 |
+| Bash | 支持 | 不支持 | 计划中 | `Alt+/` 弹出候选 |
+| PowerShell 7.2+ | 支持 | 不支持 | 支持 | 通过集成脚本/预测器 |
+| CMD | 支持 | 不支持 | 不支持 | 仅基础集成 |
 
-| 平台 | 架构 | 下载 |
-|------|------|------|
-| Linux | x86_64 (glibc) | [下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz) |
-| Linux | x86_64 (musl) | [下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64-musl.tar.gz) |
-| Linux | aarch64 | [下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-aarch64.tar.gz) |
-| macOS | x86_64 (Intel) | [下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-x86_64.tar.gz) |
-| macOS | aarch64 (Apple Silicon) | [下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-aarch64.tar.gz) |
-| Windows | x86_64 | [下载](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-windows-x86_64.zip) |
-
-### Shell 支持
-
-| Shell | 手动模式 | 自动模式 | 错误诊断 |
-|-------|----------|----------|----------|
-| Zsh | ✅ | ✅ | ✅ |
-| Bash | ✅ | ❌ | 计划中 |
-| PowerShell 7.2+ | ✅ | ❌ | ✅ |
-| PowerShell 5.1 | ✅ | ❌ | ✅ |
-| CMD | ✅ | ❌ | ❌ |
-
-## 架构设计
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Nudge 二进制文件                            │
-├─────────────────────────────┬───────────────────────────────────────┤
-│          客户端模式          │              守护进程模式              │
-├─────────────────────────────┼───────────────────────────────────────┤
-│  • 捕获输入缓冲区/光标位置   │  • IPC 服务器（Socket/Named Pipe）    │
-│  • 通过 IPC 发送请求        │  • 上下文引擎                          │
-│  • 输出补全结果             │    ├─ 历史记录、当前目录、系统信息      │
-│                             │    └─ 插件（Git、Node、Python...）     │
-│                             │  • LLM 连接器                         │
-│                             │  • 敏感数据清理器 & 安全检查器          │
-└─────────────────────────────┴───────────────────────────────────────┘
-```
-
-## 文档
+## 文档索引
 
 - [安装指南](docs/installation.md)
 - [配置参考](docs/configuration.md)
 - [CLI 参考](docs/cli-reference.md)
 - [自动模式指南](docs/auto-mode.md)
-- [路线图](ROADMAP.md)
+- [Shell 指南](docs/shells/README.md)
+- [FFI API](docs/ffi-api.md)
 
 ## 开发
 
 ```bash
-cargo build --release
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
 cargo test
-cargo clippy
-cargo fmt
 ```
-
-## 贡献
-
-欢迎贡献！请提交 Issue 或 Pull Request。
 
 ## 许可证
 
-MIT
+个人/非商业用途免费；商业用途受限且需要单独授权。详见 [LICENSE](./LICENSE)。

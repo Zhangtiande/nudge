@@ -1,52 +1,30 @@
 # Zsh Guide
 
-## Current Behavior
+Zsh is the most complete integration path (manual + auto + diagnosis).
 
-- Integration script: `shell/integration.zsh`
-- Shell modes:
-  - `zsh-inline` (`Ctrl+E` manual completion)
-  - `zsh-auto` (event-driven auto fetch)
-- Auto mode has two rendering paths:
-  - Ghost owner = `nudge`: ghost text (`POSTDISPLAY`) + optional overlay details
-  - Ghost owner = `autosuggestions`: Nudge overlay only (accept with `Ctrl+G`)
-- Overlay backend:
-  - `message` (`zle -M`)
-  - `rprompt` (`RPS1`/`RPROMPT`)
+## Modes Used
 
-## Fast Path Guarantee
+- `zsh-inline`: `Ctrl+E` fast single-candidate path
+- `zsh-auto`: live suggestions/overlay while typing
 
-- `Ctrl+E` must stay available.
-- `Ctrl+E` always uses `zsh-inline` and returns one primary suggestion.
-- Auto mode (`zsh-auto`) is additive UX and must not replace the manual fast path.
+## Quick Use
 
-## Candidate and Explanation Model
+- Manual: type command -> `Ctrl+E`
+- Auto: set `trigger.mode: auto` and restart daemon
 
-- Zsh currently consumes a single primary suggestion in plain mode.
-- Overlay explanation prefers `list` metadata (`why/diff`) when available, with local fallback.
-- `F1` toggles expanded explanation details.
+## Auto/Overlay Notes
 
-## Known Gaps
+- `zsh_ghost_owner: nudge` -> Nudge controls ghost text
+- `zsh_ghost_owner: autosuggestions` -> Nudge uses overlay, accept via `Ctrl+G`
+- `zsh_overlay_backend: message|rprompt`
+- `F1` toggles explanation details (`why/diff/risk`)
 
-- No multi-candidate flow for Zsh today.
-- Overlay line can become dense when autosuggestions + diagnosis + explanation details coexist.
-- Prompt contract is still generic, not tuned for Zsh overlay width constraints.
+## Diagnosis
 
-## Recommended Overlay Densification Controls
+- Supported in Zsh when `diagnosis.enabled: true`
+- Failed commands can show fix suggestions inline
 
-1. Introduce explicit overlay verbosity levels:
-   - `compact` (default): `risk + short diff + accept hint`
-   - `standard`: add `why`
-   - `full`: add warning + expanded suggestion metadata
-2. Set backend-specific width budgets:
-   - `message`: wider budget
-   - `rprompt`: tighter budget + earlier truncation
-3. Prioritize stable fields:
-   - Keep risk badge and accept hint always visible.
-   - Truncate details first, never controls.
-4. Add rate limiting for message refresh:
-   - Avoid noisy redraw on minor cursor activity.
+## Boundaries
 
-## Prompt Strategy Direction
-
-- For `zsh-auto` / `zsh-inline`, prefer one high-confidence command plus one short summary.
-- Keep response concise to match overlay and ghost rendering budgets.
+- Overlay density depends on terminal width
+- Function key mapping (`F1`) may vary across terminal apps

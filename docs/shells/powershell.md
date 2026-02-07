@@ -1,20 +1,24 @@
 # PowerShell Guide
 
-## Current Behavior
+PowerShell uses inline manual completion and supports failure diagnosis.
 
-- Integration script: `shell/integration.ps1`
-- Shell mode sent to daemon: `ps-inline`
-- Primary trigger: `Ctrl+E` (manual completion)
-- Diagnosis integration: enabled when `diagnosis.enabled: true`
+## Mode Used
 
-## Mode Notes
+- `ps-inline`
 
-- `ps-inline` is single-candidate mode.
-- Predictor-based auto mode in PowerShell is optional and environment-dependent.
-- Manual completion and diagnosis flows remain available regardless of predictor availability.
+## Quick Use
 
-## Fast Path Guarantee
+- Press `Ctrl+E` for completion
+- Use `nudge diagnose` flow through integration on failed commands
 
-- `Ctrl+E` must stay available.
-- `Ctrl+E` always uses `ps-inline` and returns one primary suggestion.
-- This manual path is the baseline for latency and reliability.
+## Setup
+
+```powershell
+nudge setup powershell --force
+nudge restart
+```
+
+## Boundaries
+
+- No auto ghost-text mode
+- Behavior depends on PowerShell profile loading and host capabilities

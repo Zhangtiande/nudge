@@ -1,305 +1,102 @@
 # Configuration Reference
 
-This document describes all configuration options available in Nudge.
+This document explains how to configure Nudge safely without editing source code.
 
-## Configuration File Location
+## Config Files
 
-| Platform | Path |
-|----------|------|
-| Linux/macOS | `~/.nudge/config/config.yaml` |
-| Windows | `%USERPROFILE%\.nudge\config\config.yaml` |
+- User overrides: `~/.nudge/config/config.yaml`
+- Shipped defaults: `~/.nudge/config/config.default.yaml`
+- Env override file path: `NUDGE_CONFIG`
 
-Use `nudge info` to view your configuration paths:
+Load order: defaults -> `config.default.yaml` -> `config.yaml`.
 
-```bash
-nudge info --field config_file
-```
+## Minimal Config
 
-## Full Configuration Schema
+Local model:
 
 ```yaml
-# LLM Configuration
 model:
   endpoint: "http://localhost:11434/v1"
   model_name: "codellama:7b"
-  api_key: null
-  api_key_env: null
-  timeout_ms: 5000
 
-# Context Settings
-context:
-  history_window: 20
-  include_cwd_listing: true
-  include_exit_code: true
-  include_system_info: true
-  similar_commands_enabled: true
-  similar_commands_window: 200
-  similar_commands_max: 5
-  max_files_in_listing: 50
-  max_total_tokens: 4000
-  priorities:
-    history: 80
-    cwd_listing: 60
-    plugins: 40
-
-# Trigger Settings
 trigger:
-  mode: "manual"
-  hotkey: "\\C-e"
-  auto_delay_ms: 500
-  zsh_ghost_owner: "auto"
-  zsh_overlay_backend: "message"
-
-# Cache Settings
-cache:
-  capacity: 1024
-  prefix_bytes: 80
-  ttl_auto_ms: 300000
-  ttl_manual_ms: 600000
-  ttl_negative_ms: 30000
-  stale_ratio: 0.8
-
-# Error Diagnosis
-diagnosis:
-  enabled: false
-  timeout_ms: 5000
-
-# Plugins
-plugins:
-  git:
-    enabled: true
-    depth: "standard"
-    recent_commits: 5
-    priority: 50
-  docker:
-    enabled: true
-    timeout_ms: 100
-    priority: 45
-  node:
-    enabled: true
-    timeout_ms: 100
-    priority: 45
-  python:
-    enabled: true
-    timeout_ms: 100
-    priority: 45
-  rust:
-    enabled: true
-    timeout_ms: 100
-    priority: 45
-
-# Privacy
-privacy:
-  sanitize_enabled: true
-  custom_patterns: []
-  block_dangerous: true
-  custom_blocked: []
-
-# Logging
-log:
-  level: "info"
-  file_enabled: false
+  mode: manual
 ```
 
-## Configuration Sections
-
-### Model
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `endpoint` | string | `http://localhost:11434/v1` | LLM API endpoint |
-| `model_name` | string | `codellama:7b` | Model identifier |
-| `api_key` | string | null | Direct API key |
-| `api_key_env` | string | null | Environment variable for API key |
-| `timeout_ms` | integer | 5000 | Request timeout (ms) |
-
-**Examples:**
+Remote model:
 
 ```yaml
-# Ollama (local)
-model:
-  endpoint: "http://localhost:11434/v1"
-  model_name: "codellama:7b"
-
-# OpenAI
 model:
   endpoint: "https://api.openai.com/v1"
   model_name: "gpt-4o-mini"
   api_key_env: "OPENAI_API_KEY"
-
-# Alibaba DashScope
-model:
-  endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-  model_name: "qwen-coder-plus"
-  api_key_env: "DASHSCOPE_API_KEY"
 ```
 
-### Context
+## High-Impact Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `history_window` | integer | 20 | Recent commands to include |
-| `include_cwd_listing` | boolean | true | Include directory files |
-| `include_exit_code` | boolean | true | Include last exit code |
-| `include_system_info` | boolean | true | Include OS, arch, shell info |
-| `similar_commands_enabled` | boolean | true | Enable similar command search |
-| `similar_commands_window` | integer | 200 | History entries to search |
-| `similar_commands_max` | integer | 5 | Max similar commands |
-| `max_files_in_listing` | integer | 50 | Max files from CWD |
-| `max_total_tokens` | integer | 4000 | Max context tokens |
+### `model`
 
-**Priority Configuration:**
+- `endpoint`: OpenAI-compatible endpoint
+- `model_name`: model id
+- `api_key` / `api_key_env`: auth
+- `timeout_ms`: request timeout
 
-Higher priority = kept longer during truncation (1-100).
+### `trigger`
 
-| Source | Default | Description |
-|--------|---------|-------------|
-| `history` | 80 | Command history |
-| `cwd_listing` | 60 | Directory files |
-| `plugins` | 40 | Plugin context |
+- `mode`: `manual` or `auto`
+- `hotkey`: default `\C-e`
+- `zsh_ghost_owner`: `auto|nudge|autosuggestions`
+- `zsh_overlay_backend`: `message|rprompt`
 
-### Trigger
+### `privacy`
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `mode` | string | `manual` | `manual` or `auto` |
-| `hotkey` | string | `\C-e` | Manual trigger key |
-| `auto_delay_ms` | integer | 500 | Delay hint (legacy for Zsh auto mode) |
-| `zsh_ghost_owner` | string | `auto` | Zsh ghost text owner: `auto`, `nudge`, or `autosuggestions` |
-| `zsh_overlay_backend` | string | `message` | Zsh overlay backend: `message` or `rprompt` |
+- `sanitize_enabled`: remove secrets from context
+- `block_dangerous`: risk warning gate
+- `custom_patterns`, `custom_blocked`: org-specific rules
 
-When `zsh_ghost_owner` resolves to `autosuggestions`, Nudge keeps `Tab` for autosuggestions and uses `Ctrl+G` to accept Nudge overlay/diagnosis suggestions while clearing autosuggestions gray preview text.
+### `diagnosis`
 
-When `zsh_overlay_backend` is:
-- `message`: use `zle -M` message line (default, lower prompt redraw impact)
-- `rprompt`: render overlay in right prompt (`RPS1`) with save/restore
+- `enabled`: enable failed-command diagnosis
+- `capture_stderr`: capture stderr for analysis (zsh path)
+- `interactive_commands`: skip capture for interactive tools
 
-### Cache
+### `log`
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `capacity` | integer | 1024 | Max cache entries (LRU) |
-| `prefix_bytes` | integer | 80 | Max bytes of prefix for key hashing |
-| `ttl_auto_ms` | integer | 300000 | Auto mode TTL (ms) |
-| `ttl_manual_ms` | integer | 600000 | Manual mode TTL (ms) |
-| `ttl_negative_ms` | integer | 30000 | Negative cache TTL (ms) |
-| `stale_ratio` | float | 0.8 | Stale-while-revalidate threshold |
+- `level`: `trace|debug|info|warn|error`
+- `file_enabled`: write logs to `~/.nudge/logs`
 
-### Diagnosis
+## Practical Profiles
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enabled` | boolean | false | Enable error diagnosis |
-| `timeout_ms` | integer | 5000 | Diagnosis timeout (ms) |
-
-When enabled, Nudge analyzes failed commands with full project context:
-- System information (OS, architecture, shell)
-- Command history (session-based)
-- Project plugins (Git, Node, Python, Rust, Docker)
-- Directory listing
-
-### Plugins
-
-All plugins share common options:
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `enabled` | boolean | true | Enable plugin |
-| `timeout_ms` | integer | 100 | Collection timeout |
-| `priority` | integer | 45-50 | Truncation priority |
-
-**Git Plugin:**
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `depth` | string | `standard` | `light`, `standard`, or `detailed` |
-| `recent_commits` | integer | 5 | Commits to include |
-
-Depth levels:
-- `light`: Branch name, clean/dirty status (~20ms)
-- `standard`: + staged files, recent commits (~35ms)
-- `detailed`: + unstaged files, diff stats (~50ms)
-
-### Privacy
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `sanitize_enabled` | boolean | true | Redact sensitive data |
-| `custom_patterns` | array | [] | Custom regex patterns |
-| `block_dangerous` | boolean | true | Warn on dangerous commands |
-| `custom_blocked` | array | [] | Custom blocked patterns |
-
-**Built-in sanitization:**
-- API keys (OpenAI, GitHub, AWS)
-- Bearer tokens
-- Passwords in CLI flags
-- URL credentials
-- Private keys
-
-**Built-in dangerous patterns:**
-- `rm -rf /`, `rm -rf ~`
-- `mkfs`, `dd if=`
-- Fork bombs
-
-### Logging
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `level` | string | `info` | `trace`, `debug`, `info`, `warn`, `error` |
-| `file_enabled` | boolean | false | Enable file logging |
-
-Log file locations:
-- Linux/macOS: `~/.nudge/logs/`
-- Windows: `%USERPROFILE%\.nudge\logs\`
-
-## Example Configurations
-
-### Minimal (Performance)
+Latency-first:
 
 ```yaml
 context:
-  history_window: 5
+  history_window: 10
   include_cwd_listing: false
-  max_total_tokens: 1000
 plugins:
-  git:
-    depth: "light"
+  docker:
+    enabled: false
 ```
 
-### Maximum Privacy
+Safety-first:
 
 ```yaml
 privacy:
   sanitize_enabled: true
   block_dangerous: true
-  custom_patterns:
-    - "my-company-secret-\\d+"
-  custom_blocked:
-    - "DROP TABLE"
+diagnosis:
+  enabled: true
 ```
 
-### Auto Mode (Zsh)
+## Validate and Observe
 
-```yaml
-trigger:
-  mode: auto
-  auto_delay_ms: 400
-  zsh_ghost_owner: auto
-  zsh_overlay_backend: message
+```bash
+nudge info --json
+nudge doctor zsh
+nudge doctor bash
 ```
 
-## Environment Variables
+## Boundaries
 
-| Variable | Description |
-|----------|-------------|
-| `NUDGE_CONFIG` | Override config file path (preferred) |
-| `SMARTSHELL_CONFIG` | Legacy override variable (fallback; deprecated) |
-| `RUST_LOG` | Override log level (e.g., `nudge=debug`) |
-
-When both `NUDGE_CONFIG` and `SMARTSHELL_CONFIG` are set, `NUDGE_CONFIG` takes precedence.
-
-## See Also
-
-- [CLI Reference](cli-reference.md)
-- [Auto Mode Guide](auto-mode.md)
-- [Installation Guide](installation.md)
+- Bash/CMD do not gain true auto ghost-text mode from config alone
+- Over-aggressive custom regex may hide useful context

@@ -1,17 +1,17 @@
 # CMD Guide
 
-## Current Behavior
+CMD integration is basic manual completion only.
 
-- Integration script: `shell/integration.cmd`
-- Shell mode sent to daemon: `cmd-inline`
-- Usage surface: `nudge-complete <partial command>` macro
+## Mode Used
 
-## Mode Notes
+- `cmd-inline`
 
-- `cmd-inline` is single-candidate mode.
-- CMD integration does not provide native popup/overlay UX.
+## Quick Use
 
-## Fast Path Guarantee
+- Trigger completion manually with configured hotkey (`Ctrl+E` path)
 
-- `cmd-inline` remains the baseline path for low-latency manual completion.
-- This path should stay single-candidate and avoid extra ranking overhead.
+## Boundaries
+
+- No auto mode
+- No diagnosis integration
+- Setup is more limited than Bash/Zsh/PowerShell

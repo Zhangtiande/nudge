@@ -1,177 +1,104 @@
 # Nudge
 
-> A gentle nudge for your shell - LLM-powered CLI auto-completion
+> Nudge is a shell completion assistant for developers who want faster, safer command entry with project context.
 
 [English](./README.md) | [中文](./README_zh.md)
 
 [![CI](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/ci.yml)
 [![Release](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml/badge.svg)](https://github.com/Zhangtiande/nudge/actions/workflows/release.yml)
 [![Latest Release](https://img.shields.io/github/v/release/Zhangtiande/nudge)](https://github.com/Zhangtiande/nudge/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-
-Nudge uses Large Language Models to predict and complete command-line inputs based on your shell history, current directory context, and project state.
-
-## Features
-
-- **AI-Powered Completions** - Uses LLM to understand context and suggest relevant commands
-- **Project-Aware** - Automatically detects Git, Node.js, Python, Rust, Docker projects and provides deep context
-- **History-Aware** - Learns from your shell history with similar command search (like Ctrl+R)
-- **System-Aware** - Adapts suggestions based on your OS, architecture, and shell type
-- **Error Diagnosis** - Automatically analyzes failed commands and suggests fixes
-- **Privacy-First** - Sanitizes sensitive data (API keys, passwords) before sending to LLM
-- **Safety Warnings** - Flags potentially dangerous commands (rm -rf, mkfs, etc.)
-- **Multi-Shell** - Works with Bash, Zsh, PowerShell, and CMD
-- **Cross-Platform** - Supports Linux, macOS, and Windows
-- **Fast** - <200ms response time with local LLMs
-- **Auto Mode** - Ghost text suggestions as you type (Zsh only)
-
-## Demo
-
-**Zsh Auto Mode** - Ghost text suggestions appear as you type:
-
-https://github.com/user-attachments/assets/766247e1-1cf2-47da-96e7-045415ede013
+[![License](https://img.shields.io/badge/license-personal%20free%20%7C%20commercial%20restricted-orange)](./LICENSE)
 
 ## Quick Start
 
-### Installation
+Linux/macOS:
 
-**Linux/macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.sh | bash
 ```
 
-**Windows (PowerShell):**
+Windows (PowerShell):
+
 ```powershell
 irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1 | iex
 ```
 
-The installer downloads the binary, configures shell integration, and starts the daemon.
-
-For manual installation or building from source, see the [Installation Guide](docs/installation.md).
-
-### Basic Usage
-
-After installation, press `Ctrl+E` while typing a command to trigger completion.
+Basic check:
 
 ```bash
-# Start daemon (if not auto-started)
-nudge start
-
-# Check status
 nudge status
-
-# Show runtime info
 nudge info
 ```
 
-### Configuration
+Try completion in shell:
 
-Create `~/.nudge/config/config.yaml`:
+1. Type a partial command, e.g. `git st`
+2. Press `Ctrl+E` to apply a suggestion
+3. In Bash, press `Alt+/` to open multi-candidate popup
 
-```yaml
-model:
-  endpoint: "http://localhost:11434/v1"  # Ollama default
-  model_name: "codellama:7b"
+## Why Nudge
 
-trigger:
-  mode: "manual"        # "manual" or "auto"
-  auto_delay_ms: 500    # Delay hint (legacy; Zsh auto mode is event-driven)
-  zsh_ghost_owner: "auto"  # "auto", "nudge", or "autosuggestions" (Zsh only)
-  zsh_overlay_backend: "message"  # "message" or "rprompt" (Zsh only)
+- Reduce repeated typing for common CLI workflows
+- Keep suggestions aware of current project state
+- Add risk checks before applying dangerous commands
 
-cache:
-  ttl_auto_ms: 300000   # Auto mode cache TTL
-  ttl_manual_ms: 600000 # Manual mode cache TTL
+## Capabilities
 
-diagnosis:
-  enabled: true         # Enable error diagnosis
-```
+- LLM completion with context from history, cwd, and plugins
+- Project-aware context: Git, Node.js, Python, Rust, Docker
+- Safety warnings for dangerous commands
+- Error diagnosis for failed commands (Zsh / PowerShell)
+- Multi-shell support: Zsh, Bash, PowerShell, CMD
 
-See [Configuration Reference](docs/configuration.md) for all options.
+## Boundaries
 
-## Trigger Modes
+- Nudge suggests commands; it does not execute them for you
+- Auto ghost-text mode is only available in Zsh
+- Bash/PowerShell/CMD use manual trigger mode (`Ctrl+E`)
+- Bash popup can show multiple candidates; other shells currently use single-candidate apply path
 
-| Mode | Description | Supported Shells |
-|------|-------------|------------------|
-| **Manual** | Press `Ctrl+E` to trigger | All shells |
-| **Auto** | Ghost text appears as you type | Zsh only |
+## Usage
 
-| Key | Action |
-|-----|--------|
-| `Ctrl+E` | Trigger completion |
-| `Alt+/` | Open popup candidate selector (Bash manual mode) |
-| `Tab` | Accept suggestion (auto mode) |
-| `Right Arrow` | Accept next word (Zsh) |
-| `F1` | Toggle explanation details (why/risk/diff) in overlay |
-| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion and clear autosuggestions gray preview when `trigger.zsh_ghost_owner: autosuggestions` |
+Common keys:
 
-Bash popup notes:
-- `fzf` / `sk` default to list-only mode (highlight selected row, no bottom preview panel)
-- set `NUDGE_POPUP_SHOW_PREVIEW=1` to re-enable the preview panel (`risk/why/diff/warn`)
-- `high` risk candidates require confirmation before apply (set `NUDGE_POPUP_CONFIRM_RISKY=0` to skip confirmation)
+- `Ctrl+E`: manual completion (all shells, fastest baseline path)
+- `Alt+/`: Bash popup selector
+- `Tab`: accept auto suggestion in Zsh auto mode
+- `Ctrl+G`: accept overlay suggestion when Zsh autosuggestions owns ghost text
+- `F1`: toggle Zsh explanation details
 
-Shell-specific docs:
-- [Shell Guides](docs/shells/README.md)
-
-## Error Diagnosis
-
-When a command fails, Nudge analyzes the error with full project context and suggests a fix.
-
-**Zsh:**
-```
-$ gti status
-zsh: command not found: gti
-❌ Typo: 'gti' should be 'git'
-
-git status          ← Tab to accept (or Ctrl+G when autosuggestions owns ghost text)
-```
-
-**PowerShell:**
-```
-PS> gti status
-[Error] Command not found: 'gti'
-[Tip] Typo: did you mean 'git'?
-
-PS> █               ← Tab to accept
-```
-
-Enable in config:
-```yaml
-diagnosis:
-  enabled: true
-```
-
-> [!CAUTION]
-> When error diagnosis is enabled, stderr is temporarily captured during command execution. This means progress output from tools like `cargo build`, `npm install`, or `docker pull` will appear **after** the command completes rather than in real-time. If you need real-time stderr output, disable diagnosis with `diagnosis.enabled: false`.
-
-## Project-Aware Context
-
-Nudge automatically detects your project type and provides relevant context to the LLM:
-
-| Project Type | Detection | Context Provided |
-|--------------|-----------|------------------|
-| **Git** | `.git` directory | Branch, staged files, recent commits |
-| **Node.js** | `package.json` | Scripts, dependencies, package manager |
-| **Python** | `pyproject.toml`, `requirements.txt` | Dependencies, virtual env, Python version |
-| **Rust** | `Cargo.toml` | Dependencies, targets, workspace info |
-| **Docker** | `Dockerfile`, `compose.yaml` | Services, images, running containers |
-
-## LLM Providers
-
-### Ollama (Local)
+Core commands:
 
 ```bash
-ollama pull codellama:7b
-ollama serve
+nudge start
+nudge stop
+nudge restart
+nudge status
+nudge info
+nudge doctor zsh
+nudge doctor bash
 ```
+
+## Installation Options
+
+- One-click scripts: see [docs/installation.md](docs/installation.md)
+- Source build: `cargo build --release`
+- Shell integration refresh: `nudge setup <bash|zsh|powershell> --force`
+
+## Configuration
+
+Minimal local model example (`~/.nudge/config/config.yaml`):
 
 ```yaml
 model:
   endpoint: "http://localhost:11434/v1"
   model_name: "codellama:7b"
+
+trigger:
+  mode: manual
 ```
 
-### OpenAI
+Remote API example:
 
 ```yaml
 model:
@@ -180,52 +107,16 @@ model:
   api_key_env: "OPENAI_API_KEY"
 ```
 
-### Alibaba DashScope (Qwen)
+More options: [docs/configuration.md](docs/configuration.md)
 
-```yaml
-model:
-  endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-  model_name: "qwen-coder-plus"
-  api_key_env: "DASHSCOPE_API_KEY"
-```
+## Platform and Shell Matrix
 
-## Platform Support
-
-| Platform | Architecture | Download |
-|----------|--------------|----------|
-| Linux | x86_64 (glibc) | [Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64.tar.gz) |
-| Linux | x86_64 (musl) | [Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-x86_64-musl.tar.gz) |
-| Linux | aarch64 | [Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-linux-aarch64.tar.gz) |
-| macOS | x86_64 (Intel) | [Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-x86_64.tar.gz) |
-| macOS | aarch64 (Apple Silicon) | [Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-macos-aarch64.tar.gz) |
-| Windows | x86_64 | [Download](https://github.com/Zhangtiande/nudge/releases/latest/download/nudge-windows-x86_64.zip) |
-
-### Shell Support
-
-| Shell | Manual Mode | Auto Mode | Error Diagnosis |
-|-------|-------------|-----------|-----------------|
-| Zsh | ✅ | ✅ | ✅ |
-| Bash | ✅ | ❌ | Planned |
-| PowerShell 7.2+ | ✅ | ❌ | ✅ |
-| PowerShell 5.1 | ✅ | ❌ | ✅ |
-| CMD | ✅ | ❌ | ❌ |
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          Nudge Binary                               │
-├─────────────────────────────┬───────────────────────────────────────┤
-│         Client Mode         │            Daemon Mode                │
-├─────────────────────────────┼───────────────────────────────────────┤
-│  • Capture buffer/cursor    │  • IPC Server (Socket/Named Pipe)     │
-│  • Send request via IPC     │  • Context Engine                     │
-│  • Output completion        │    ├─ History, CWD, System Info       │
-│                             │    └─ Plugins (Git, Node, Python...)  │
-│                             │  • LLM Connector                      │
-│                             │  • Sanitizer & Safety Checker         │
-└─────────────────────────────┴───────────────────────────────────────┘
-```
+| Shell | Manual (`Ctrl+E`) | Auto | Diagnosis | Notes |
+|---|---|---|---|---|
+| Zsh | Yes | Yes | Yes | Best full-feature experience |
+| Bash | Yes | No | Planned | Popup selector on `Alt+/` |
+| PowerShell 7.2+ | Yes | No | Yes | Via integration script/predictor |
+| CMD | Yes | No | No | Basic integration only |
 
 ## Documentation
 
@@ -233,21 +124,17 @@ model:
 - [Configuration Reference](docs/configuration.md)
 - [CLI Reference](docs/cli-reference.md)
 - [Auto Mode Guide](docs/auto-mode.md)
-- [Roadmap](ROADMAP.md)
+- [Shell Guides](docs/shells/README.md)
+- [FFI API](docs/ffi-api.md)
 
 ## Development
 
 ```bash
-cargo build --release
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
 cargo test
-cargo clippy
-cargo fmt
 ```
-
-## Contributing
-
-Contributions are welcome! Please open an issue or pull request.
 
 ## License
 
-MIT
+Free for personal/non-commercial use. Commercial use is restricted and requires separate permission. See [LICENSE](./LICENSE).
