@@ -4,7 +4,7 @@
 
 - Integration script: `shell/integration.zsh`
 - Shell modes:
-  - `zsh-inline` (manual completion)
+  - `zsh-inline` (`Ctrl+E` manual completion)
   - `zsh-auto` (event-driven auto fetch)
 - Auto mode has two rendering paths:
   - Ghost owner = `nudge`: ghost text (`POSTDISPLAY`) + optional overlay details
@@ -13,10 +13,16 @@
   - `message` (`zle -M`)
   - `rprompt` (`RPS1`/`RPROMPT`)
 
+## Fast Path Guarantee
+
+- `Ctrl+E` must stay available.
+- `Ctrl+E` always uses `zsh-inline` and returns one primary suggestion.
+- Auto mode (`zsh-auto`) is additive UX and must not replace the manual fast path.
+
 ## Candidate and Explanation Model
 
 - Zsh currently consumes a single primary suggestion in plain mode.
-- `risk/why/diff` text shown in overlay is generated in shell integration logic.
+- Overlay explanation prefers `list` metadata (`why/diff`) when available, with local fallback.
 - `F1` toggles expanded explanation details.
 
 ## Known Gaps

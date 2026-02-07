@@ -3,10 +3,18 @@
 ## Current Behavior
 
 - Integration script: `shell/integration.bash`
-- Shell mode sent to daemon: `bash-popup`
-- Primary trigger: `Ctrl+E` (apply first suggestion)
+- Shell modes sent to daemon:
+  - `bash-inline` for `Ctrl+E` manual completion
+  - `bash-popup` for `Alt+/` selector
+- Primary trigger: `Ctrl+E` (fastest single-candidate path)
 - Popup trigger: `Alt+/` (candidate selector)
 - Popup backends: `fzf`, `sk`, `peco`, `builtin`
+
+## Fast Path Guarantee
+
+- `Ctrl+E` must stay available.
+- `Ctrl+E` always uses `bash-inline` and returns one primary suggestion.
+- This path is intentionally the lowest-latency baseline and should not depend on popup ranking.
 
 ## Candidate and Explanation Model
 
@@ -15,13 +23,13 @@
   - `risk<TAB>command<TAB>warning<TAB>why<TAB>diff`
 - Current max candidates in daemon popup mode: `6`.
 - `risk` is derived from safety warning presence.
-- `why` and `diff` are currently generated client-side (heuristic), not produced by LLM.
+- `why` prefers model metadata (`reason_short`, then `summary_short`) with local heuristic fallback.
+- `diff` is generated client-side for deterministic display.
 
 ## Known Gaps
 
-- Prompt contract does not explicitly tell LLM that Bash may need ranked alternatives.
-- `why` text quality is limited by local heuristics (`prefix completion` / `context rewrite`).
-- No short, user-facing command explanation field from model output.
+- Candidate count is fixed at daemon constant today (not yet user-configurable).
+- Popup candidates after the first still rely mainly on local ranking of history matches.
 
 ## Recommended Improvements
 

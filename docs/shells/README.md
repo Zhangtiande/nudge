@@ -4,19 +4,27 @@ This directory separates Nudge behavior by shell, so feature scope and UX expect
 
 ## Capability Matrix
 
-| Shell | Runtime Mode(s) | Multi-Candidate | `why/risk/diff` Display | Main UX Surface |
-|---|---|---|---|---|
-| Bash | `bash-popup` | Yes (popup list) | Yes (popup rows + preview) | `Ctrl+E`, `Alt+/` |
-| Zsh | `zsh-inline`, `zsh-auto` | No (single candidate) | Yes (overlay line / RPROMPT) | Ghost text + overlay |
-| PowerShell | `ps-inline` | No | No structured panel today | Manual completion + diagnosis |
-| CMD | `cmd-inline` | No | No | Manual completion |
+| Shell | Runtime Mode(s) | Manual Fast Path | Multi-Candidate | `why/risk/diff` Display | Main UX Surface |
+|---|---|---|---|---|---|
+| Bash | `bash-inline`, `bash-popup` | `Ctrl+E` -> `bash-inline` (single candidate, fastest) | Yes (`bash-popup`) | Yes (popup rows + preview) | `Ctrl+E`, `Alt+/` |
+| Zsh | `zsh-inline`, `zsh-auto` | `Ctrl+E` -> `zsh-inline` (single candidate, fastest) | No | Yes (overlay line / RPROMPT) | Ghost text + overlay |
+| PowerShell | `ps-inline` | `Ctrl+E` -> `ps-inline` (single candidate, fastest) | No | No structured panel today | Manual completion + diagnosis |
+| CMD | `cmd-inline` | `nudge-complete` macro -> `cmd-inline` | No | No | Manual completion |
 
 ## Documents
 
 - [Bash Guide](./bash.md)
 - [Zsh Guide](./zsh.md)
+- [PowerShell Guide](./powershell.md)
+- [CMD Guide](./cmd.md)
 - [Prompt and UX Improvement Plan](./prompt-and-ux-improvements.md)
 
 ## Why This Split Exists
 
 Nudge currently has shell-specific request modes and UI constraints. A single cross-shell document tends to mix incompatible assumptions (candidate count, overlay budget, keybindings, and explanation density).
+
+## Baseline Rule
+
+- Keep a manual single-candidate fast path in every shell integration.
+- For Bash/Zsh/PowerShell this path is `Ctrl+E`.
+- Advanced surfaces (popup/auto/overlay) are layered on top of that baseline.

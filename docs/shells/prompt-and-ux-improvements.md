@@ -10,10 +10,17 @@ This document captures concrete improvements for prompt design and UI surfaces a
 4. Zsh `overlay + message` can feel crowded.
 5. Cross-shell docs are mixed; behavior differences are hard to discover.
 
+## Baseline Principle
+
+- Manual completion fast path must always be preserved.
+- For keybinding shells, `Ctrl+E` is the baseline single-candidate path.
+- Popup/overlay/auto experiences are additive and must not replace the baseline path.
+
 ## Current State Snapshot
 
 - Completion system prompt currently asks for only one completed command text.
 - Bash popup supports multi-candidate ranking (`bash-popup` mode).
+- Bash `Ctrl+E` manual path uses `bash-inline` (single candidate).
 - Zsh (`zsh-inline`/`zsh-auto`) currently uses single-candidate completion.
 - `why/diff` in list/overlay are mostly local heuristics, not model-native explanations.
 

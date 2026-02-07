@@ -158,6 +158,7 @@ nudge complete \
 - `--cwd` - Working directory (required)
 - `--session` - Session ID (required)
 - `--last-exit-code` - Last command exit code
+- `--shell-mode` - Shell mode hint (`zsh-auto`, `zsh-inline`, `bash-inline`, `bash-popup`, `ps-inline`, `cmd-inline`)
 - `--format` - Output format: `plain`, `list`, or `json`
   - `plain`: first suggestion only (shell-safe sentinel for warnings)
   - `list`: tab-separated rows (`risk<TAB>command<TAB>warning<TAB>why<TAB>diff`) for popup selectors
