@@ -38,3 +38,4 @@ coverage/
 
 # Local planning notes (keep in workspace, not in repo)
 docs/plans/
+docs/shells/prompt-and-ux-improvements.md

@@ -111,7 +111,6 @@ Bash popup 说明：
 
 按 Shell 拆分文档：
 - [Shell 指南总览](docs/shells/README.md)
-- [提示词与 UX 改进方案](docs/shells/prompt-and-ux-improvements.md)
 
 ## 错误诊断
 

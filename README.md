@@ -111,7 +111,6 @@ Bash popup notes:
 
 Shell-specific docs:
 - [Shell Guides](docs/shells/README.md)
-- [Prompt and UX Improvements](docs/shells/prompt-and-ux-improvements.md)
 
 ## Error Diagnosis
 

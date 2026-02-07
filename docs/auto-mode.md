@@ -138,4 +138,3 @@ trigger:
 - [Configuration Reference](configuration.md)
 - [CLI Reference](cli-reference.md)
 - [Shell Guides](shells/README.md)
-- [Prompt and UX Improvements](shells/prompt-and-ux-improvements.md)

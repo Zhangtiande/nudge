@@ -17,7 +17,6 @@ This directory separates Nudge behavior by shell, so feature scope and UX expect
 - [Zsh Guide](./zsh.md)
 - [PowerShell Guide](./powershell.md)
 - [CMD Guide](./cmd.md)
-- [Prompt and UX Improvement Plan](./prompt-and-ux-improvements.md)
 
 ## Why This Split Exists
 
