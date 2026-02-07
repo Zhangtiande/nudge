@@ -86,6 +86,10 @@ _nudge_select_candidate_builtin() {
   printf 'low\tgit status\t\tprefix completion\t+atus'
 }
 
+_nudge_show_warning() {
+  echo "warn:$1"
+}
+
 READLINE_LINE="git st"
 READLINE_POINT=${#READLINE_LINE}
 _nudge_popup_complete
@@ -109,6 +113,11 @@ echo "point=$READLINE_POINT"
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(stdout.contains("line=git status"));
         assert!(stdout.contains("point=10"));
+        assert!(
+            !stdout.contains("warn:"),
+            "low-risk candidate with empty warning should not print warning: {}",
+            stdout
+        );
     }
 
     #[test]

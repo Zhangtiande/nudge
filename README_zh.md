@@ -106,7 +106,8 @@ diagnosis:
 | `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议，并清理 autosuggestions 灰色预览 |
 
 Bash popup 说明：
-- 使用 `fzf` / `sk` 时可看到预览面板（`risk/why/diff/warn`）
+- `fzf` / `sk` 默认只显示候选列表（高亮当前项，不显示下方面板）
+- 设置 `NUDGE_POPUP_SHOW_PREVIEW=1` 可恢复预览面板（`risk/why/diff/warn`）
 - `high` 风险候选默认需要二次确认；设置 `NUDGE_POPUP_CONFIRM_RISKY=0` 可关闭确认
 
 按 Shell 拆分文档：

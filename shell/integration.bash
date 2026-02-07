@@ -11,6 +11,8 @@ NUDGE_POPUP_ENABLED="${NUDGE_POPUP_ENABLED:-1}"
 NUDGE_POPUP_KEY="${NUDGE_POPUP_KEY:-\e/}"       # Alt+/
 NUDGE_POPUP_BACKEND="${NUDGE_POPUP_BACKEND:-auto}" # auto|fzf|sk|peco|builtin
 NUDGE_POPUP_CONFIRM_RISKY="${NUDGE_POPUP_CONFIRM_RISKY:-1}"
+NUDGE_POPUP_SHOW_PREVIEW="${NUDGE_POPUP_SHOW_PREVIEW:-0}" # 0|1
+NUDGE_POPUP_HEIGHT="${NUDGE_POPUP_HEIGHT:-70%}"
 
 # Fallback if nudge binary not in PATH
 if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
@@ -123,29 +125,83 @@ _nudge_resolve_popup_backend() {
     fi
 }
 
+_nudge_parse_list_row() {
+    local row="$1"$'\t'
+    _nudge_row_risk="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_command="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_warning="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_why="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_diff="${row%%$'\t'*}"
+}
+
+_nudge_number_candidates() {
+    local candidates="$1"
+    local line
+    local idx=1
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        printf "%d\t%s\n" "$idx" "$line"
+        idx=$((idx + 1))
+    done <<< "$candidates"
+}
+
 _nudge_select_candidate_fzf() {
     local candidates="$1"
-    printf '%s\n' "$candidates" | fzf \
-        --height=40% \
+    local numbered
+    numbered=$(_nudge_number_candidates "$candidates")
+    [[ -z "$numbered" ]] && return
+
+    local -a preview_opts=()
+    if [[ "$NUDGE_POPUP_SHOW_PREVIEW" == "1" ]]; then
+        preview_opts=(
+            --preview='printf "risk: %s\n\ncommand:\n%s\n\nwhy: %s\n\ndiff:\n%s\n\nwarning:\n%s\n" {2} {3} {5} {6} {4}'
+            --preview-window='down,60%,wrap'
+        )
+    else
+        preview_opts=(--preview-window='hidden')
+    fi
+
+    local selected
+    selected=$(printf '%s\n' "$numbered" | fzf \
+        --height="$NUDGE_POPUP_HEIGHT" \
         --layout=reverse \
         --border \
         --header="enter: apply  esc: cancel" \
         --prompt="nudge> " \
         --delimiter=$'\t' \
-        --with-nth=1,2,4,3 \
-        --preview='printf "risk: %s\n\ncommand:\n%s\n\nwhy: %s\n\ndiff:\n%s\n\nwarning:\n%s\n" {1} {2} {4} {5} {3}' \
-        --preview-window='down,60%,wrap'
+        --with-nth=1,2,3,5 \
+        "${preview_opts[@]}")
+    [[ -z "$selected" ]] && return
+    printf '%s' "${selected#*$'\t'}"
 }
 
 _nudge_select_candidate_sk() {
     local candidates="$1"
-    printf '%s\n' "$candidates" | sk \
-        --height=40% \
+    local numbered
+    numbered=$(_nudge_number_candidates "$candidates")
+    [[ -z "$numbered" ]] && return
+
+    local -a preview_opts=()
+    if [[ "$NUDGE_POPUP_SHOW_PREVIEW" == "1" ]]; then
+        preview_opts=(
+            --preview='printf "risk: %s\n\ncommand:\n%s\n\nwhy: %s\n\ndiff:\n%s\n\nwarning:\n%s\n" {2} {3} {5} {6} {4}'
+            --preview-window='down:60%'
+        )
+    fi
+
+    local selected
+    selected=$(printf '%s\n' "$numbered" | sk \
+        --height="$NUDGE_POPUP_HEIGHT" \
         --prompt="nudge> " \
         --delimiter=$'\t' \
-        --with-nth=1,2,4,3 \
-        --preview='printf "risk: %s\n\ncommand:\n%s\n\nwhy: %s\n\ndiff:\n%s\n\nwarning:\n%s\n" {1} {2} {4} {5} {3}' \
-        --preview-window='down:60%'
+        --with-nth=1,2,3,5 \
+        "${preview_opts[@]}")
+    [[ -z "$selected" ]] && return
+    printf '%s' "${selected#*$'\t'}"
 }
 
 _nudge_select_candidate_peco() {
@@ -159,9 +215,8 @@ _nudge_select_candidate_peco() {
         [[ -z "$line" ]] && continue
         raw_rows+=("$line")
 
-        local risk command warning why diff
-        IFS=$'\t' read -r risk command warning why diff <<< "$line"
-        display_rows+=("$idx"$'\t'"[$risk] $command | why: ${why:-n/a}")
+        _nudge_parse_list_row "$line"
+        display_rows+=("$idx"$'\t'"[$_nudge_row_risk] $_nudge_row_command | why: ${_nudge_row_why:-n/a}")
         idx=$((idx + 1))
     done <<< "$candidates"
 
@@ -194,12 +249,11 @@ _nudge_select_candidate_builtin() {
     echo
     local i
     for (( i=0; i<count; i++ )); do
-        local risk command warning why diff
-        IFS=$'\t' read -r risk command warning why diff <<< "${lines[$i]}"
-        printf "  %d) [%s] %s\n" "$((i + 1))" "$risk" "$command"
-        [[ -n "$why" ]] && printf "     why: %s\n" "$why"
-        [[ -n "$diff" ]] && printf "     diff: %s\n" "$diff"
-        [[ -n "$warning" ]] && printf "     warn: %s\n" "$warning"
+        _nudge_parse_list_row "${lines[$i]}"
+        printf "  %d) [%s] %s\n" "$((i + 1))" "$_nudge_row_risk" "$_nudge_row_command"
+        [[ -n "$_nudge_row_why" ]] && printf "     why: %s\n" "$_nudge_row_why"
+        [[ -n "$_nudge_row_diff" ]] && printf "     diff: %s\n" "$_nudge_row_diff"
+        [[ -n "$_nudge_row_warning" ]] && printf "     warn: %s\n" "$_nudge_row_warning"
     done
 
     local choice
@@ -239,12 +293,11 @@ _nudge_popup_complete() {
 
     [[ -z "$selected" ]] && return
 
-    local risk command warning why diff
-    IFS=$'\t' read -r risk command warning why diff <<< "$selected"
-    [[ -z "$command" ]] && return
+    _nudge_parse_list_row "$selected"
+    [[ -z "$_nudge_row_command" ]] && return
 
-    if [[ "$risk" == "high" ]]; then
-        _nudge_show_warning "${warning:-This suggestion is marked high risk.}"
+    if [[ "$_nudge_row_risk" == "high" ]]; then
+        _nudge_show_warning "${_nudge_row_warning:-This suggestion is marked high risk.}"
         if [[ "$NUDGE_POPUP_CONFIRM_RISKY" != "0" ]]; then
             local confirm
             if [[ -r /dev/tty && -w /dev/tty ]]; then
@@ -264,10 +317,10 @@ _nudge_popup_complete() {
         fi
     fi
 
-    READLINE_LINE="$command"
+    READLINE_LINE="$_nudge_row_command"
     READLINE_POINT=${#READLINE_LINE}
-    if [[ -n "$warning" ]]; then
-        _nudge_show_warning "$warning"
+    if [[ -n "$_nudge_row_warning" ]]; then
+        _nudge_show_warning "$_nudge_row_warning"
     fi
 }
 

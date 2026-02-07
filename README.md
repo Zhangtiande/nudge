@@ -106,7 +106,8 @@ See [Configuration Reference](docs/configuration.md) for all options.
 | `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion and clear autosuggestions gray preview when `trigger.zsh_ghost_owner: autosuggestions` |
 
 Bash popup notes:
-- `fzf` / `sk` show a preview panel (`risk/why/diff/warn`)
+- `fzf` / `sk` default to list-only mode (highlight selected row, no bottom preview panel)
+- set `NUDGE_POPUP_SHOW_PREVIEW=1` to re-enable the preview panel (`risk/why/diff/warn`)
 - `high` risk candidates require confirmation before apply (set `NUDGE_POPUP_CONFIRM_RISKY=0` to skip confirmation)
 
 Shell-specific docs:

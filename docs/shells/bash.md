@@ -45,4 +45,6 @@
 ## UX Notes
 
 - High-risk candidates already require confirmation (`NUDGE_POPUP_CONFIRM_RISKY`).
-- `fzf`/`sk` preview is a good place to show model-provided `summary_short` once available.
+- `fzf`/`sk` default to list-only popup (no bottom preview panel), so you can see more candidates at once.
+- Set `NUDGE_POPUP_SHOW_PREVIEW=1` if you want the preview panel (`risk/why/diff/warn`) back.
+- `NUDGE_POPUP_HEIGHT` controls selector height (default `70%`).
