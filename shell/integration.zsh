@@ -764,6 +764,7 @@ _nudge_overlay_render() {
     local detail_hint="F1 details"
     local suggestion="$BUFFER"
     local why="$_nudge_auto_reason"
+    local why_is_fallback="false"
     local risk="low"
     local diff="$_nudge_auto_diff_hint"
 
@@ -810,6 +811,9 @@ _nudge_overlay_render() {
             fi
         fi
     fi
+    if [[ "$why" == "prefix completion" || "$why" == "context rewrite" ]]; then
+        why_is_fallback="true"
+    fi
 
     diff="${diff//$'\n'/ }"
     diff="${diff//$'\t'/ }"
@@ -836,7 +840,11 @@ _nudge_overlay_render() {
         local warning_text="${_nudge_auto_warning//$'\n'/ }"
         warning_text="${warning_text//$'\t'/ }"
         if [[ "$_nudge_explain_expanded" == "true" ]]; then
-            message="[why:${why}] [warn:${warning_text}] [diff:${diff}] [${key_hint} accept]"
+            if [[ "$why_is_fallback" == "true" ]]; then
+                message="[warn:${warning_text}] [diff:${diff}] [${key_hint} accept]"
+            else
+                message="[why:${why}] [warn:${warning_text}] [diff:${diff}] [${key_hint} accept]"
+            fi
         else
             local compact_warn="$warning_text"
             if (( ${#compact_warn} > 42 )); then
@@ -854,7 +862,11 @@ _nudge_overlay_render() {
             if (( ${#compact_suggest} > 56 )); then
                 compact_suggest="${compact_suggest:0:53}..."
             fi
-            message="[why:${why}] [diff:${full_diff}] [suggest:${compact_suggest}] [${key_hint} accept]"
+            if [[ "$why_is_fallback" == "true" ]]; then
+                message="[diff:${full_diff}] [suggest:${compact_suggest}] [${key_hint} accept]"
+            else
+                message="[why:${why}] [diff:${full_diff}] [suggest:${compact_suggest}] [${key_hint} accept]"
+            fi
         else
             local preview="$diff"
             if (( ${#preview} > 40 )); then

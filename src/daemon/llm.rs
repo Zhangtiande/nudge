@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 use super::{context::ContextData, prompts, shell_mode::ShellMode};
 use crate::config::Config;
@@ -129,8 +129,22 @@ pub async fn complete(
         .map(|c| c.message.content.clone())
         .unwrap_or_default();
 
+    info!(
+        "LLM raw completion output: shell_mode={} content={:?}",
+        shell_mode.as_str(),
+        text
+    );
+
     // Parse completion from model output with backward-compatible plain text fallback.
     let cleaned = parse_completion(&text, buffer);
+
+    info!(
+        "LLM parsed completion: shell_mode={} command={:?} summary_short={:?} reason_short={:?}",
+        shell_mode.as_str(),
+        cleaned.command,
+        cleaned.summary_short,
+        cleaned.reason_short
+    );
 
     Ok(cleaned)
 }
