@@ -1,5 +1,7 @@
 # FFI API
 
+[English](ffi-api.md) | [中文](../zh/ffi-api.md)
+
 Use Nudge as a C-compatible library when embedding completion in custom tooling.
 
 ## What It Solves

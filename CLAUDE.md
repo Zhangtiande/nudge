@@ -18,6 +18,35 @@ Key features:
 - Integration scripts can evolve with higher implementation freedom to optimize UX quickly.
 - Daemon-side designs must prioritize cross-platform extensibility and avoid shell-specific lock-in in core logic.
 
+## Documentation Structure
+
+Documentation is split by language under `docs/`:
+
+```
+docs/
+├── en/                    # English documentation
+│   ├── installation.md
+│   ├── configuration.md
+│   ├── cli-reference.md
+│   ├── auto-mode.md
+│   ├── ffi-api.md
+│   ├── roadmap.md
+│   └── shells/
+│       ├── README.md
+│       ├── zsh.md
+│       ├── bash.md
+│       ├── powershell.md
+│       └── cmd.md
+├── zh/                    # Chinese documentation (mirrors en/)
+│   ├── ...
+│   └── shells/...
+└── plans/                 # Internal design docs (not user-facing)
+```
+
+- Each file has a language toggle at the top: `[English](../en/X.md) | [中文](../zh/X.md)`
+- Internal cross-references within same language stay relative (e.g., `shells/cmd.md`)
+- When adding or modifying docs, update both `en/` and `zh/` versions
+
 ## Build & Test Commands
 
 ```bash
@@ -153,7 +182,7 @@ When the interactive wizard needs to handle new settings:
 #### 4. Documentation
 - [ ] Update configuration examples in README.md
 - [ ] Update configuration examples in README_zh.md (Chinese version)
-- [ ] Update docs/configuration.md (full reference)
+- [ ] Update docs/en/configuration.md (full reference) and docs/zh/configuration.md (Chinese)
 - [ ] Update this CLAUDE.md file if architectural changes
 
 ### Configuration Sync Checklist Example
@@ -167,7 +196,7 @@ When adding a new config option like `context.include_system_info`:
 5. ✅ Add to inline fallback config in `shell/setup-shell.sh` (lines ~305-372)
 6. ✅ Optionally add to `config.user.yaml.template` if commonly customized
 7. ✅ Update README examples if relevant to users
-8. ✅ Update docs/configuration.md (full reference)
+8. ✅ Update docs/en/configuration.md and docs/zh/configuration.md
 
 **Why this matters**: Installation scripts contain embedded fallback configurations. If these get out of sync, users may experience:
 - Missing configuration options on fresh installs

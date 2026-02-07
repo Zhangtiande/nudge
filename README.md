@@ -48,6 +48,8 @@ Try completion in shell:
 - Project-aware context: Git, Node.js, Python, Rust, Docker
 - Safety warnings for dangerous commands
 - Error diagnosis for failed commands (Zsh / PowerShell)
+- Suggestion cache with LRU+TTL and stale-while-revalidate for low-latency repeat queries
+- Bash popup selector (`Alt+/`) for multi-candidate browsing with fzf/sk/peco/builtin backends
 - Multi-shell support: Zsh, Bash, PowerShell, CMD
 
 ## Boundaries
@@ -81,7 +83,7 @@ nudge doctor bash
 
 ## Installation Options
 
-- One-click scripts: see [docs/installation.md](docs/installation.md)
+- One-click scripts: see [docs/en/installation.md](docs/en/installation.md)
 - Source build: `cargo build --release`
 - Shell integration refresh: `nudge setup <bash|zsh|powershell> --force`
 
@@ -107,25 +109,26 @@ model:
   api_key_env: "OPENAI_API_KEY"
 ```
 
-More options: [docs/configuration.md](docs/configuration.md)
+More options: [docs/en/configuration.md](docs/en/configuration.md)
 
 ## Platform and Shell Matrix
 
-| Shell | Manual (`Ctrl+E`) | Auto | Diagnosis | Notes |
-|---|---|---|---|---|
-| Zsh | Yes | Yes | Yes | Best full-feature experience |
-| Bash | Yes | No | Planned | Popup selector on `Alt+/` |
-| PowerShell 7.2+ | Yes | No | Yes | Via integration script/predictor |
-| CMD | Yes | No | No | Basic integration only |
+| Shell | Manual (`Ctrl+E`) | Auto | Popup | Diagnosis | Cache | Notes |
+|---|---|---|---|---|---|---|
+| Zsh | Yes | Yes | No | Yes | Yes | Best full-feature experience |
+| Bash | Yes | No | Yes (`Alt+/`) | Planned | Yes | Multi-candidate selector |
+| PowerShell 7.2+ | Yes | No | No | Yes | Yes | Via integration script/predictor |
+| CMD | Yes | No | No | No | Yes | Basic integration only |
 
 ## Documentation
 
-- [Installation Guide](docs/installation.md)
-- [Configuration Reference](docs/configuration.md)
-- [CLI Reference](docs/cli-reference.md)
-- [Auto Mode Guide](docs/auto-mode.md)
-- [Shell Guides](docs/shells/README.md)
-- [FFI API](docs/ffi-api.md)
+- [Installation Guide](docs/en/installation.md) · [中文](docs/zh/installation.md)
+- [Configuration Reference](docs/en/configuration.md) · [中文](docs/zh/configuration.md)
+- [CLI Reference](docs/en/cli-reference.md) · [中文](docs/zh/cli-reference.md)
+- [Auto Mode Guide](docs/en/auto-mode.md) · [中文](docs/zh/auto-mode.md)
+- [Shell Guides](docs/en/shells/README.md) · [中文](docs/zh/shells/README.md)
+- [FFI API](docs/en/ffi-api.md) · [中文](docs/zh/ffi-api.md)
+- [Roadmap](docs/en/roadmap.md) · [中文](docs/zh/roadmap.md)
 
 ## Development
 

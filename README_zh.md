@@ -48,6 +48,8 @@ nudge info
 - 项目上下文感知：Git、Node.js、Python、Rust、Docker
 - 高风险命令警告
 - 失败命令诊断（Zsh / PowerShell）
+- 建议缓存：LRU+TTL 加 stale-while-revalidate，重复查询低延迟
+- Bash popup 选择器（`Alt+/`）：支持 fzf/sk/peco/builtin 后端的多候选浏览
 - 多 Shell 支持：Zsh、Bash、PowerShell、CMD
 
 ## 边界
@@ -81,7 +83,7 @@ nudge doctor bash
 
 ## 安装方式
 
-- 一键安装脚本：见 [docs/installation.md](docs/installation.md)
+- 一键安装脚本：见 [docs/zh/installation.md](docs/zh/installation.md)
 - 源码构建：`cargo build --release`
 - 重装 shell 集成：`nudge setup <bash|zsh|powershell> --force`
 
@@ -107,25 +109,26 @@ model:
   api_key_env: "OPENAI_API_KEY"
 ```
 
-更多配置： [docs/configuration.md](docs/configuration.md)
+更多配置： [docs/zh/configuration.md](docs/zh/configuration.md)
 
 ## 平台与 Shell 支持
 
-| Shell | 手动 (`Ctrl+E`) | 自动 | 诊断 | 说明 |
-|---|---|---|---|---|
-| Zsh | 支持 | 支持 | 支持 | 功能最完整 |
-| Bash | 支持 | 不支持 | 计划中 | `Alt+/` 弹出候选 |
-| PowerShell 7.2+ | 支持 | 不支持 | 支持 | 通过集成脚本/预测器 |
-| CMD | 支持 | 不支持 | 不支持 | 仅基础集成 |
+| Shell | 手动 (`Ctrl+E`) | 自动 | Popup | 诊断 | 缓存 | 说明 |
+|---|---|---|---|---|---|---|
+| Zsh | 支持 | 支持 | 不支持 | 支持 | 支持 | 功能最完整 |
+| Bash | 支持 | 不支持 | 支持 (`Alt+/`) | 计划中 | 支持 | 多候选选择器 |
+| PowerShell 7.2+ | 支持 | 不支持 | 不支持 | 支持 | 支持 | 通过集成脚本/预测器 |
+| CMD | 支持 | 不支持 | 不支持 | 不支持 | 支持 | 仅基础集成 |
 
 ## 文档索引
 
-- [安装指南](docs/installation.md)
-- [配置参考](docs/configuration.md)
-- [CLI 参考](docs/cli-reference.md)
-- [自动模式指南](docs/auto-mode.md)
-- [Shell 指南](docs/shells/README.md)
-- [FFI API](docs/ffi-api.md)
+- [安装指南](docs/zh/installation.md) · [English](docs/en/installation.md)
+- [配置参考](docs/zh/configuration.md) · [English](docs/en/configuration.md)
+- [CLI 参考](docs/zh/cli-reference.md) · [English](docs/en/cli-reference.md)
+- [自动模式指南](docs/zh/auto-mode.md) · [English](docs/en/auto-mode.md)
+- [Shell 指南](docs/zh/shells/README.md) · [English](docs/en/shells/README.md)
+- [FFI API](docs/zh/ffi-api.md) · [English](docs/en/ffi-api.md)
+- [路线图](docs/zh/roadmap.md) · [English](docs/en/roadmap.md)
 
 ## 开发
 
