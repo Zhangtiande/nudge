@@ -6,24 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::{debug, warn};
 
-use super::{context::ContextData, shell_mode::ShellMode};
+use super::{context::ContextData, prompts, shell_mode::ShellMode};
 use crate::config::Config;
-
-const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a CLI command completion assistant. Your task is to complete the user's partially typed command based on the provided context.
-
-Rules:
-1. Follow the response contract in the user prompt exactly
-2. Do not add markdown code fences
-3. Consider the shell history and current directory context
-4. Complete commands that make sense in the given context
-5. Prefer safe, non-destructive operations
-6. If the command is already complete, return it unchanged
-
-Context will include:
-- Recent shell history
-- Current working directory files
-- Previous command exit status
-- Git repository state (if applicable)"#;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionDraft {
@@ -85,7 +69,7 @@ pub async fn complete(
     let system_prompt = config
         .system_prompt
         .as_deref()
-        .unwrap_or(DEFAULT_SYSTEM_PROMPT);
+        .unwrap_or(prompts::completion::default_system_prompt());
     let user_prompt = build_user_prompt(buffer, context, shell_mode);
 
     // Only log prompts at trace level to avoid flooding logs
@@ -270,41 +254,9 @@ fn build_user_prompt(buffer: &str, context: &ContextData, shell_mode: ShellMode)
     prompt.push('\n');
 
     prompt.push_str("## Response Contract\n");
-    prompt.push_str(shell_mode_response_contract(shell_mode));
+    prompt.push_str(prompts::completion::response_contract(shell_mode));
 
     prompt
-}
-
-fn shell_mode_response_contract(shell_mode: ShellMode) -> &'static str {
-    match shell_mode {
-        ShellMode::BashPopup => {
-            "Shell mode: bash-popup\n\
-Return JSON only:\n\
-{\"command\":\"<completed command>\",\"summary_short\":\"<8-20 words concise explanation>\",\"reason_short\":\"<short why>\"}\n\
-Rules:\n\
-- command is required\n\
-- summary_short should be a short action-oriented description\n\
-- reason_short should explain why this candidate fits current input\n\
-- no markdown, no extra keys unless useful\n\
-- if JSON is not possible, return only the completed command text\n"
-        }
-        ShellMode::ZshAuto | ShellMode::ZshInline => {
-            "Shell mode: zsh\n\
-Return JSON only:\n\
-{\"command\":\"<completed command>\",\"summary_short\":\"<very short explanation>\",\"reason_short\":\"<optional short why>\"}\n\
-Rules:\n\
-- command is required\n\
-- keep summary_short concise for narrow overlay surfaces\n\
-- no markdown or extra commentary\n\
-- if JSON is not possible, return only the completed command text\n"
-        }
-        _ => {
-            "Shell mode: inline\n\
-Return the completed command text.\n\
-Optional JSON form is accepted:\n\
-{\"command\":\"<completed command>\",\"summary_short\":\"<short explanation>\",\"reason_short\":\"<short why>\"}\n"
-        }
-    }
 }
 
 /// Parse completion payload from LLM output.

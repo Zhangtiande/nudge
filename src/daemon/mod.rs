@@ -2,6 +2,7 @@ pub mod context;
 pub mod diagnosis;
 pub mod llm;
 pub mod plugins;
+pub mod prompts;
 pub mod safety;
 pub mod sanitizer;
 pub mod server;
