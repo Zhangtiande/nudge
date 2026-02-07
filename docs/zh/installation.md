@@ -34,7 +34,7 @@ irm https://raw.githubusercontent.com/Zhangtiande/nudge/main/scripts/install.ps1
 
 ```bash
 # Install a specific version
-./scripts/install.sh --version 0.4.5
+./scripts/install.sh --version 0.5.0
 
 # Custom install prefix
 ./scripts/install.sh --prefix "$HOME/.local"

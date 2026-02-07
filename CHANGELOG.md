@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-07
+
+### Added
+- Bash popup selector now supports multiple LLM-generated candidates with list-only navigation.
+- Shell-mode completion responses now include concise `summary_short` and `reason_short` metadata for UI display.
+
+### Changed
+- Refactored completion prompts into dedicated shell-mode template files for maintainability and mode-specific behavior.
+- Preserved `Ctrl+E` manual completion as the fastest single-candidate fallback path across all shells.
+- Reorganized documentation into per-shell guides with explicit mode boundaries and quick-start-first structure.
+- Updated license policy to personal-use-free with commercial restrictions.
+
+### Fixed
+- Zsh auto overlay now preserves list metadata parsing when optional fields are empty.
+- Improved Zsh overlay readability by reducing low-signal `why` text and delimiter ambiguity in compact rendering.
+- Added daemon-side logging for raw and parsed LLM completion payloads to simplify integration debugging.
+
 ## [0.4.5] - 2026-02-07
 
 ### Breaking Changes
@@ -287,7 +304,9 @@ trigger:
 - README_zh.md with Chinese documentation
 - Configuration reference documentation
 
-[Unreleased]: https://github.com/Zhangtiande/nudge/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/Zhangtiande/nudge/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Zhangtiande/nudge/compare/v0.4.5...v0.5.0
+[0.4.5]: https://github.com/Zhangtiande/nudge/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/Zhangtiande/nudge/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/Zhangtiande/nudge/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Zhangtiande/nudge/compare/v0.4.1...v0.4.2
