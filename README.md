@@ -102,7 +102,7 @@ See [Configuration Reference](docs/configuration.md) for all options.
 | `Tab` | Accept suggestion (auto mode) |
 | `Right Arrow` | Accept next word (Zsh) |
 | `F1` | Toggle explanation details (why/risk/diff) in overlay |
-| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion when `trigger.zsh_ghost_owner: autosuggestions` |
+| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion and clear autosuggestions gray preview when `trigger.zsh_ghost_owner: autosuggestions` |
 
 ## Error Diagnosis
 

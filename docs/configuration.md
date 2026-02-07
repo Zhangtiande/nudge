@@ -168,7 +168,7 @@ Higher priority = kept longer during truncation (1-100).
 | `zsh_ghost_owner` | string | `auto` | Zsh ghost text owner: `auto`, `nudge`, or `autosuggestions` |
 | `zsh_overlay_backend` | string | `message` | Zsh overlay backend: `message` or `rprompt` |
 
-When `zsh_ghost_owner` resolves to `autosuggestions`, Nudge keeps `Tab` for autosuggestions and uses `Ctrl+G` to accept Nudge overlay/diagnosis suggestions.
+When `zsh_ghost_owner` resolves to `autosuggestions`, Nudge keeps `Tab` for autosuggestions and uses `Ctrl+G` to accept Nudge overlay/diagnosis suggestions while clearing autosuggestions gray preview text.
 
 When `zsh_overlay_backend` is:
 - `message`: use `zle -M` message line (default, lower prompt redraw impact)

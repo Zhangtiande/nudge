@@ -64,7 +64,7 @@ source ~/.zshrc
 | `Tab` | Accept full suggestion | Auto (Nudge ghost owner) |
 | `Right Arrow` | Accept next word | Auto (Zsh) |
 | `F1` | Toggle explanation details (`why/risk/diff`) | Auto (Zsh) |
-| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion when ghost owner is `autosuggestions` | Zsh |
+| `Ctrl+G` | Accept Nudge overlay/diagnosis suggestion and clear autosuggestions gray preview when ghost owner is `autosuggestions` | Zsh |
 
 ## Shell Support
 

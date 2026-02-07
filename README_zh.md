@@ -102,7 +102,7 @@ diagnosis:
 | `Tab` | 接受建议（自动模式） |
 | `Right Arrow` | 接受下一个单词（Zsh） |
 | `F1` | 切换解释详情（why/risk/diff） |
-| `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议 |
+| `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议，并清理 autosuggestions 灰色预览 |
 
 ## 错误诊断
 

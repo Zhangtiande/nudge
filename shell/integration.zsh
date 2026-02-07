@@ -144,6 +144,15 @@ _nudge_overlay_clear_message() {
     _nudge_overlay_last_message=""
 }
 
+_nudge_clear_autosuggest_preview() {
+    [[ "$_nudge_ghost_owner_effective" != "autosuggestions" ]] && return
+
+    typeset -g POSTDISPLAY=""
+    if (( ${+widgets[autosuggest-clear]} )); then
+        zle autosuggest-clear 2>/dev/null
+    fi
+}
+
 _nudge_overlay_set_message() {
     local message="$1"
     local rendered_message="$message"
@@ -470,9 +479,7 @@ _nudge_complete() {
         POSTDISPLAY=""
         _nudge_clear_own_highlight
         _nudge_overlay_clear_message
-        if (( ${+widgets[autosuggest-clear]} )); then
-            zle autosuggest-clear 2>/dev/null
-        fi
+        _nudge_clear_autosuggest_preview
         zle -R 2>/dev/null
     fi
 }
@@ -856,6 +863,7 @@ _nudge_auto_accept() {
         if [[ "$_nudge_overlay_mode_enabled" != "true" ]]; then
             typeset -g POSTDISPLAY=""
         fi
+        _nudge_clear_autosuggest_preview
         _nudge_clear_own_highlight
         _nudge_overlay_clear_message
         zle -R
