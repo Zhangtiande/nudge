@@ -799,8 +799,22 @@ _nudge_overlay_render() {
         diff="~ ${BUFFER} -> ${suggestion}"
     fi
 
+    # Some model-provided reasons are low-signal echoes of diff/command text.
+    # Fall back to deterministic local labels in those cases.
+    if [[ "$risk" != "high" && -n "$why" ]]; then
+        if [[ "$why" == "$diff" || "$why" == "$suggestion" || "$why" == [+\~]* ]]; then
+            if [[ "$suggestion" == "$BUFFER"* ]]; then
+                why="prefix completion"
+            else
+                why="context rewrite"
+            fi
+        fi
+    fi
+
     diff="${diff//$'\n'/ }"
     diff="${diff//$'\t'/ }"
+    why="${why//$'\n'/ }"
+    why="${why//$'\t'/ }"
     suggestion="${suggestion//$'\n'/ }"
     suggestion="${suggestion//$'\t'/ }"
     _nudge_overlay_risk_level="$risk"
@@ -822,13 +836,13 @@ _nudge_overlay_render() {
         local warning_text="${_nudge_auto_warning//$'\n'/ }"
         warning_text="${warning_text//$'\t'/ }"
         if [[ "$_nudge_explain_expanded" == "true" ]]; then
-            message="why:${why} | risk:${risk} | warn:${warning_text} | diff:${diff} | $key_hint accept"
+            message="[why:${why}] [warn:${warning_text}] [diff:${diff}] [${key_hint} accept]"
         else
             local compact_warn="$warning_text"
             if (( ${#compact_warn} > 42 )); then
                 compact_warn="${compact_warn:0:39}..."
             fi
-            message="risk:${risk} | warn:${compact_warn} | ${key_hint} accept (${detail_hint})"
+            message="[warn:${compact_warn}] [${key_hint} accept] (${detail_hint})"
         fi
     elif [[ -n "$_nudge_auto_suggestion" && "$_nudge_auto_suggestion" != "$BUFFER" ]]; then
         if [[ "$_nudge_explain_expanded" == "true" ]]; then
@@ -836,13 +850,17 @@ _nudge_overlay_render() {
             if (( ${#full_diff} > 56 )); then
                 full_diff="${full_diff:0:53}..."
             fi
-            message="why:${why} | risk:${risk} | diff:${full_diff} | suggest=${suggestion} | $key_hint accept"
+            local compact_suggest="$suggestion"
+            if (( ${#compact_suggest} > 56 )); then
+                compact_suggest="${compact_suggest:0:53}..."
+            fi
+            message="[why:${why}] [diff:${full_diff}] [suggest:${compact_suggest}] [${key_hint} accept]"
         else
             local preview="$diff"
             if (( ${#preview} > 40 )); then
                 preview="${preview:0:37}..."
             fi
-            message="risk:${risk} | diff:${preview} | ${key_hint} accept (${detail_hint})"
+            message="[diff:${preview}] [${key_hint} accept] (${detail_hint})"
         fi
     fi
 
