@@ -99,10 +99,15 @@ diagnosis:
 | 按键 | 操作 |
 |------|------|
 | `Ctrl+E` | 触发补全 |
+| `Alt+/` | 打开候选 popup（Bash 手动模式） |
 | `Tab` | 接受建议（自动模式） |
 | `Right Arrow` | 接受下一个单词（Zsh） |
 | `F1` | 切换解释详情（why/risk/diff） |
 | `Ctrl+G` | 当 `trigger.zsh_ghost_owner: autosuggestions` 时接受 Nudge overlay/诊断建议，并清理 autosuggestions 灰色预览 |
+
+Bash popup 说明：
+- 使用 `fzf` / `sk` 时可看到预览面板（`risk/why/diff/warn`）
+- `high` 风险候选默认需要二次确认；设置 `NUDGE_POPUP_CONFIRM_RISKY=0` 可关闭确认
 
 ## 错误诊断
 

@@ -113,13 +113,17 @@ nudge doctor
 
 # Explicit zsh target
 nudge doctor zsh
+
+# Explicit bash target
+nudge doctor bash
 ```
 
 Checks include:
-- Config summary (`trigger.mode`, `zsh_ghost_owner`, `zsh_overlay_backend`)
-- Zsh availability and integration script syntax
-- Key binding snapshot (`Tab`, `Ctrl+G`, `Right`, `F1`)
-- Hook presence (`line-pre-redraw`, `line-finish`)
+- Config summary (`trigger.mode`, shell-specific options)
+- Shell availability and integration script syntax
+- Key binding/function snapshot (shell-specific)
+- Hook presence (`line-pre-redraw`, `line-finish`) for zsh
+- Popup selector backend availability (`fzf`/`sk`/`peco`) for bash
 - Daemon completion latency sample (`p50`, `p95`)
 
 ## nudge daemon
@@ -154,7 +158,10 @@ nudge complete \
 - `--cwd` - Working directory (required)
 - `--session` - Session ID (required)
 - `--last-exit-code` - Last command exit code
-- `--format` - Output format: `plain` or `json`
+- `--format` - Output format: `plain`, `list`, or `json`
+  - `plain`: first suggestion only (shell-safe sentinel for warnings)
+  - `list`: tab-separated rows (`risk<TAB>command<TAB>warning<TAB>why<TAB>diff`) for popup selectors
+  - `json`: full response payload
 
 ## nudge diagnose
 
@@ -177,7 +184,7 @@ nudge diagnose \
 - `--session` - Session ID (required)
 - `--stderr-file` - Path to captured stderr
 - `--error-record` - PowerShell error record (JSON)
-- `--format` - Output format: `plain` or `json`
+- `--format` - Output format: `plain` or `json` (`list` is accepted and treated as `plain`)
 
 ## Environment Variables
 

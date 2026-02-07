@@ -61,6 +61,7 @@ source ~/.zshrc
 | Key | Action | Mode |
 |-----|--------|------|
 | `Ctrl+E` | Trigger completion | Both |
+| `Alt+/` | Open popup candidate selector | Bash (manual) |
 | `Tab` | Accept full suggestion | Auto (Nudge ghost owner) |
 | `Right Arrow` | Accept next word | Auto (Zsh) |
 | `F1` | Toggle explanation details (`why/risk/diff`) | Auto (Zsh) |
@@ -84,7 +85,11 @@ Full auto mode support:
 - ZLE-style async redraw hooks
 - Native ghost/overlay rendering primitives
 
-Use manual mode (`Ctrl+E`) instead.
+Use manual mode instead:
+- `Ctrl+E`: quick apply first suggestion
+- `Alt+/`: open popup selector with multiple candidates
+- `Alt+/` with `fzf`/`sk` shows a preview panel (`risk/why/diff/warn`)
+- `high` risk popup candidates require confirmation before apply (set `NUDGE_POPUP_CONFIRM_RISKY=0` to disable)
 
 ### PowerShell
 

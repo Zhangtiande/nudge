@@ -13,6 +13,11 @@ Key features:
 - Daemon-based architecture for low-latency IPC via Unix Domain Sockets (Unix) or Named Pipes (Windows)
 - Cross-platform support: Linux, macOS, and Windows
 
+## Collaboration Memory
+
+- Integration scripts can evolve with higher implementation freedom to optimize UX quickly.
+- Daemon-side designs must prioritize cross-platform extensibility and avoid shell-specific lock-in in core logic.
+
 ## Build & Test Commands
 
 ```bash
