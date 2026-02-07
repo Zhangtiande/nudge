@@ -1,0 +1,69 @@
+Nudge Personal Use License v1.0
+
+Copyright (c) 2026 Zhangtiande and contributors
+
+1. Purpose
+
+This license allows free personal and non-commercial use of the Software.
+Commercial use is not granted under this license.
+
+2. Definitions
+
+"Software" means the source code, binaries, scripts, and documentation in this repository.
+
+"Personal and Non-Commercial Use" means use by an individual for learning, research,
+hobby, evaluation, or other activities that are not primarily intended for or directed
+toward commercial advantage or monetary compensation.
+
+"Commercial Use" means any use by or for a business or organization, or any use
+connected to revenue generation, paid services, production operations, or internal
+business workflows.
+
+3. Grant for Personal and Non-Commercial Use
+
+Subject to this license, you are granted a worldwide, royalty-free, non-exclusive,
+non-transferable license to:
+
+- use the Software;
+- copy the Software;
+- modify the Software for your own use;
+- share unmodified or modified copies for Personal and Non-Commercial Use.
+
+4. Redistribution Conditions
+
+If you redistribute the Software (modified or unmodified), you must:
+
+- include this license text;
+- retain existing copyright notices;
+- clearly mark material changes if you modified the Software.
+
+5. Commercial Use Restriction
+
+Any Commercial Use is prohibited without a separate written commercial license from
+the copyright holder(s).
+
+If you need commercial rights, contact the repository owner through GitHub Issues
+or another official project contact channel.
+
+6. No Trademark License
+
+This license does not grant rights to use project names, logos, or trademarks,
+except as reasonably required for attribution.
+
+7. Termination
+
+Your rights under this license terminate automatically if you violate its terms.
+Upon termination, you must stop using and redistributing the Software under this license.
+
+8. Disclaimer of Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+9. Limitation of Liability
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM,
+DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE,
+ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
