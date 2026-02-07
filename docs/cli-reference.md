@@ -183,8 +183,11 @@ nudge diagnose \
 
 | Variable | Description |
 |----------|-------------|
-| `SMARTSHELL_CONFIG` | Override config file path |
+| `NUDGE_CONFIG` | Override config file path (preferred) |
+| `SMARTSHELL_CONFIG` | Legacy override variable (fallback; deprecated) |
 | `RUST_LOG` | Override log level |
+
+If both variables are set, `NUDGE_CONFIG` takes precedence.
 
 ```bash
 # Debug logging

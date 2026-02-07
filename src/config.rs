@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,9 @@ use serde_yaml::Value;
 use tracing::{debug, info, warn};
 
 use crate::paths::AppPaths;
+
+const CONFIG_ENV: &str = "NUDGE_CONFIG";
+const LEGACY_CONFIG_ENV: &str = "SMARTSHELL_CONFIG";
 
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -443,43 +446,31 @@ impl Config {
     /// 3. Override with config.yaml (user customizations, preserved on upgrade)
     pub fn load() -> Result<Self> {
         // Check for environment variable override (skips layered loading)
-        if let Ok(config_path) = std::env::var("SMARTSHELL_CONFIG") {
-            info!("Loading config from SMARTSHELL_CONFIG: {}", config_path);
-            return Self::load_from_path(&PathBuf::from(config_path));
+        if let Some((env_name, config_path)) = Self::resolve_override_config_path() {
+            info!(
+                "Loading config from {}: {}",
+                env_name,
+                config_path.display()
+            );
+            return Self::load_from_path(&config_path);
         }
 
         // Start with built-in defaults as YAML value
-        let default_config = Self::default();
         let mut merged_value: Value =
-            serde_yaml::to_value(&default_config).context("Failed to serialize default config")?;
+            serde_yaml::to_value(Self::default()).context("Failed to serialize default config")?;
 
-        // Layer 1: Load config.default.yaml if exists (ships with app)
+        // Layer 1: Load config.default.yaml if present (ships with app)
         let base_path = Self::base_config_path();
-        if base_path.exists() {
-            if let Ok(contents) = std::fs::read_to_string(&base_path) {
-                if let Ok(base_value) = serde_yaml::from_str::<Value>(&contents) {
-                    merged_value = Self::deep_merge(merged_value, base_value);
-                    debug!("Merged base config: {}", base_path.display());
-                } else {
-                    warn!("Failed to parse base config: {}", base_path.display());
-                }
-            }
+        if let Some(base_value) = Self::load_yaml_layer(&base_path, "base")? {
+            merged_value = Self::deep_merge(merged_value, base_value);
+            debug!("Merged base config: {}", base_path.display());
         }
 
-        // Layer 2: Load config.yaml if exists (user customizations)
+        // Layer 2: Load config.yaml if present (user customizations)
         let user_path = Self::default_config_path();
-        if user_path.exists() {
-            if let Ok(contents) = std::fs::read_to_string(&user_path) {
-                let trimmed = contents.trim();
-                if !trimmed.is_empty() && trimmed != "---" {
-                    if let Ok(user_value) = serde_yaml::from_str::<Value>(&contents) {
-                        merged_value = Self::deep_merge(merged_value, user_value);
-                        debug!("Merged user config: {}", user_path.display());
-                    } else {
-                        warn!("Failed to parse user config: {}", user_path.display());
-                    }
-                }
-            }
+        if let Some(user_value) = Self::load_yaml_layer(&user_path, "user")? {
+            merged_value = Self::deep_merge(merged_value, user_value);
+            debug!("Merged user config: {}", user_path.display());
         }
 
         // Deserialize merged config
@@ -487,21 +478,73 @@ impl Config {
             serde_yaml::from_value(merged_value).context("Failed to deserialize merged config")?;
 
         config.validate()?;
-
-        // Log loaded configuration (concise single-line summary)
-        info!(
-            "Config loaded: model={} endpoint={} timeout={}ms",
-            config.model.model_name, config.model.endpoint, config.model.timeout_ms
-        );
-        debug!(
-            "Config details: history_window={} git_enabled={} system_info={} cwd_listing={}",
-            config.context.history_window,
-            config.plugins.git.enabled,
-            config.context.include_system_info,
-            config.context.include_cwd_listing
-        );
+        Self::log_loaded_summary(&config);
 
         Ok(config)
+    }
+
+    /// Resolve config override path from environment variables.
+    /// Priority: NUDGE_CONFIG > SMARTSHELL_CONFIG (legacy fallback)
+    fn resolve_override_config_path() -> Option<(&'static str, PathBuf)> {
+        let nudge_override = std::env::var_os(CONFIG_ENV).map(PathBuf::from);
+        let legacy_override = std::env::var_os(LEGACY_CONFIG_ENV).map(PathBuf::from);
+
+        match (nudge_override, legacy_override) {
+            (Some(path), Some(_)) => {
+                warn!(
+                    "Both {} and {} are set. Using {}.",
+                    CONFIG_ENV, LEGACY_CONFIG_ENV, CONFIG_ENV
+                );
+                Some((CONFIG_ENV, path))
+            }
+            (Some(path), None) => Some((CONFIG_ENV, path)),
+            (None, Some(path)) => {
+                warn!(
+                    "{} is deprecated. Please migrate to {}.",
+                    LEGACY_CONFIG_ENV, CONFIG_ENV
+                );
+                Some((LEGACY_CONFIG_ENV, path))
+            }
+            (None, None) => None,
+        }
+    }
+
+    /// Load and parse an optional YAML layer.
+    /// Returns Ok(None) when file does not exist or is intentionally empty.
+    fn load_yaml_layer(path: &Path, layer_name: &str) -> Result<Option<Value>> {
+        let contents = match std::fs::read_to_string(path) {
+            Ok(contents) => contents,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => {
+                return Err(e).with_context(|| {
+                    format!(
+                        "Failed to read {} config file: {}",
+                        layer_name,
+                        path.display()
+                    )
+                });
+            }
+        };
+
+        if Self::is_empty_yaml_document(&contents) {
+            debug!("Skipped empty {} config: {}", layer_name, path.display());
+            return Ok(None);
+        }
+
+        let value = serde_yaml::from_str::<Value>(&contents).with_context(|| {
+            format!(
+                "Failed to parse {} config file: {}",
+                layer_name,
+                path.display()
+            )
+        })?;
+
+        Ok(Some(value))
+    }
+
+    fn is_empty_yaml_document(contents: &str) -> bool {
+        let trimmed = contents.trim();
+        trimmed.is_empty() || trimmed == "---"
     }
 
     /// Deep merge two YAML values. Values from `override_value` take precedence.
@@ -526,7 +569,7 @@ impl Config {
     }
 
     /// Load configuration from a specific path (no layering, direct load)
-    pub fn load_from_path(path: &PathBuf) -> Result<Self> {
+    pub fn load_from_path(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
@@ -540,17 +583,24 @@ impl Config {
             .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
 
         config.validate()?;
-
-        // Log loaded configuration details
-        info!("Config loaded successfully:");
-        info!("  Model endpoint: {}", config.model.endpoint);
-        info!("  Model name: {}", config.model.model_name);
-        info!("  API key env: {:?}", config.model.api_key_env);
-        info!("  Timeout: {}ms", config.model.timeout_ms);
-        debug!("  History window: {}", config.context.history_window);
-        debug!("  Git plugin enabled: {}", config.plugins.git.enabled);
+        Self::log_loaded_summary(&config);
 
         Ok(config)
+    }
+
+    fn log_loaded_summary(config: &Self) {
+        // Log loaded configuration (concise single-line summary)
+        info!(
+            "Config loaded: model={} endpoint={} timeout={}ms",
+            config.model.model_name, config.model.endpoint, config.model.timeout_ms
+        );
+        debug!(
+            "Config details: history_window={} git_enabled={} system_info={} cwd_listing={}",
+            config.context.history_window,
+            config.plugins.git.enabled,
+            config.context.include_system_info,
+            config.context.include_cwd_listing
+        );
     }
 
     /// Get the base config file path (config.default.yaml - ships with app)
@@ -601,6 +651,77 @@ impl Config {
             anyhow::bail!("context.max_total_tokens must be greater than 0");
         }
 
+        if self.trigger.auto_delay_ms == 0 {
+            anyhow::bail!("trigger.auto_delay_ms must be greater than 0");
+        }
+
+        if self.cache.capacity == 0 {
+            anyhow::bail!("cache.capacity must be greater than 0");
+        }
+
+        if self.cache.prefix_bytes == 0 {
+            anyhow::bail!("cache.prefix_bytes must be greater than 0");
+        }
+
+        if self.cache.ttl_auto_ms == 0 {
+            anyhow::bail!("cache.ttl_auto_ms must be greater than 0");
+        }
+
+        if self.cache.ttl_manual_ms == 0 {
+            anyhow::bail!("cache.ttl_manual_ms must be greater than 0");
+        }
+
+        if self.cache.ttl_negative_ms == 0 {
+            anyhow::bail!("cache.ttl_negative_ms must be greater than 0");
+        }
+
+        if !self.cache.stale_ratio.is_finite() || !(0.0..=1.0).contains(&self.cache.stale_ratio) {
+            anyhow::bail!("cache.stale_ratio must be between 0.0 and 1.0");
+        }
+
+        if self.diagnosis.max_stderr_size == 0 {
+            anyhow::bail!("diagnosis.max_stderr_size must be greater than 0");
+        }
+
+        if self.diagnosis.timeout_ms == 0 {
+            anyhow::bail!("diagnosis.timeout_ms must be greater than 0");
+        }
+
+        Self::validate_priority(
+            "context.priorities.history",
+            self.context.priorities.history,
+        )?;
+        Self::validate_priority(
+            "context.priorities.cwd_listing",
+            self.context.priorities.cwd_listing,
+        )?;
+        Self::validate_priority(
+            "context.priorities.plugins",
+            self.context.priorities.plugins,
+        )?;
+        if let Some(priority) = self.plugins.git.priority {
+            Self::validate_priority("plugins.git.priority", priority)?;
+        }
+        if let Some(priority) = self.plugins.docker.priority {
+            Self::validate_priority("plugins.docker.priority", priority)?;
+        }
+        if let Some(priority) = self.plugins.node.priority {
+            Self::validate_priority("plugins.node.priority", priority)?;
+        }
+        if let Some(priority) = self.plugins.rust.priority {
+            Self::validate_priority("plugins.rust.priority", priority)?;
+        }
+        if let Some(priority) = self.plugins.python.priority {
+            Self::validate_priority("plugins.python.priority", priority)?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_priority(field: &str, priority: u8) -> Result<()> {
+        if !(1..=100).contains(&priority) {
+            anyhow::bail!("{} must be between 1 and 100", field);
+        }
         Ok(())
     }
 
@@ -878,7 +999,54 @@ impl std::fmt::Display for ShellType {
 
 #[cfg(test)]
 mod tests {
-    use super::{Config, ZshGhostOwner, ZshOverlayBackend};
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+    use std::sync::{Mutex, OnceLock};
+
+    use serde_yaml::Value;
+    use tempfile::NamedTempFile;
+
+    use super::{Config, ZshGhostOwner, ZshOverlayBackend, CONFIG_ENV, LEGACY_CONFIG_ENV};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct EnvVarGuard {
+        originals: Vec<(String, Option<OsString>)>,
+    }
+
+    impl EnvVarGuard {
+        fn set(vars: &[(&str, Option<&str>)]) -> Self {
+            let originals = vars
+                .iter()
+                .map(|(name, _)| ((*name).to_string(), std::env::var_os(name)))
+                .collect::<Vec<_>>();
+
+            for (name, value) in vars {
+                if let Some(value) = value {
+                    std::env::set_var(name, value);
+                } else {
+                    std::env::remove_var(name);
+                }
+            }
+
+            Self { originals }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            for (name, value) in &self.originals {
+                if let Some(value) = value {
+                    std::env::set_var(name, value);
+                } else {
+                    std::env::remove_var(name);
+                }
+            }
+        }
+    }
 
     #[test]
     fn trigger_defaults_to_auto_ghost_owner() {
@@ -919,5 +1087,75 @@ trigger:
             config.trigger.zsh_overlay_backend,
             ZshOverlayBackend::Rprompt
         );
+    }
+
+    #[test]
+    fn deep_merge_keeps_nested_base_values() {
+        let base = serde_yaml::from_str::<Value>(
+            r#"
+context:
+  history_window: 20
+  priorities:
+    history: 80
+    plugins: 40
+"#,
+        )
+        .expect("base yaml should parse");
+        let override_value = serde_yaml::from_str::<Value>(
+            r#"
+context:
+  priorities:
+    plugins: 90
+"#,
+        )
+        .expect("override yaml should parse");
+
+        let merged = Config::deep_merge(base, override_value);
+        let config: Config = serde_yaml::from_value(merged).expect("merged config should parse");
+
+        assert_eq!(config.context.history_window, 20);
+        assert_eq!(config.context.priorities.history, 80);
+        assert_eq!(config.context.priorities.plugins, 90);
+    }
+
+    #[test]
+    fn load_yaml_layer_skips_empty_document() {
+        let file = NamedTempFile::new().expect("temp file should be created");
+        std::fs::write(file.path(), "---\n").expect("temp file should be written");
+
+        let layer = Config::load_yaml_layer(file.path(), "test").expect("layer load should work");
+        assert!(layer.is_none());
+    }
+
+    #[test]
+    fn load_yaml_layer_returns_parse_error() {
+        let file = NamedTempFile::new().expect("temp file should be created");
+        std::fs::write(file.path(), "model: [").expect("temp file should be written");
+
+        let err = Config::load_yaml_layer(file.path(), "test").expect_err("yaml should fail");
+        assert!(err.to_string().contains("Failed to parse test config file"));
+    }
+
+    #[test]
+    fn resolve_override_prefers_nudge_config() {
+        let _lock = env_lock().lock().expect("env lock should be acquired");
+        let _env = EnvVarGuard::set(&[
+            (CONFIG_ENV, Some("/tmp/new.yaml")),
+            (LEGACY_CONFIG_ENV, Some("/tmp/legacy.yaml")),
+        ]);
+
+        let (env_name, path) =
+            Config::resolve_override_config_path().expect("override path should resolve");
+        assert_eq!(env_name, CONFIG_ENV);
+        assert_eq!(path, PathBuf::from("/tmp/new.yaml"));
+    }
+
+    #[test]
+    fn validate_rejects_invalid_stale_ratio() {
+        let mut config = Config::default();
+        config.cache.stale_ratio = 1.2;
+
+        let err = config.validate().expect_err("validation should fail");
+        assert!(err.to_string().contains("cache.stale_ratio"));
     }
 }

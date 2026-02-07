@@ -292,8 +292,11 @@ trigger:
 
 | Variable | Description |
 |----------|-------------|
-| `SMARTSHELL_CONFIG` | Override config file path |
+| `NUDGE_CONFIG` | Override config file path (preferred) |
+| `SMARTSHELL_CONFIG` | Legacy override variable (fallback; deprecated) |
 | `RUST_LOG` | Override log level (e.g., `nudge=debug`) |
+
+When both `NUDGE_CONFIG` and `SMARTSHELL_CONFIG` are set, `NUDGE_CONFIG` takes precedence.
 
 ## See Also
 
