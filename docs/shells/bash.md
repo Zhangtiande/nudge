@@ -22,6 +22,7 @@
 - List rows are emitted as:
   - `risk<TAB>command<TAB>warning<TAB>why<TAB>diff`
 - Current max candidates in daemon popup mode: `6`.
+- Popup mode asks LLM for a ranked candidate list; local history ranking is used only as fallback when LLM returns fewer items.
 - `risk` is derived from safety warning presence.
 - `why` prefers model metadata (`reason_short`, then `summary_short`) with local heuristic fallback.
 - `diff` is generated client-side for deterministic display.
@@ -29,7 +30,6 @@
 ## Known Gaps
 
 - Candidate count is fixed at daemon constant today (not yet user-configurable).
-- Popup candidates after the first still rely mainly on local ranking of history matches.
 
 ## Recommended Improvements
 

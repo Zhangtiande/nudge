@@ -471,8 +471,40 @@ fn build_suggestions(
         return suggestions;
     }
 
+    for (idx, candidate) in primary.additional_candidates.iter().enumerate() {
+        if suggestions.len() >= POPUP_MAX_CANDIDATES {
+            break;
+        }
+
+        let confidence = (0.9_f32 - idx as f32 * 0.05).max(0.65);
+        if let Some(suggestion) = make_suggestion(
+            &candidate.command,
+            confidence,
+            config,
+            &mut seen,
+            candidate.summary_short.clone(),
+            candidate.reason_short.clone(),
+        ) {
+            suggestions.push(suggestion);
+        }
+    }
+
+    if suggestions.len() >= POPUP_MAX_CANDIDATES {
+        if suggestions[0].warning.is_some() {
+            if let Some(pos) = suggestions.iter().position(|s| s.warning.is_none()) {
+                suggestions.swap(0, pos);
+            }
+        }
+        return suggestions;
+    }
+
     let typed = original_buffer.trim();
     if typed.is_empty() {
+        if suggestions.len() > 1 && suggestions[0].warning.is_some() {
+            if let Some(pos) = suggestions.iter().position(|s| s.warning.is_none()) {
+                suggestions.swap(0, pos);
+            }
+        }
         return suggestions;
     }
 
@@ -756,7 +788,7 @@ fn categorize_llm_error(error: &anyhow::Error, config: &Config) -> (ErrorInfo, S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::daemon::llm::CompletionDraft;
+    use crate::daemon::llm::{CandidateDraft, CompletionDraft};
 
     #[test]
     fn popup_mode_includes_related_history_candidates() {
@@ -773,6 +805,7 @@ mod tests {
                 command: "git status -sb".to_string(),
                 summary_short: None,
                 reason_short: None,
+                additional_candidates: vec![],
             },
             &similar,
             &config,
@@ -796,6 +829,7 @@ mod tests {
                 command: "git status -sb".to_string(),
                 summary_short: None,
                 reason_short: None,
+                additional_candidates: vec![],
             },
             &similar,
             &config,
@@ -815,6 +849,7 @@ mod tests {
                 command: "git status".to_string(),
                 summary_short: Some("Show working tree status".to_string()),
                 reason_short: None,
+                additional_candidates: vec![],
             },
             &[],
             &config,
@@ -837,6 +872,7 @@ mod tests {
                 command: "git status".to_string(),
                 summary_short: None,
                 reason_short: Some("matches typed prefix".to_string()),
+                additional_candidates: vec![],
             },
             &[],
             &config,
@@ -862,6 +898,7 @@ mod tests {
                 command: "rm -rf /".to_string(),
                 summary_short: None,
                 reason_short: None,
+                additional_candidates: vec![],
             },
             &similar,
             &config,
@@ -871,5 +908,44 @@ mod tests {
         assert!(suggestions.len() >= 2);
         assert_eq!(suggestions[0].text, "rm -ri ./tmp");
         assert!(suggestions[1].warning.is_some());
+    }
+
+    #[test]
+    fn popup_mode_includes_llm_candidates_before_history() {
+        let config = Config::default();
+        let similar = vec![
+            "git status".to_string(),
+            "git stash".to_string(),
+            "git commit".to_string(),
+        ];
+
+        let suggestions = build_suggestions(
+            "git st",
+            &CompletionDraft {
+                command: "git status -sb".to_string(),
+                summary_short: None,
+                reason_short: Some("most relevant".to_string()),
+                additional_candidates: vec![
+                    CandidateDraft {
+                        command: "git status".to_string(),
+                        summary_short: Some("Show status".to_string()),
+                        reason_short: Some("exact command form".to_string()),
+                    },
+                    CandidateDraft {
+                        command: "git stash list".to_string(),
+                        summary_short: Some("List stashes".to_string()),
+                        reason_short: Some("related inspection".to_string()),
+                    },
+                ],
+            },
+            &similar,
+            &config,
+            ShellMode::BashPopup,
+        );
+
+        assert!(suggestions.len() >= 3);
+        assert_eq!(suggestions[0].text, "git status -sb");
+        assert_eq!(suggestions[1].text, "git status");
+        assert_eq!(suggestions[2].text, "git stash list");
     }
 }

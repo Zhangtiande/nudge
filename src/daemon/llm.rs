@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -14,6 +15,14 @@ pub struct CompletionDraft {
     pub command: String,
     pub summary_short: Option<String>,
     pub reason_short: Option<String>,
+    pub additional_candidates: Vec<CandidateDraft>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CandidateDraft {
+    pub command: String,
+    pub summary_short: Option<String>,
+    pub reason_short: Option<String>,
 }
 
 impl CompletionDraft {
@@ -22,6 +31,7 @@ impl CompletionDraft {
             command,
             summary_short: None,
             reason_short: None,
+            additional_candidates: Vec::new(),
         }
     }
 }
@@ -87,7 +97,7 @@ pub async fn complete(
                 content: user_prompt,
             },
         ],
-        max_tokens: 100,
+        max_tokens: max_tokens_for_mode(shell_mode),
         temperature: 0.3,
         stream: false,
     };
@@ -139,11 +149,12 @@ pub async fn complete(
     let cleaned = parse_completion(&text, buffer);
 
     info!(
-        "LLM parsed completion: shell_mode={} command={:?} summary_short={:?} reason_short={:?}",
+        "LLM parsed completion: shell_mode={} command={:?} summary_short={:?} reason_short={:?} additional_candidates={}",
         shell_mode.as_str(),
         cleaned.command,
         cleaned.summary_short,
-        cleaned.reason_short
+        cleaned.reason_short,
+        cleaned.additional_candidates.len()
     );
 
     Ok(cleaned)
@@ -309,28 +320,32 @@ fn parse_json_completion(text: &str) -> Option<CompletionDraft> {
             .next()
             .and_then(|line| serde_json::from_str::<Value>(line.trim()).ok())
     })?;
-    let obj = value.as_object()?;
 
-    let command = ["command", "text", "completion", "suggestion"]
-        .iter()
-        .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
-        .map(str::trim)
-        .filter(|s| !s.is_empty())?
-        .to_string();
+    let mut parsed_candidates = parse_candidate_array(&value);
+    let primary = parse_candidate_value(&value).or_else(|| {
+        if parsed_candidates.is_empty() {
+            None
+        } else {
+            Some(parsed_candidates.remove(0))
+        }
+    })?;
 
-    let summary_short = ["summary_short", "summary", "description", "why"]
-        .iter()
-        .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
-        .and_then(sanitize_summary);
-    let reason_short = ["reason_short", "reason", "why"]
-        .iter()
-        .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
-        .and_then(sanitize_summary);
+    let mut additional_candidates = Vec::new();
+    let mut seen = HashSet::new();
+    seen.insert(primary.command.to_lowercase());
+
+    for candidate in parsed_candidates {
+        let dedupe_key = candidate.command.to_lowercase();
+        if seen.insert(dedupe_key) {
+            additional_candidates.push(candidate);
+        }
+    }
 
     Some(CompletionDraft {
-        command,
-        summary_short,
-        reason_short,
+        command: primary.command,
+        summary_short: primary.summary_short,
+        reason_short: primary.reason_short,
+        additional_candidates,
     })
 }
 
@@ -345,6 +360,72 @@ fn sanitize_summary(summary: &str) -> Option<String> {
         truncated.push_str("...");
     }
     Some(truncated)
+}
+
+fn max_tokens_for_mode(shell_mode: ShellMode) -> u32 {
+    match shell_mode {
+        ShellMode::BashPopup => 320,
+        _ => 100,
+    }
+}
+
+fn parse_candidate_array(value: &Value) -> Vec<CandidateDraft> {
+    match value {
+        Value::Array(arr) => arr.iter().filter_map(parse_candidate_value).collect(),
+        Value::Object(obj) => [
+            "candidates",
+            "suggestions",
+            "alternatives",
+            "completions",
+            "choices",
+        ]
+        .iter()
+        .find_map(|key| obj.get(*key))
+        .and_then(Value::as_array)
+        .map(|arr| arr.iter().filter_map(parse_candidate_value).collect())
+        .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+fn parse_candidate_value(value: &Value) -> Option<CandidateDraft> {
+    match value {
+        Value::String(raw) => {
+            let command = raw.trim();
+            if command.is_empty() {
+                return None;
+            }
+            Some(CandidateDraft {
+                command: command.to_string(),
+                summary_short: None,
+                reason_short: None,
+            })
+        }
+        Value::Object(obj) => {
+            let command = ["command", "text", "completion", "suggestion"]
+                .iter()
+                .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
+                .map(str::trim)
+                .filter(|s| !s.is_empty())?
+                .to_string();
+
+            let summary_short = ["summary_short", "summary", "description", "why"]
+                .iter()
+                .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
+                .and_then(sanitize_summary);
+            let reason_short = ["reason_short", "reason", "why"]
+                .iter()
+                .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
+                .and_then(sanitize_summary);
+
+            Some(CandidateDraft {
+                command,
+                summary_short,
+                reason_short,
+            })
+        }
+        _ => None,
+    }
 }
 
 /// Convert snake_case to Title Case
@@ -404,7 +485,7 @@ fn format_array(arr: &[serde_json::Value]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_user_prompt, parse_completion, CompletionDraft};
+    use super::{build_user_prompt, parse_completion, CandidateDraft, CompletionDraft};
     use crate::daemon::context::ContextData;
     use crate::daemon::shell_mode::ShellMode;
 
@@ -416,7 +497,8 @@ mod tests {
             CompletionDraft {
                 command: "git status".to_string(),
                 summary_short: None,
-                reason_short: None
+                reason_short: None,
+                additional_candidates: vec![]
             }
         );
     }
@@ -432,7 +514,8 @@ mod tests {
             CompletionDraft {
                 command: "git status".to_string(),
                 summary_short: Some("Check working tree state".to_string()),
-                reason_short: None
+                reason_short: None,
+                additional_candidates: vec![]
             }
         );
     }
@@ -448,7 +531,29 @@ mod tests {
             CompletionDraft {
                 command: "git status -sb".to_string(),
                 summary_short: None,
-                reason_short: Some("matches typed git st prefix".to_string())
+                reason_short: Some("matches typed git st prefix".to_string()),
+                additional_candidates: vec![]
+            }
+        );
+    }
+
+    #[test]
+    fn parse_json_completion_with_candidates_array() {
+        let parsed = parse_completion(
+            r#"{"candidates":[{"command":"git status -sb","reason_short":"best match"},{"command":"git stash list","summary_short":"List stashes"}]}"#,
+            "git st",
+        );
+        assert_eq!(
+            parsed,
+            CompletionDraft {
+                command: "git status -sb".to_string(),
+                summary_short: None,
+                reason_short: Some("best match".to_string()),
+                additional_candidates: vec![CandidateDraft {
+                    command: "git stash list".to_string(),
+                    summary_short: Some("List stashes".to_string()),
+                    reason_short: None
+                }]
             }
         );
     }
