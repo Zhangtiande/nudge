@@ -91,7 +91,7 @@ pub enum Command {
 
     /// Diagnose shell integration health
     Doctor {
-        /// Shell target (currently: zsh)
+        /// Shell target (currently: zsh, bash)
         shell: Option<String>,
     },
 
@@ -141,6 +141,8 @@ pub enum Command {
 pub enum OutputFormat {
     /// Output only the suggestion text (for shell integration)
     Plain,
+    /// Output tab-separated candidates (risk, command, warning)
+    List,
     /// Full JSON response (for debugging/advanced use)
     Json,
 }

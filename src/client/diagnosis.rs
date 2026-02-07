@@ -79,7 +79,7 @@ pub async fn diagnose(
 
     // Output result
     match format {
-        OutputFormat::Plain => {
+        OutputFormat::Plain | OutputFormat::List => {
             if let Some(err) = &response.error {
                 eprintln!("Diagnosis failed: {}", err.message);
             } else {

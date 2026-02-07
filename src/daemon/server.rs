@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -23,6 +24,7 @@ use super::llm;
 use super::safety;
 use super::sanitizer;
 use super::session::SessionStore;
+use super::shell_mode::ShellMode;
 use super::suggestion_cache::{SuggestionCache, SuggestionKey};
 use crate::config::Config;
 use crate::protocol::{
@@ -291,16 +293,13 @@ async fn process_request(
     // Update session
     sessions.update_session(&request.session_id, &request.cwd);
 
-    let shell_mode = request
-        .shell_mode
-        .clone()
-        .unwrap_or_else(|| infer_shell_mode(&request.session_id));
+    let shell_mode = ShellMode::resolve(request.shell_mode.as_deref(), &request.session_id);
 
     let cache_key = SuggestionKey::build_with_patterns(
         &request,
         request.git_root.as_ref(),
         request.git_state.as_deref(),
-        &shell_mode,
+        shell_mode.as_str(),
         request.time_bucket,
         config.cache.prefix_bytes,
         &config.privacy.custom_patterns,
@@ -331,19 +330,20 @@ async fn process_request(
             let refresh_sessions = sessions.clone();
             let refresh_cache = cache.clone();
             let refresh_key = cache_key.clone();
-            let refresh_shell_mode = shell_mode.clone();
+            let refresh_shell_mode = shell_mode;
 
             tokio::spawn(async move {
                 refresh_sessions.update_session(&refresh_request.session_id, &refresh_request.cwd);
                 let response = compute_completion(
                     &refresh_request,
                     &refresh_config,
+                    refresh_shell_mode,
                     Uuid::new_v4().to_string(),
                 )
                 .await;
                 let insert_now = now_millis();
                 let is_negative = response.error.is_some() || response.suggestions.is_empty();
-                let ttl_ms = cache_ttl_ms(&refresh_shell_mode, &refresh_config, is_negative);
+                let ttl_ms = cache_ttl_ms(refresh_shell_mode, &refresh_config, is_negative);
                 debug!(
                     ttl_ms = ttl_ms,
                     "Background refresh complete, updating cache"
@@ -357,10 +357,10 @@ async fn process_request(
     }
 
     debug!(cache_hit = false, "Cache miss, computing completion");
-    let response = compute_completion(&request, config, request_id.clone()).await;
+    let response = compute_completion(&request, config, shell_mode, request_id.clone()).await;
     let insert_now = now_millis();
     let is_negative = response.error.is_some() || response.suggestions.is_empty();
-    let ttl_ms = cache_ttl_ms(&shell_mode, config, is_negative);
+    let ttl_ms = cache_ttl_ms(shell_mode, config, is_negative);
 
     debug!(
         ttl_ms = ttl_ms,
@@ -378,6 +378,7 @@ async fn process_request(
 async fn compute_completion(
     request: &CompletionRequest,
     config: &Config,
+    shell_mode: ShellMode,
     request_id: String,
 ) -> CompletionResponse {
     let context_start = Instant::now();
@@ -432,44 +433,148 @@ async fn compute_completion(
         }
     };
 
-    // Check for dangerous commands
-    let warning = if config.privacy.block_dangerous {
-        safety::check(&suggestion_text, &config.privacy.custom_blocked)
-    } else {
-        None
-    };
+    let suggestions = build_suggestions(
+        &request.buffer,
+        &suggestion_text,
+        &sanitized_context.similar_commands,
+        config,
+        shell_mode,
+    );
 
-    // Build response
-    let mut suggestion = Suggestion::new(suggestion_text);
-    if let Some(w) = warning {
-        suggestion = suggestion.with_warning(w);
-    }
-
-    CompletionResponse::success(request_id, vec![suggestion], 0)
+    CompletionResponse::success(request_id, suggestions, 0)
 }
 
-fn cache_ttl_ms(shell_mode: &str, config: &Config, negative: bool) -> u64 {
+const POPUP_MAX_CANDIDATES: usize = 6;
+
+fn build_suggestions(
+    original_buffer: &str,
+    primary_text: &str,
+    similar_commands: &[String],
+    config: &Config,
+    shell_mode: ShellMode,
+) -> Vec<Suggestion> {
+    let mut suggestions = Vec::new();
+    let mut seen = HashSet::new();
+
+    if let Some(primary) = make_suggestion(primary_text, 1.0, config, &mut seen) {
+        suggestions.push(primary);
+    }
+
+    if !shell_mode.supports_multi_candidates() {
+        return suggestions;
+    }
+
+    let typed = original_buffer.trim();
+    if typed.is_empty() {
+        return suggestions;
+    }
+
+    let mut ranked = rank_popup_candidates(typed, similar_commands, config);
+    for candidate in ranked.drain(..) {
+        if suggestions.len() >= POPUP_MAX_CANDIDATES {
+            break;
+        }
+
+        if let Some(suggestion) = make_suggestion(&candidate, 0.65, config, &mut seen) {
+            suggestions.push(suggestion);
+        }
+    }
+
+    // Don't default-select a dangerous command when safe alternatives exist.
+    if suggestions.len() > 1 && suggestions[0].warning.is_some() {
+        if let Some(pos) = suggestions.iter().position(|s| s.warning.is_none()) {
+            suggestions.swap(0, pos);
+        }
+    }
+
+    suggestions
+}
+
+fn make_suggestion(
+    text: &str,
+    confidence: f32,
+    config: &Config,
+    seen: &mut HashSet<String>,
+) -> Option<Suggestion> {
+    let normalized = text.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let dedupe_key = normalized.to_lowercase();
+    if !seen.insert(dedupe_key) {
+        return None;
+    }
+
+    let mut suggestion = Suggestion::new(normalized.to_string()).with_confidence(confidence);
+    if config.privacy.block_dangerous {
+        if let Some(warning) = safety::check(normalized, &config.privacy.custom_blocked) {
+            suggestion = suggestion.with_warning(warning);
+        }
+    }
+    Some(suggestion)
+}
+
+fn is_related_candidate(typed: &str, candidate: &str) -> bool {
+    if candidate.starts_with(typed) {
+        return true;
+    }
+
+    let typed_head = typed.split_whitespace().next().unwrap_or_default();
+    if typed_head.is_empty() {
+        return false;
+    }
+
+    candidate.starts_with(typed_head) || candidate.contains(typed)
+}
+
+fn rank_popup_candidates(typed: &str, candidates: &[String], config: &Config) -> Vec<String> {
+    let typed_head = typed.split_whitespace().next().unwrap_or_default();
+    let mut ranked: Vec<(i32, String)> = Vec::new();
+
+    for (idx, cmd) in candidates.iter().enumerate() {
+        let candidate = cmd.trim();
+        if candidate.is_empty() || !is_related_candidate(typed, candidate) {
+            continue;
+        }
+
+        let mut score = 0;
+        if candidate.starts_with(typed) {
+            score += 300;
+        } else if !typed_head.is_empty() && candidate.starts_with(typed_head) {
+            score += 180;
+        } else if candidate.contains(typed) {
+            score += 120;
+        }
+
+        // Prefer shorter deltas from current input for less disruptive rewrites.
+        let len_gap = (candidate.len() as i32 - typed.len() as i32).abs();
+        score += (120 - len_gap).max(0);
+
+        // Earlier history items are usually more relevant.
+        score += (80 - idx as i32).max(0);
+
+        if config.privacy.block_dangerous
+            && safety::check(candidate, &config.privacy.custom_blocked).is_some()
+        {
+            score -= 250;
+        }
+
+        ranked.push((score, candidate.to_string()));
+    }
+
+    ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.len().cmp(&b.1.len())));
+    ranked.into_iter().map(|(_, text)| text).collect()
+}
+
+fn cache_ttl_ms(shell_mode: ShellMode, config: &Config, negative: bool) -> u64 {
     if negative {
         return config.cache.ttl_negative_ms;
     }
-    if shell_mode.to_lowercase().ends_with("-auto") {
+    if shell_mode.is_auto() {
         config.cache.ttl_auto_ms
     } else {
         config.cache.ttl_manual_ms
-    }
-}
-
-fn infer_shell_mode(session_id: &str) -> String {
-    if session_id.starts_with("zsh-") {
-        "zsh-inline".to_string()
-    } else if session_id.starts_with("bash-") {
-        "bash-popup".to_string()
-    } else if session_id.starts_with("pwsh-") || session_id.starts_with("powershell-") {
-        "ps-inline".to_string()
-    } else if session_id.starts_with("cmd-") {
-        "cmd-inline".to_string()
-    } else {
-        "unknown".to_string()
     }
 }
 
@@ -624,5 +729,64 @@ fn categorize_llm_error(error: &anyhow::Error, config: &Config) -> (ErrorInfo, S
     } else {
         let msg = format!("LLM error: {}", error);
         (ErrorInfo::llm_unavailable(&msg), msg)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn popup_mode_includes_related_history_candidates() {
+        let config = Config::default();
+        let similar = vec![
+            "git status".to_string(),
+            "git stash".to_string(),
+            "npm test".to_string(),
+        ];
+
+        let suggestions = build_suggestions(
+            "git st",
+            "git status -sb",
+            &similar,
+            &config,
+            ShellMode::BashPopup,
+        );
+
+        assert!(suggestions.len() >= 2);
+        assert_eq!(suggestions[0].text, "git status -sb");
+        assert!(suggestions.iter().any(|s| s.text == "git status"));
+        assert!(!suggestions.iter().any(|s| s.text == "npm test"));
+    }
+
+    #[test]
+    fn inline_mode_keeps_single_primary_suggestion() {
+        let config = Config::default();
+        let similar = vec!["git status".to_string(), "git stash".to_string()];
+
+        let suggestions = build_suggestions(
+            "git st",
+            "git status -sb",
+            &similar,
+            &config,
+            ShellMode::ZshInline,
+        );
+
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(suggestions[0].text, "git status -sb");
+    }
+
+    #[test]
+    fn popup_mode_avoids_dangerous_default_when_safe_candidate_exists() {
+        let mut config = Config::default();
+        config.privacy.block_dangerous = true;
+        let similar = vec!["rm -ri ./tmp".to_string(), "rm -rf /".to_string()];
+
+        let suggestions =
+            build_suggestions("rm ", "rm -rf /", &similar, &config, ShellMode::BashPopup);
+
+        assert!(suggestions.len() >= 2);
+        assert_eq!(suggestions[0].text, "rm -ri ./tmp");
+        assert!(suggestions[1].warning.is_some());
     }
 }

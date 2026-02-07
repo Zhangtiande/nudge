@@ -12,6 +12,8 @@ use crate::cli::OutputFormat;
 use crate::protocol::{CompletionRequest, CompletionResponse};
 
 const PLAIN_WARNING_PREFIX: &str = "NUDGE_WARNING:";
+const LIST_RISK_HIGH: &str = "high";
+const LIST_RISK_LOW: &str = "low";
 
 /// Execute completion request
 #[allow(clippy::too_many_arguments)]
@@ -44,6 +46,9 @@ pub async fn complete(
         OutputFormat::Plain => {
             output_plain(&response);
         }
+        OutputFormat::List => {
+            output_list(&response, &request.buffer);
+        }
         OutputFormat::Json => {
             output_json(&response)?;
         }
@@ -70,6 +75,78 @@ fn build_plain_output(response: &CompletionResponse) -> Option<String> {
     })
 }
 
+/// Output tab-separated list for popup selectors.
+/// Format per line: `<risk>\t<command>\t<warning>\t<why>\t<diff>`
+fn output_list(response: &CompletionResponse, buffer: &str) {
+    if let Some(text) = build_list_output(response, buffer) {
+        print!("{}", text);
+    }
+}
+
+fn build_list_output(response: &CompletionResponse, buffer: &str) -> Option<String> {
+    if response.suggestions.is_empty() {
+        return None;
+    }
+
+    let mut out = String::new();
+    for suggestion in &response.suggestions {
+        let risk = if suggestion.warning.is_some() {
+            LIST_RISK_HIGH
+        } else {
+            LIST_RISK_LOW
+        };
+        let why = build_why(buffer, &suggestion.text, suggestion.warning.is_some());
+        let diff = build_diff(buffer, &suggestion.text);
+        let warning = suggestion
+            .warning
+            .as_ref()
+            .map(|w| sanitize_list_field(&w.message))
+            .unwrap_or_default();
+        let command = sanitize_list_field(&suggestion.text);
+        out.push_str(risk);
+        out.push('\t');
+        out.push_str(&command);
+        out.push('\t');
+        out.push_str(&warning);
+        out.push('\t');
+        out.push_str(&sanitize_list_field(&why));
+        out.push('\t');
+        out.push_str(&sanitize_list_field(&diff));
+        out.push('\n');
+    }
+
+    Some(out)
+}
+
+fn sanitize_list_field(input: &str) -> String {
+    input
+        .replace('\t', " ")
+        .replace('\n', " ")
+        .replace('\r', " ")
+}
+
+fn build_why(buffer: &str, suggestion: &str, has_warning: bool) -> String {
+    if has_warning {
+        return "safety check flagged".to_string();
+    }
+    if suggestion.starts_with(buffer) {
+        return "prefix completion".to_string();
+    }
+    "context rewrite".to_string()
+}
+
+fn build_diff(buffer: &str, suggestion: &str) -> String {
+    if let Some(tail) = suggestion.strip_prefix(buffer) {
+        if tail.is_empty() {
+            "+<none>".to_string()
+        } else {
+            format!("+{}", tail)
+        }
+    } else {
+        format!("~ {} -> {}", buffer, suggestion)
+    }
+}
+
 /// Output full JSON response
 fn output_json(response: &CompletionResponse) -> Result<()> {
     let json = serde_json::to_string_pretty(response)?;
@@ -79,7 +156,7 @@ fn output_json(response: &CompletionResponse) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::build_plain_output;
+    use super::{build_list_output, build_plain_output};
     use crate::protocol::{CompletionResponse, Suggestion, Warning};
 
     #[test]
@@ -106,5 +183,32 @@ mod tests {
         let output = build_plain_output(&response);
 
         assert_eq!(output, Some("git status".to_string()));
+    }
+
+    #[test]
+    fn test_list_output_emits_risk_command_warning_rows() {
+        let response = CompletionResponse::success(
+            "req-1".to_string(),
+            vec![
+                Suggestion::new("git status".to_string()),
+                Suggestion::new("rm -rf /".to_string())
+                    .with_warning(Warning::dangerous("danger command")),
+            ],
+            0,
+        );
+
+        let output = build_list_output(&response, "git st").unwrap();
+        let lines: Vec<&str> = output.lines().collect();
+        let cols0: Vec<&str> = lines[0].split('\t').collect();
+        let cols1: Vec<&str> = lines[1].split('\t').collect();
+
+        assert_eq!(cols0[0], "low");
+        assert_eq!(cols0[1], "git status");
+        assert_eq!(cols0[3], "prefix completion");
+
+        assert_eq!(cols1[0], "high");
+        assert_eq!(cols1[1], "rm -rf /");
+        assert_eq!(cols1[2], "danger command");
+        assert_eq!(cols1[3], "safety check flagged");
     }
 }

@@ -6,6 +6,7 @@ pub mod safety;
 pub mod sanitizer;
 pub mod server;
 pub mod session;
+pub mod shell_mode;
 pub mod suggestion_cache;
 
 use std::fs;
