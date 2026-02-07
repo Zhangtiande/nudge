@@ -35,3 +35,6 @@ coverage/
 
 # Git worktrees
 .worktrees/
+
+# Local planning notes (keep in workspace, not in repo)
+docs/plans/

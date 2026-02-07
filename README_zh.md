@@ -109,6 +109,10 @@ Bash popup 说明：
 - 使用 `fzf` / `sk` 时可看到预览面板（`risk/why/diff/warn`）
 - `high` 风险候选默认需要二次确认；设置 `NUDGE_POPUP_CONFIRM_RISKY=0` 可关闭确认
 
+按 Shell 拆分文档：
+- [Shell 指南总览](docs/shells/README.md)
+- [提示词与 UX 改进方案](docs/shells/prompt-and-ux-improvements.md)
+
 ## 错误诊断
 
 当命令失败时，Nudge 会结合完整的项目上下文分析错误并提供修复建议。

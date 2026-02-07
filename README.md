@@ -109,6 +109,10 @@ Bash popup notes:
 - `fzf` / `sk` show a preview panel (`risk/why/diff/warn`)
 - `high` risk candidates require confirmation before apply (set `NUDGE_POPUP_CONFIRM_RISKY=0` to skip confirmation)
 
+Shell-specific docs:
+- [Shell Guides](docs/shells/README.md)
+- [Prompt and UX Improvements](docs/shells/prompt-and-ux-improvements.md)
+
 ## Error Diagnosis
 
 When a command fails, Nudge analyzes the error with full project context and suggests a fix.
