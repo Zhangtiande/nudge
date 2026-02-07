@@ -436,7 +436,7 @@ print -r -- "$_nudge_overlay_last_message"
         let stdout = String::from_utf8_lossy(&output.stdout);
         let line = stdout.lines().next().unwrap_or_default();
         assert!(
-            line.contains("risk:high"),
+            line.contains("[high]"),
             "warning-backed suggestion should be marked as high risk: {}",
             line
         );
@@ -605,6 +605,8 @@ source shell/integration.zsh >/dev/null 2>&1
 BUFFER="git st"
 _nudge_auto_suggestion="git status"
 _nudge_auto_warning=""
+_nudge_auto_reason="Complete git status command"
+_nudge_explain_expanded="true"
 _nudge_overlay_render
 print -r -- "$_nudge_overlay_last_message"
 "#;
@@ -630,13 +632,18 @@ print -r -- "$_nudge_overlay_last_message"
             line
         );
         assert!(
-            line.contains("risk:"),
-            "message overlay should include risk field: {}",
+            line.contains("[low]"),
+            "message overlay should include low risk label: {}",
             line
         );
         assert!(
             line.contains("diff:"),
             "message overlay should include diff field: {}",
+            line
+        );
+        assert!(
+            line.contains("suggest:"),
+            "message overlay should include suggest field: {}",
             line
         );
     }
