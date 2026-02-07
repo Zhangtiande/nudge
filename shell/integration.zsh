@@ -673,8 +673,14 @@ _nudge_async_update() {
 
         if [[ "$suggestion" == __NUDGE_LIST__* ]]; then
             local list_row="${suggestion#__NUDGE_LIST__}"
-            local risk command warning why diff
-            IFS=$'\t' read -r risk command warning why diff <<< "$list_row"
+            local -a list_cols
+            # Preserve empty list columns (e.g. warning) to avoid field shifting.
+            list_cols=("${(@ps:\t:)list_row}")
+            local risk="${list_cols[1]:-}"
+            local command="${list_cols[2]:-}"
+            local warning="${list_cols[3]:-}"
+            local why="${list_cols[4]:-}"
+            local diff="${list_cols[5]:-}"
             _nudge_auto_reason="$why"
             _nudge_auto_diff_hint="$diff"
 
