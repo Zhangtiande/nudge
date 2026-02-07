@@ -66,7 +66,7 @@ nudge info
 
 ### Configuration
 
-Create `~/.config/nudge/config.yaml` (Linux/macOS) or `%APPDATA%\nudge\config\config.yaml` (Windows):
+Create `~/.nudge/config/config.yaml`:
 
 ```yaml
 model:
@@ -80,8 +80,8 @@ trigger:
   zsh_overlay_backend: "message"  # "message" or "rprompt" (Zsh only)
 
 cache:
-  ttl_auto_ms: 3000     # Auto mode cache TTL
-  ttl_manual_ms: 15000  # Manual mode cache TTL
+  ttl_auto_ms: 300000   # Auto mode cache TTL
+  ttl_manual_ms: 600000 # Manual mode cache TTL
 
 diagnosis:
   enabled: true         # Enable error diagnosis

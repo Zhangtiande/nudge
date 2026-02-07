@@ -13,15 +13,8 @@ NUDGE_WARNING_PREFIX="NUDGE_WARNING:"
 
 # Fallback if nudge binary not in PATH
 if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
-    case "$(uname -s)" in
-        Darwin)
-            NUDGE_CONFIG_DIR="$HOME/Library/Application Support/nudge"
-            ;;
-        *)
-            NUDGE_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/nudge"
-            ;;
-    esac
-    NUDGE_SOCKET="$NUDGE_CONFIG_DIR/nudge.sock"
+    NUDGE_CONFIG_DIR="$HOME/.nudge"
+    NUDGE_SOCKET="$NUDGE_CONFIG_DIR/run/nudge.sock"
     NUDGE_TRIGGER_MODE="manual"
     NUDGE_AUTO_DELAY="500"
     NUDGE_ZSH_GHOST_OWNER="auto"

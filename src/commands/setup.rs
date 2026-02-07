@@ -1,4 +1,5 @@
 use crate::config::{Config, Platform, ShellType};
+use crate::paths::AppPaths;
 use anyhow::{Context, Result};
 use std::fs;
 use std::io::Write;
@@ -321,15 +322,24 @@ async fn start_daemon_if_needed() -> Result<()> {
 /// Install config files (config.default.yaml and config.yaml)
 fn install_config_files(force: bool) -> Result<()> {
     // Get config paths
-    let default_config_path = Config::base_config_path()
-        .ok_or_else(|| anyhow::anyhow!("Failed to determine config directory"))?;
-    let user_config_path = Config::default_config_path()
-        .ok_or_else(|| anyhow::anyhow!("Failed to determine config directory"))?;
+    let default_config_path = Config::base_config_path();
+    let user_config_path = Config::default_config_path();
 
     // Ensure config directory exists
     if let Some(parent) = default_config_path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+    }
+
+    // Prepare standard nudge directory layout.
+    for dir in [
+        AppPaths::run_dir(),
+        AppPaths::data_dir(),
+        AppPaths::logs_dir(),
+        AppPaths::modules_dir(),
+    ] {
+        fs::create_dir_all(&dir)
+            .with_context(|| format!("Failed to create directory: {}", dir.display()))?;
     }
 
     // Embedded config templates (compiled into binary)

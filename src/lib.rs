@@ -18,6 +18,7 @@ pub mod client;
 pub mod commands;
 pub mod config;
 pub mod daemon;
+pub mod paths;
 pub mod protocol;
 
 #[cfg(all(unix, feature = "ffi"))]

@@ -7,7 +7,8 @@ use anyhow::{Context, Result};
 use tokio::time::sleep;
 
 use crate::client::ipc;
-use crate::config::{Config, Platform, TriggerMode, ZshGhostOwner, ZshOverlayBackend};
+use crate::config::{Config, TriggerMode, ZshGhostOwner, ZshOverlayBackend};
+use crate::paths::AppPaths;
 use crate::protocol::CompletionRequest;
 
 pub async fn run_doctor(shell: Option<String>) -> Result<()> {
@@ -24,12 +25,7 @@ pub async fn run_doctor(shell: Option<String>) -> Result<()> {
 
 async fn run_zsh_doctor() -> Result<()> {
     let config = Config::load().unwrap_or_default();
-    let platform = Platform::detect().context("Failed to detect platform")?;
-    let integration_script = platform
-        .config_dir()
-        .context("Failed to resolve config directory")?
-        .join("shell")
-        .join("integration.zsh");
+    let integration_script = AppPaths::shell_dir().join("integration.zsh");
 
     println!("Nudge Doctor (zsh)");
     println!("==================");

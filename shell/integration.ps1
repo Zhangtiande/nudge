@@ -8,8 +8,9 @@ try {
     $script:NudgeInfo = $infoJson
 } catch {
     # Fallback if nudge not in PATH
+    $homeDir = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
     $script:NudgeInfo = @{
-        config_dir = Join-Path $env:APPDATA "nudge"
+        config_dir = Join-Path $homeDir ".nudge"
         socket_path = "\\.\pipe\nudge_$env:USERNAME"
         trigger_mode = "manual"
         auto_delay_ms = 500
@@ -319,7 +320,8 @@ function Initialize-NudgeAutoMode {
     $modulePath = $null
 
     # Check in nudge config directory
-    $configDir = if ($script:NudgeInfo.config_dir) { $script:NudgeInfo.config_dir } else { Join-Path $env:APPDATA "nudge" }
+    $homeDir = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
+    $configDir = if ($script:NudgeInfo.config_dir) { $script:NudgeInfo.config_dir } else { Join-Path $homeDir ".nudge" }
     $nudgePredictorPath = Join-Path $configDir "modules\NudgePredictor"
     if (Test-Path (Join-Path $nudgePredictorPath "NudgePredictor.psd1")) {
         $modulePath = $nudgePredictorPath

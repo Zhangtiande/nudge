@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Value;
 use tracing::{debug, info, warn};
+
+use crate::paths::AppPaths;
 
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -120,7 +121,6 @@ pub struct PluginsConfig {
     pub node: NodePluginConfig,
     pub rust: RustPluginConfig,
     pub python: PythonPluginConfig,
-    pub plugin_dir: Option<PathBuf>,
 }
 
 /// Git plugin configuration
@@ -454,31 +454,29 @@ impl Config {
             serde_yaml::to_value(&default_config).context("Failed to serialize default config")?;
 
         // Layer 1: Load config.default.yaml if exists (ships with app)
-        if let Some(base_path) = Self::base_config_path() {
-            if base_path.exists() {
-                if let Ok(contents) = std::fs::read_to_string(&base_path) {
-                    if let Ok(base_value) = serde_yaml::from_str::<Value>(&contents) {
-                        merged_value = Self::deep_merge(merged_value, base_value);
-                        debug!("Merged base config: {}", base_path.display());
-                    } else {
-                        warn!("Failed to parse base config: {}", base_path.display());
-                    }
+        let base_path = Self::base_config_path();
+        if base_path.exists() {
+            if let Ok(contents) = std::fs::read_to_string(&base_path) {
+                if let Ok(base_value) = serde_yaml::from_str::<Value>(&contents) {
+                    merged_value = Self::deep_merge(merged_value, base_value);
+                    debug!("Merged base config: {}", base_path.display());
+                } else {
+                    warn!("Failed to parse base config: {}", base_path.display());
                 }
             }
         }
 
         // Layer 2: Load config.yaml if exists (user customizations)
-        if let Some(user_path) = Self::default_config_path() {
-            if user_path.exists() {
-                if let Ok(contents) = std::fs::read_to_string(&user_path) {
-                    let trimmed = contents.trim();
-                    if !trimmed.is_empty() && trimmed != "---" {
-                        if let Ok(user_value) = serde_yaml::from_str::<Value>(&contents) {
-                            merged_value = Self::deep_merge(merged_value, user_value);
-                            debug!("Merged user config: {}", user_path.display());
-                        } else {
-                            warn!("Failed to parse user config: {}", user_path.display());
-                        }
+        let user_path = Self::default_config_path();
+        if user_path.exists() {
+            if let Ok(contents) = std::fs::read_to_string(&user_path) {
+                let trimmed = contents.trim();
+                if !trimmed.is_empty() && trimmed != "---" {
+                    if let Ok(user_value) = serde_yaml::from_str::<Value>(&contents) {
+                        merged_value = Self::deep_merge(merged_value, user_value);
+                        debug!("Merged user config: {}", user_path.display());
+                    } else {
+                        warn!("Failed to parse user config: {}", user_path.display());
                     }
                 }
             }
@@ -533,9 +531,9 @@ impl Config {
             .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
         debug!(
-            "Config file contents ({} bytes):\n{}",
+            "Config file loaded ({} bytes): {}",
             contents.len(),
-            contents
+            path.display()
         );
 
         let config: Self = serde_yaml::from_str(&contents)
@@ -556,75 +554,37 @@ impl Config {
     }
 
     /// Get the base config file path (config.default.yaml - ships with app)
-    /// Note: On Windows, directories crate's config_dir() already includes "config" suffix,
-    /// so we don't add another "config" subdirectory.
-    pub fn base_config_path() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "nudge").map(|dirs| {
-            #[cfg(windows)]
-            {
-                dirs.config_dir().join("config.default.yaml")
-            }
-            #[cfg(not(windows))]
-            {
-                dirs.config_dir().join("config").join("config.default.yaml")
-            }
-        })
+    pub fn base_config_path() -> PathBuf {
+        AppPaths::default_config_path()
     }
 
     /// Get the user config file path (config.yaml - user customizations)
-    /// Note: On Windows, directories crate's config_dir() already includes "config" suffix,
-    /// so we don't add another "config" subdirectory.
-    pub fn default_config_path() -> Option<PathBuf> {
-        ProjectDirs::from("", "", "nudge").map(|dirs| {
-            #[cfg(windows)]
-            {
-                dirs.config_dir().join("config.yaml")
-            }
-            #[cfg(not(windows))]
-            {
-                dirs.config_dir().join("config").join("config.yaml")
-            }
-        })
+    pub fn default_config_path() -> PathBuf {
+        AppPaths::user_config_path()
     }
 
     /// Get the socket path for IPC
-    /// On Unix: ~/.config/nudge/nudge.sock (Unix Domain Socket)
+    /// On Unix: ~/.nudge/run/nudge.sock (Unix Domain Socket)
     /// On Windows: \\.\pipe\nudge_{username} (Named Pipe)
     #[cfg(unix)]
     pub fn socket_path() -> PathBuf {
-        ProjectDirs::from("", "", "nudge")
-            .map(|dirs| dirs.config_dir().join("nudge.sock"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/nudge.sock"))
+        AppPaths::socket_path()
     }
 
     /// Get the socket path for IPC (Windows Named Pipe)
     #[cfg(windows)]
     pub fn socket_path() -> PathBuf {
-        let username = std::env::var("USERNAME").unwrap_or_else(|_| "default".into());
-        PathBuf::from(format!(r"\\.\pipe\nudge_{}", username))
+        AppPaths::socket_path()
     }
 
     /// Get the PID file path
     pub fn pid_path() -> PathBuf {
-        ProjectDirs::from("", "", "nudge")
-            .map(|dirs| dirs.config_dir().join("nudge.pid"))
-            .unwrap_or_else(|| {
-                let mut temp = std::env::temp_dir();
-                temp.push("nudge.pid");
-                temp
-            })
+        AppPaths::pid_path()
     }
 
-    /// Get the log directory path (XDG data dir)
+    /// Get the log directory path
     pub fn log_dir() -> PathBuf {
-        ProjectDirs::from("", "", "nudge")
-            .map(|dirs| dirs.data_dir().join("logs"))
-            .unwrap_or_else(|| {
-                let mut temp = std::env::temp_dir();
-                temp.push("nudge");
-                temp.push("logs");
-                temp
-            })
+        AppPaths::logs_dir()
     }
 
     /// Validate configuration values
@@ -676,9 +636,7 @@ impl Config {
                 .is_some_and(|env_var| !env_var.is_empty() && std::env::var(env_var).is_ok());
 
             if !has_direct_key && !has_env_key {
-                let config_path = Self::default_config_path()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| "config file".to_string());
+                let config_path = Self::default_config_path().display().to_string();
 
                 let mut msg = format!(
                     "API key is required for remote LLM endpoint '{}'\n\n",
@@ -796,31 +754,10 @@ impl Platform {
         ShellType::Unknown
     }
 
-    /// Get platform-specific config directory
+    /// Get platform-specific nudge root directory
     #[allow(dead_code)]
     pub fn config_dir(&self) -> Result<PathBuf> {
-        match self.os {
-            OsType::MacOS => {
-                let home = std::env::var("HOME").context("HOME environment variable not set")?;
-                Ok(PathBuf::from(home).join("Library/Application Support/nudge"))
-            }
-            OsType::Linux => {
-                let base = match std::env::var("XDG_CONFIG_HOME") {
-                    Ok(xdg) => xdg,
-                    Err(_) => {
-                        let home =
-                            std::env::var("HOME").context("HOME environment variable not set")?;
-                        format!("{}/.config", home)
-                    }
-                };
-                Ok(PathBuf::from(base).join("nudge"))
-            }
-            OsType::Windows => {
-                let appdata =
-                    std::env::var("APPDATA").context("APPDATA environment variable not set")?;
-                Ok(PathBuf::from(appdata).join("nudge"))
-            }
-        }
+        Ok(AppPaths::root_dir())
     }
 
     /// Get shell integration script path for current shell
@@ -833,7 +770,7 @@ impl Platform {
             ShellType::Cmd => "integration.cmd",
             ShellType::Unknown => "integration.bash", // fallback
         };
-        Ok(self.config_dir()?.join("shell").join(filename))
+        Ok(AppPaths::shell_dir().join(filename))
     }
 
     /// Get shell profile path (for setup command)
@@ -898,14 +835,14 @@ impl Platform {
     /// Get the path to the dynamic library for FFI mode
     ///
     /// Returns the platform-specific library path:
-    /// - macOS: `<config_dir>/lib/libnudge.dylib`
-    /// - Linux: `<config_dir>/lib/libnudge.so`
+    /// - macOS: `~/.nudge/lib/libnudge.dylib`
+    /// - Linux: `~/.nudge/lib/libnudge.so`
     /// - Windows: None (FFI not supported on Windows)
     #[allow(dead_code)]
     pub fn lib_path(&self) -> Option<PathBuf> {
         match self.os {
-            OsType::MacOS => self.config_dir().ok().map(|d| d.join("lib/libnudge.dylib")),
-            OsType::Linux => self.config_dir().ok().map(|d| d.join("lib/libnudge.so")),
+            OsType::MacOS => Some(AppPaths::lib_dir().join("libnudge.dylib")),
+            OsType::Linux => Some(AppPaths::lib_dir().join("libnudge.so")),
             OsType::Windows => None, // FFI not supported on Windows
         }
     }

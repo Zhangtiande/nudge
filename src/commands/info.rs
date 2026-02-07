@@ -1,7 +1,7 @@
 use crate::config::{Config, Platform, TriggerMode, ZshGhostOwner, ZshOverlayBackend};
+use crate::paths::AppPaths;
 use anyhow::Result;
 use serde::Serialize;
-use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Serialize)]
@@ -29,10 +29,10 @@ pub struct InfoOutput {
 /// Run the info command
 pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
     let platform = Platform::detect()?;
-    let config_dir = platform.config_dir()?;
-    let config_file = config_dir.join("config.yaml");
-    let default_config_file = config_dir.join("config").join("config.default.yaml");
-    let socket_path = config_dir.join("nudge.sock");
+    let config_dir = AppPaths::root_dir();
+    let config_file = Config::default_config_path();
+    let default_config_file = Config::base_config_path();
+    let socket_path = Config::socket_path();
     let integration_script = platform.integration_script_path()?;
 
     // Get shell type from platform
@@ -42,7 +42,7 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
     let lib_path = platform.lib_path();
 
     // Check daemon status
-    let daemon_status = check_daemon_status(&socket_path);
+    let daemon_status = check_daemon_status();
 
     // Load config for trigger settings
     let config = Config::load().unwrap_or_default();
@@ -149,20 +149,11 @@ pub fn run_info(json: bool, field: Option<String>) -> Result<()> {
     Ok(())
 }
 
-/// Check if daemon is running by attempting to connect to socket
-fn check_daemon_status(socket_path: &PathBuf) -> String {
-    // Check if socket file exists
-    if !socket_path.exists() {
-        return "Not running (socket not found)".to_string();
-    }
-
-    // Try to read socket metadata (Unix-specific behavior)
-    match fs::metadata(socket_path) {
-        Ok(_) => {
-            // Socket exists, but we can't easily check if it's active without connecting
-            // For now, we'll just report that the socket exists
-            "Running (socket exists)".to_string()
-        }
-        Err(_) => "Not running (socket not accessible)".to_string(),
+/// Check daemon status using shared runtime health check.
+fn check_daemon_status() -> String {
+    if crate::daemon::check_status().is_ok() {
+        "Running".to_string()
+    } else {
+        "Not running".to_string()
     }
 }
