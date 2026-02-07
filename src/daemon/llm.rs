@@ -3,16 +3,17 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::{debug, warn};
 
-use super::context::ContextData;
+use super::{context::ContextData, shell_mode::ShellMode};
 use crate::config::Config;
 
 const DEFAULT_SYSTEM_PROMPT: &str = r#"You are a CLI command completion assistant. Your task is to complete the user's partially typed command based on the provided context.
 
 Rules:
-1. Return ONLY the completed command, nothing else
-2. Do not explain or add commentary
+1. Follow the response contract in the user prompt exactly
+2. Do not add markdown code fences
 3. Consider the shell history and current directory context
 4. Complete commands that make sense in the given context
 5. Prefer safe, non-destructive operations
@@ -23,6 +24,23 @@ Context will include:
 - Current working directory files
 - Previous command exit status
 - Git repository state (if applicable)"#;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionDraft {
+    pub command: String,
+    pub summary_short: Option<String>,
+    pub reason_short: Option<String>,
+}
+
+impl CompletionDraft {
+    fn from_command(command: String) -> Self {
+        Self {
+            command,
+            summary_short: None,
+            reason_short: None,
+        }
+    }
+}
 
 /// LLM API request
 #[derive(Debug, Serialize)]
@@ -54,7 +72,12 @@ struct Choice {
 }
 
 /// Get completion from LLM
-pub async fn complete(buffer: &str, context: &ContextData, config: &Config) -> Result<String> {
+pub async fn complete(
+    buffer: &str,
+    context: &ContextData,
+    config: &Config,
+    shell_mode: ShellMode,
+) -> Result<CompletionDraft> {
     let client = Client::builder()
         .timeout(Duration::from_millis(config.model.timeout_ms))
         .build()?;
@@ -63,7 +86,7 @@ pub async fn complete(buffer: &str, context: &ContextData, config: &Config) -> R
         .system_prompt
         .as_deref()
         .unwrap_or(DEFAULT_SYSTEM_PROMPT);
-    let user_prompt = build_user_prompt(buffer, context);
+    let user_prompt = build_user_prompt(buffer, context, shell_mode);
 
     // Only log prompts at trace level to avoid flooding logs
     debug!("LLM request: endpoint={}", config.model.endpoint);
@@ -122,14 +145,14 @@ pub async fn complete(buffer: &str, context: &ContextData, config: &Config) -> R
         .map(|c| c.message.content.clone())
         .unwrap_or_default();
 
-    // Clean up the response - LLM might return with markdown code blocks or extra text
-    let cleaned = clean_completion(&text, buffer);
+    // Parse completion from model output with backward-compatible plain text fallback.
+    let cleaned = parse_completion(&text, buffer);
 
     Ok(cleaned)
 }
 
 /// Build the user prompt from context
-fn build_user_prompt(buffer: &str, context: &ContextData) -> String {
+fn build_user_prompt(buffer: &str, context: &ContextData, shell_mode: ShellMode) -> String {
     let mut prompt = String::new();
 
     // Add system information
@@ -244,16 +267,51 @@ fn build_user_prompt(buffer: &str, context: &ContextData) -> String {
     // Add the current buffer to complete
     prompt.push_str("## Command to Complete\n");
     prompt.push_str(&format!("```\n{}\n```\n", buffer));
-    prompt.push_str("\nComplete the above command. Return ONLY the completed command.");
+    prompt.push('\n');
+
+    prompt.push_str("## Response Contract\n");
+    prompt.push_str(shell_mode_response_contract(shell_mode));
 
     prompt
 }
 
-/// Clean up LLM response
-fn clean_completion(text: &str, original_buffer: &str) -> String {
+fn shell_mode_response_contract(shell_mode: ShellMode) -> &'static str {
+    match shell_mode {
+        ShellMode::BashPopup => {
+            "Shell mode: bash-popup\n\
+Return JSON only:\n\
+{\"command\":\"<completed command>\",\"summary_short\":\"<8-20 words concise explanation>\",\"reason_short\":\"<short why>\"}\n\
+Rules:\n\
+- command is required\n\
+- summary_short should be a short action-oriented description\n\
+- reason_short should explain why this candidate fits current input\n\
+- no markdown, no extra keys unless useful\n\
+- if JSON is not possible, return only the completed command text\n"
+        }
+        ShellMode::ZshAuto | ShellMode::ZshInline => {
+            "Shell mode: zsh\n\
+Return JSON only:\n\
+{\"command\":\"<completed command>\",\"summary_short\":\"<very short explanation>\",\"reason_short\":\"<optional short why>\"}\n\
+Rules:\n\
+- command is required\n\
+- keep summary_short concise for narrow overlay surfaces\n\
+- no markdown or extra commentary\n\
+- if JSON is not possible, return only the completed command text\n"
+        }
+        _ => {
+            "Shell mode: inline\n\
+Return the completed command text.\n\
+Optional JSON form is accepted:\n\
+{\"command\":\"<completed command>\",\"summary_short\":\"<short explanation>\",\"reason_short\":\"<short why>\"}\n"
+        }
+    }
+}
+
+/// Parse completion payload from LLM output.
+fn parse_completion(text: &str, original_buffer: &str) -> CompletionDraft {
     let text = text.trim();
 
-    // Remove markdown code blocks if present
+    // Remove markdown code blocks if present.
     let text = if text.starts_with("```") {
         text.lines()
             .skip(1)
@@ -264,15 +322,66 @@ fn clean_completion(text: &str, original_buffer: &str) -> String {
         text.to_string()
     };
 
-    // Take only the first line if multiple lines returned
-    let text = text.lines().next().unwrap_or(&text).trim();
-
-    // If the completion is empty, return the original buffer
-    if text.is_empty() {
-        return original_buffer.to_string();
+    if let Some(parsed) = parse_json_completion(&text) {
+        return parsed;
     }
 
-    text.to_string()
+    // Take only the first line if multiple lines are returned.
+    let text = text.lines().next().unwrap_or(&text).trim();
+
+    // If the completion is empty, return the original buffer.
+    if text.is_empty() {
+        return CompletionDraft::from_command(original_buffer.to_string());
+    }
+
+    CompletionDraft::from_command(text.to_string())
+}
+
+fn parse_json_completion(text: &str) -> Option<CompletionDraft> {
+    let value: Value = serde_json::from_str(text).ok().or_else(|| {
+        text.lines()
+            .next()
+            .and_then(|line| serde_json::from_str::<Value>(line.trim()).ok())
+    })?;
+    let obj = value.as_object()?;
+
+    let command = ["command", "text", "completion", "suggestion"]
+        .iter()
+        .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())?
+        .to_string();
+
+    let summary_short = ["summary_short", "summary", "description", "why"]
+        .iter()
+        .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
+        .and_then(sanitize_summary);
+    let reason_short = ["reason_short", "reason", "why"]
+        .iter()
+        .find_map(|key| obj.get(*key).and_then(|v| v.as_str()))
+        .and_then(sanitize_summary);
+
+    Some(CompletionDraft {
+        command,
+        summary_short,
+        reason_short,
+    })
+}
+
+fn sanitize_summary(summary: &str) -> Option<String> {
+    let normalized = summary
+        .replace('\t', " ")
+        .replace('\n', " ")
+        .replace('\r', " ");
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let mut truncated = trimmed.chars().take(120).collect::<String>();
+    if truncated.len() < trimmed.len() {
+        truncated.push_str("...");
+    }
+    Some(truncated)
 }
 
 /// Convert snake_case to Title Case
@@ -327,5 +436,64 @@ fn format_array(arr: &[serde_json::Value]) -> String {
         "None".to_string()
     } else {
         items.join(", ")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_user_prompt, parse_completion, CompletionDraft};
+    use crate::daemon::context::ContextData;
+    use crate::daemon::shell_mode::ShellMode;
+
+    #[test]
+    fn parse_plain_completion_fallback() {
+        let parsed = parse_completion("git status\nextra line", "git st");
+        assert_eq!(
+            parsed,
+            CompletionDraft {
+                command: "git status".to_string(),
+                summary_short: None,
+                reason_short: None
+            }
+        );
+    }
+
+    #[test]
+    fn parse_json_completion_with_summary() {
+        let parsed = parse_completion(
+            r#"{"command":"git status","summary_short":"Check working tree state"}"#,
+            "git st",
+        );
+        assert_eq!(
+            parsed,
+            CompletionDraft {
+                command: "git status".to_string(),
+                summary_short: Some("Check working tree state".to_string()),
+                reason_short: None
+            }
+        );
+    }
+
+    #[test]
+    fn parse_json_completion_with_reason() {
+        let parsed = parse_completion(
+            r#"{"command":"git status -sb","reason_short":"matches typed git st prefix"}"#,
+            "git st",
+        );
+        assert_eq!(
+            parsed,
+            CompletionDraft {
+                command: "git status -sb".to_string(),
+                summary_short: None,
+                reason_short: Some("matches typed git st prefix".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn build_prompt_includes_shell_mode_contract() {
+        let prompt = build_user_prompt("git st", &ContextData::default(), ShellMode::BashPopup);
+        assert!(prompt.contains("Shell mode: bash-popup"));
+        assert!(prompt.contains("summary_short"));
     }
 }

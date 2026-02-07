@@ -10,6 +10,7 @@ use crate::daemon::context::{self, GatherParams};
 use crate::daemon::llm;
 use crate::daemon::safety;
 use crate::daemon::sanitizer;
+use crate::daemon::shell_mode::ShellMode;
 use crate::protocol::CompletionRequest;
 
 /// Result of a completion operation
@@ -89,12 +90,14 @@ pub async fn complete(
     };
 
     // Call LLM
-    let suggestion = match llm::complete(buffer, &sanitized_context, config).await {
+    let shell_mode = ShellMode::resolve(None, session_id);
+    let completion = match llm::complete(buffer, &sanitized_context, config, shell_mode).await {
         Ok(s) => s,
         Err(e) => {
             return CompletionResult::error(format!("LLM completion failed: {}", e));
         }
     };
+    let suggestion = completion.command;
 
     // Check for dangerous commands
     let warning = if config.privacy.block_dangerous {

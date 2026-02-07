@@ -417,15 +417,15 @@ async fn compute_completion(
 
     // Query LLM
     let llm_start = Instant::now();
-    let llm_result = llm::complete(&request.buffer, &sanitized_context, config).await;
+    let llm_result = llm::complete(&request.buffer, &sanitized_context, config, shell_mode).await;
     let llm_time = llm_start.elapsed();
 
     if llm_time.as_millis() > config.model.timeout_ms as u128 / 2 {
         debug!("LLM query: {}ms", llm_time.as_millis());
     }
 
-    let suggestion_text = match llm_result {
-        Ok(text) => text,
+    let completion = match llm_result {
+        Ok(draft) => draft,
         Err(e) => {
             let (error_info, log_msg) = categorize_llm_error(&e, config);
             warn!("LLM completion failed: {}", log_msg);
@@ -435,7 +435,7 @@ async fn compute_completion(
 
     let suggestions = build_suggestions(
         &request.buffer,
-        &suggestion_text,
+        &completion,
         &sanitized_context.similar_commands,
         config,
         shell_mode,
@@ -448,7 +448,7 @@ const POPUP_MAX_CANDIDATES: usize = 6;
 
 fn build_suggestions(
     original_buffer: &str,
-    primary_text: &str,
+    primary: &llm::CompletionDraft,
     similar_commands: &[String],
     config: &Config,
     shell_mode: ShellMode,
@@ -456,8 +456,15 @@ fn build_suggestions(
     let mut suggestions = Vec::new();
     let mut seen = HashSet::new();
 
-    if let Some(primary) = make_suggestion(primary_text, 1.0, config, &mut seen) {
-        suggestions.push(primary);
+    if let Some(primary_suggestion) = make_suggestion(
+        &primary.command,
+        1.0,
+        config,
+        &mut seen,
+        primary.summary_short.clone(),
+        primary.reason_short.clone(),
+    ) {
+        suggestions.push(primary_suggestion);
     }
 
     if !shell_mode.supports_multi_candidates() {
@@ -475,7 +482,7 @@ fn build_suggestions(
             break;
         }
 
-        if let Some(suggestion) = make_suggestion(&candidate, 0.65, config, &mut seen) {
+        if let Some(suggestion) = make_suggestion(&candidate, 0.65, config, &mut seen, None, None) {
             suggestions.push(suggestion);
         }
     }
@@ -495,6 +502,8 @@ fn make_suggestion(
     confidence: f32,
     config: &Config,
     seen: &mut HashSet<String>,
+    summary_short: Option<String>,
+    reason_short: Option<String>,
 ) -> Option<Suggestion> {
     let normalized = text.trim();
     if normalized.is_empty() {
@@ -507,6 +516,18 @@ fn make_suggestion(
     }
 
     let mut suggestion = Suggestion::new(normalized.to_string()).with_confidence(confidence);
+    if let Some(summary) = summary_short {
+        let trimmed = summary.trim();
+        if !trimmed.is_empty() {
+            suggestion = suggestion.with_summary_short(trimmed.to_string());
+        }
+    }
+    if let Some(reason) = reason_short {
+        let trimmed = reason.trim();
+        if !trimmed.is_empty() {
+            suggestion = suggestion.with_reason_short(trimmed.to_string());
+        }
+    }
     if config.privacy.block_dangerous {
         if let Some(warning) = safety::check(normalized, &config.privacy.custom_blocked) {
             suggestion = suggestion.with_warning(warning);
@@ -735,6 +756,7 @@ fn categorize_llm_error(error: &anyhow::Error, config: &Config) -> (ErrorInfo, S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::daemon::llm::CompletionDraft;
 
     #[test]
     fn popup_mode_includes_related_history_candidates() {
@@ -747,7 +769,11 @@ mod tests {
 
         let suggestions = build_suggestions(
             "git st",
-            "git status -sb",
+            &CompletionDraft {
+                command: "git status -sb".to_string(),
+                summary_short: None,
+                reason_short: None,
+            },
             &similar,
             &config,
             ShellMode::BashPopup,
@@ -766,7 +792,11 @@ mod tests {
 
         let suggestions = build_suggestions(
             "git st",
-            "git status -sb",
+            &CompletionDraft {
+                command: "git status -sb".to_string(),
+                summary_short: None,
+                reason_short: None,
+            },
             &similar,
             &config,
             ShellMode::ZshInline,
@@ -777,13 +807,66 @@ mod tests {
     }
 
     #[test]
+    fn primary_suggestion_keeps_summary_metadata() {
+        let config = Config::default();
+        let suggestions = build_suggestions(
+            "git st",
+            &CompletionDraft {
+                command: "git status".to_string(),
+                summary_short: Some("Show working tree status".to_string()),
+                reason_short: None,
+            },
+            &[],
+            &config,
+            ShellMode::ZshInline,
+        );
+
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(
+            suggestions[0].summary_short.as_deref(),
+            Some("Show working tree status")
+        );
+    }
+
+    #[test]
+    fn primary_suggestion_keeps_reason_metadata() {
+        let config = Config::default();
+        let suggestions = build_suggestions(
+            "git st",
+            &CompletionDraft {
+                command: "git status".to_string(),
+                summary_short: None,
+                reason_short: Some("matches typed prefix".to_string()),
+            },
+            &[],
+            &config,
+            ShellMode::ZshInline,
+        );
+
+        assert_eq!(suggestions.len(), 1);
+        assert_eq!(
+            suggestions[0].reason_short.as_deref(),
+            Some("matches typed prefix")
+        );
+    }
+
+    #[test]
     fn popup_mode_avoids_dangerous_default_when_safe_candidate_exists() {
         let mut config = Config::default();
         config.privacy.block_dangerous = true;
         let similar = vec!["rm -ri ./tmp".to_string(), "rm -rf /".to_string()];
 
-        let suggestions =
-            build_suggestions("rm ", "rm -rf /", &similar, &config, ShellMode::BashPopup);
+        let suggestions = build_suggestions(
+            "rm ",
+            &CompletionDraft {
+                command: "rm -rf /".to_string(),
+                summary_short: None,
+                reason_short: None,
+            },
+            &similar,
+            &config,
+            ShellMode::BashPopup,
+        );
 
         assert!(suggestions.len() >= 2);
         assert_eq!(suggestions[0].text, "rm -ri ./tmp");

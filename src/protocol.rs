@@ -115,6 +115,12 @@ impl CompletionResponse {
 pub struct Suggestion {
     /// The completed command text
     pub text: String,
+    /// Optional short explanation for why this command is suggested
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary_short: Option<String>,
+    /// Optional concise reason for ranking/selection in selector UIs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason_short: Option<String>,
     /// Confidence score (0.0 to 1.0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f32>,
@@ -127,9 +133,21 @@ impl Suggestion {
     pub fn new(text: String) -> Self {
         Self {
             text,
+            summary_short: None,
+            reason_short: None,
             confidence: None,
             warning: None,
         }
+    }
+
+    pub fn with_summary_short(mut self, summary_short: impl Into<String>) -> Self {
+        self.summary_short = Some(summary_short.into());
+        self
+    }
+
+    pub fn with_reason_short(mut self, reason_short: impl Into<String>) -> Self {
+        self.reason_short = Some(reason_short.into());
+        self
     }
 
     #[allow(dead_code)]

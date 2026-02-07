@@ -95,7 +95,7 @@ fn build_list_output(response: &CompletionResponse, buffer: &str) -> Option<Stri
         } else {
             LIST_RISK_LOW
         };
-        let why = build_why(buffer, &suggestion.text, suggestion.warning.is_some());
+        let why = build_why(buffer, suggestion);
         let diff = build_diff(buffer, &suggestion.text);
         let warning = suggestion
             .warning
@@ -125,11 +125,23 @@ fn sanitize_list_field(input: &str) -> String {
         .replace('\r', " ")
 }
 
-fn build_why(buffer: &str, suggestion: &str, has_warning: bool) -> String {
-    if has_warning {
+fn build_why(buffer: &str, suggestion: &crate::protocol::Suggestion) -> String {
+    if suggestion.warning.is_some() {
         return "safety check flagged".to_string();
     }
-    if suggestion.starts_with(buffer) {
+    if let Some(reason) = &suggestion.reason_short {
+        let trimmed = reason.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if let Some(summary) = &suggestion.summary_short {
+        let trimmed = summary.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    if suggestion.text.starts_with(buffer) {
         return "prefix completion".to_string();
     }
     "context rewrite".to_string()
@@ -210,5 +222,34 @@ mod tests {
         assert_eq!(cols1[1], "rm -rf /");
         assert_eq!(cols1[2], "danger command");
         assert_eq!(cols1[3], "safety check flagged");
+    }
+
+    #[test]
+    fn test_list_output_prefers_summary_for_why_column() {
+        let response = CompletionResponse::success(
+            "req-2".to_string(),
+            vec![Suggestion::new("git status".to_string())
+                .with_summary_short("Show working tree status")],
+            0,
+        );
+
+        let output = build_list_output(&response, "git st").unwrap();
+        let cols: Vec<&str> = output.lines().next().unwrap().split('\t').collect();
+        assert_eq!(cols[3], "Show working tree status");
+    }
+
+    #[test]
+    fn test_list_output_prefers_reason_over_summary() {
+        let response = CompletionResponse::success(
+            "req-3".to_string(),
+            vec![Suggestion::new("git status".to_string())
+                .with_summary_short("Show working tree status")
+                .with_reason_short("matches typed prefix")],
+            0,
+        );
+
+        let output = build_list_output(&response, "git st").unwrap();
+        let cols: Vec<&str> = output.lines().next().unwrap().split('\t').collect();
+        assert_eq!(cols[3], "matches typed prefix");
     }
 }
