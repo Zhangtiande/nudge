@@ -136,12 +136,34 @@ jobs:
         with:
           path: artifacts
 
+      - name: Extract changelog for current tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME:-${GITHUB_REF##*/}}"
+          VERSION="${TAG#v}"
+          NOTES_FILE="release-notes.md"
+
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { in_section = 1; next }
+            in_section && $0 ~ "^## \\[" { exit }
+            in_section { print }
+          ' CHANGELOG.md > "${NOTES_FILE}"
+
+          if [ ! -s "${NOTES_FILE}" ]; then
+            {
+              echo "## ${TAG}"
+              echo
+              echo "- Changelog entry not found in CHANGELOG.md."
+            } > "${NOTES_FILE}"
+          fi
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: release-notes.md
           files: |
             artifacts/**/*.tar.gz
             artifacts/**/*.zip
