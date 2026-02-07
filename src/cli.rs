@@ -89,6 +89,29 @@ pub enum Command {
         field: Option<String>,
     },
 
+    /// Show the effective context used by completion
+    Context {
+        /// Current input buffer content
+        #[arg(long)]
+        buffer: String,
+
+        /// Current working directory
+        #[arg(long, default_value = ".")]
+        cwd: PathBuf,
+
+        /// Session identifier (e.g., "zsh-12345")
+        #[arg(long, default_value = "context-debug")]
+        session: String,
+
+        /// Exit code of the last executed command
+        #[arg(long)]
+        last_exit_code: Option<i32>,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Diagnose shell integration health
     Doctor {
         /// Shell target (currently: zsh, bash)

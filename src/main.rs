@@ -145,6 +145,15 @@ async fn main() -> Result<()> {
         Command::Info { json, field } => {
             commands::info::run_info(json, field)?;
         }
+        Command::Context {
+            buffer,
+            cwd,
+            session,
+            last_exit_code,
+            json,
+        } => {
+            commands::context::run_context(buffer, cwd, session, last_exit_code, json).await?;
+        }
         Command::Doctor { shell } => {
             commands::doctor::run_doctor(shell).await?;
         }
