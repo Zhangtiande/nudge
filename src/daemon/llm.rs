@@ -351,7 +351,7 @@ fn sanitize_summary(summary: &str) -> Option<String> {
 
 fn max_tokens_for_mode(shell_mode: ShellMode) -> u32 {
     match shell_mode {
-        ShellMode::BashPopup | ShellMode::ZshPopup => 320,
+        ShellMode::BashPopup | ShellMode::ZshPopup | ShellMode::PsPopup => 320,
         _ => 100,
     }
 }
@@ -558,6 +558,7 @@ mod tests {
     fn popup_modes_get_higher_token_budget() {
         assert_eq!(max_tokens_for_mode(ShellMode::BashPopup), 320);
         assert_eq!(max_tokens_for_mode(ShellMode::ZshPopup), 320);
+        assert_eq!(max_tokens_for_mode(ShellMode::PsPopup), 320);
         assert_eq!(max_tokens_for_mode(ShellMode::ZshInline), 100);
     }
 }

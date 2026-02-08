@@ -10,14 +10,14 @@ Per-shell behavior, integration modes, and feature availability.
 |---|---|---|---|---|---|---|---|
 | **Zsh** | `zsh-inline`, `zsh-auto` | `Ctrl+E` | No | Yes | Yes | Yes | All |
 | **Bash** | `bash-inline`, `bash-popup` | `Ctrl+E` | `Alt+/` (fzf/sk/peco/builtin) | No | Planned | Yes | All |
-| **PowerShell** | `ps-inline` | `Ctrl+E` | No | No | Yes | Yes | All |
+| **PowerShell** | `ps-inline`, `ps-popup` | `Ctrl+E` | `Alt+/` (fzf/sk/peco/consolegrid/gridview/builtin) | No | Yes | Yes | All |
 | **CMD** | `cmd-inline` | `Ctrl+E` | No | No | No | Yes | All |
 
 **One-line positioning**:
 
 - **Zsh**: Full-feature flagship — auto ghost text, overlay, diagnosis, every key binding
 - **Bash**: Best multi-candidate experience — popup selector with risk preview
-- **PowerShell**: Windows-native path — PSReadLine integration with error diagnosis
+- **PowerShell**: Windows-native path — popup selector + diagnosis + PSReadLine predictor
 - **CMD**: Minimal viable — doskey macros for basic completion
 
 ## Baseline Rule
@@ -28,5 +28,5 @@ Per-shell behavior, integration modes, and feature availability.
 
 - [Zsh](zsh.md) · [中文](../../zh/shells/zsh.md) — Auto mode, ghost ownership, overlay, diagnosis
 - [Bash](bash.md) · [中文](../../zh/shells/bash.md) — Popup selector, multi-candidate workflow
-- [PowerShell](powershell.md) · [中文](../../zh/shells/powershell.md) — PSReadLine predictor, diagnosis
+- [PowerShell](powershell.md) · [中文](../../zh/shells/powershell.md) — Popup selector, PSReadLine predictor, diagnosis
 - [CMD](cmd.md) · [中文](../../zh/shells/cmd.md) — Doskey macros, basic setup

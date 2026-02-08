@@ -10,14 +10,14 @@
 |---|---|---|---|---|---|---|---|
 | **Zsh** | `zsh-inline`, `zsh-auto` | `Ctrl+E` | 否 | 是 | 是 | 是 | 全部 |
 | **Bash** | `bash-inline`, `bash-popup` | `Ctrl+E` | `Alt+/` (fzf/sk/peco/builtin) | 否 | 计划中 | 是 | 全部 |
-| **PowerShell** | `ps-inline` | `Ctrl+E` | 否 | 否 | 是 | 是 | 全部 |
+| **PowerShell** | `ps-inline`, `ps-popup` | `Ctrl+E` | `Alt+/` (fzf/sk/peco/consolegrid/gridview/builtin) | 否 | 是 | 是 | 全部 |
 | **CMD** | `cmd-inline` | `Ctrl+E` | 否 | 否 | 否 | 是 | 全部 |
 
 **一句话定位**：
 
 - **Zsh**：全功能旗舰 — auto ghost text、overlay、诊断、所有快捷键绑定
 - **Bash**：最佳多候选体验 — 弹出选择器，带风险预览
-- **PowerShell**：Windows 原生路径 — PSReadLine 集成，带错误诊断
+- **PowerShell**：Windows 原生路径 — popup 选择器 + 错误诊断 + PSReadLine predictor
 - **CMD**：最小可用 — 使用 doskey 宏实现基本补全
 
 ## 基准规则
@@ -28,5 +28,5 @@
 
 - [Zsh](zsh.md) — Auto 模式、ghost 所有权、overlay、诊断
 - [Bash](bash.md) — 弹出选择器、多候选工作流
-- [PowerShell](powershell.md) — PSReadLine predictor、诊断
+- [PowerShell](powershell.md) — Popup 选择器、PSReadLine predictor、诊断
 - [CMD](cmd.md) — Doskey 宏、基本设置

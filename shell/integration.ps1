@@ -20,6 +20,43 @@ try {
 $script:NudgeLastExitCode = 0
 $script:NudgeTriggerMode = if ($script:NudgeInfo.trigger_mode) { $script:NudgeInfo.trigger_mode } else { "manual" }
 $script:NudgeWarningPrefix = "NUDGE_WARNING:"
+$script:NudgePopupKey = if ($env:NUDGE_PS_POPUP_KEY) {
+    $env:NUDGE_PS_POPUP_KEY
+} elseif ($env:NUDGE_POPUP_KEY) {
+    $env:NUDGE_POPUP_KEY
+} else {
+    "Alt+/"
+}
+$script:NudgePopupBackend = if ($env:NUDGE_PS_POPUP_BACKEND) {
+    $env:NUDGE_PS_POPUP_BACKEND
+} elseif ($env:NUDGE_POPUP_BACKEND) {
+    $env:NUDGE_POPUP_BACKEND
+} else {
+    "auto"
+}
+$script:NudgePopupHeight = if ($env:NUDGE_PS_POPUP_HEIGHT) {
+    $env:NUDGE_PS_POPUP_HEIGHT
+} elseif ($env:NUDGE_POPUP_HEIGHT) {
+    $env:NUDGE_POPUP_HEIGHT
+} else {
+    "70%"
+}
+$script:NudgePopupEnabled = if ($env:NUDGE_PS_POPUP_ENABLED) {
+    $env:NUDGE_PS_POPUP_ENABLED
+} elseif ($env:NUDGE_POPUP_ENABLED) {
+    $env:NUDGE_POPUP_ENABLED
+} else {
+    "1"
+}
+$script:NudgePopupConfirmRisky = if ($env:NUDGE_PS_POPUP_CONFIRM_RISKY) {
+    $env:NUDGE_PS_POPUP_CONFIRM_RISKY
+} elseif ($env:NUDGE_POPUP_CONFIRM_RISKY) {
+    $env:NUDGE_POPUP_CONFIRM_RISKY
+} else {
+    "1"
+}
+$script:NudgePopupKeyEffective = ""
+$script:NudgePopupRegistered = $false
 
 # Diagnosis state
 $script:NudgeDiagnosisEnabled = $false
@@ -60,6 +97,26 @@ if ($script:NudgeInteractiveCommands.Count -eq 0) {
 # Check if running in interactive mode (to avoid breaking scp, rsync, etc.)
 function Test-InteractiveSession {
     return [Environment]::UserInteractive -and $Host.UI.RawUI -and $Host.Name -ne 'Default Host'
+}
+
+# Parse env-style feature flags.
+function Test-NudgeFlag {
+    param(
+        [string]$Value,
+        [bool]$Default = $true
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $Default
+    }
+
+    switch ($Value.Trim().ToLowerInvariant()) {
+        "0" { return $false }
+        "false" { return $false }
+        "off" { return $false }
+        "no" { return $false }
+        default { return $true }
+    }
 }
 
 # Check if command is interactive (should skip diagnosis)
@@ -288,6 +345,374 @@ function global:Invoke-NudgeComplete {
 }
 
 # ============================================================================
+# Popup Selector (manual multi-candidate mode)
+# ============================================================================
+
+function global:Set-NudgeBufferText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrEmpty($Text)) { return }
+
+    try {
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetBufferState($Text, [int]$Text.Length)
+    } catch {
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+        [Microsoft.PowerShell.PSConsoleReadLine]::Insert($Text)
+    }
+}
+
+function global:Get-NudgePopupCandidates {
+    param(
+        [string]$Buffer,
+        [int]$Cursor
+    )
+
+    try {
+        $rows = & nudge complete `
+            --format list `
+            --buffer $Buffer `
+            --cursor $Cursor `
+            --cwd (Get-Location).Path `
+            --session "pwsh-$PID" `
+            --shell-mode "ps-popup" `
+            --last-exit-code $script:NudgeLastExitCode `
+            2>$null
+    } catch {
+        return @()
+    }
+
+    if ($LASTEXITCODE -ne 0 -or -not $rows) {
+        return @()
+    }
+
+    if ($rows -is [string]) {
+        $rows = $rows -split "`r?`n"
+    }
+
+    return @($rows | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function global:ConvertFrom-NudgeListRow {
+    param([string]$Row)
+
+    $parts = @($Row -split "`t", 5)
+    while ($parts.Count -lt 5) {
+        $parts += ""
+    }
+
+    return [PSCustomObject]@{
+        Risk    = $parts[0]
+        Command = $parts[1]
+        Warning = $parts[2]
+        Why     = $parts[3]
+        Diff    = $parts[4]
+    }
+}
+
+function global:Get-NudgeNumberedRows {
+    param([string[]]$Rows)
+
+    $numbered = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $Rows.Count; $i++) {
+        $numbered.Add(("{0}`t{1}" -f ($i + 1), $Rows[$i]))
+    }
+    return $numbered
+}
+
+function global:Resolve-NudgePopupKey {
+    $resolved = "$script:NudgePopupKey".Trim()
+    if ([string]::IsNullOrWhiteSpace($resolved)) {
+        return "Alt+/"
+    }
+    return $resolved
+}
+
+function global:Read-NudgePopupChoice {
+    param([int]$MaxIndex)
+
+    if ($MaxIndex -lt 1) { return $null }
+
+    while ($true) {
+        try {
+            $keyInfo = [Console]::ReadKey($true)
+        } catch {
+            return $null
+        }
+
+        if ($keyInfo.Key -eq [ConsoleKey]::Enter -or $keyInfo.Key -eq [ConsoleKey]::Escape) {
+            Write-Host ""
+            return $null
+        }
+
+        $keyChar = $keyInfo.KeyChar
+        if ($keyChar -eq 'q' -or $keyChar -eq 'Q') {
+            Write-Host ""
+            return $null
+        }
+
+        if ($keyChar -ge '1' -and $keyChar -le '9') {
+            [int]$index = [int]([string]$keyChar)
+            Write-Host $keyChar
+            if ($index -ge 1 -and $index -le $MaxIndex) {
+                return $index
+            }
+            return $null
+        }
+    }
+}
+
+function global:Read-NudgePopupConfirmation {
+    param([string]$Prompt = "Apply high-risk suggestion? [y/N]")
+
+    Write-Host $Prompt -NoNewline
+    try {
+        $keyInfo = [Console]::ReadKey($true)
+    } catch {
+        Write-Host ""
+        return $false
+    }
+
+    if ($keyInfo.Key -eq [ConsoleKey]::Enter -or $keyInfo.Key -eq [ConsoleKey]::Escape) {
+        Write-Host ""
+        return $false
+    }
+
+    Write-Host $keyInfo.KeyChar
+    return $keyInfo.KeyChar -eq 'y' -or $keyInfo.KeyChar -eq 'Y'
+}
+
+function global:Resolve-NudgePopupBackend {
+    $preferred = "$script:NudgePopupBackend".Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($preferred)) {
+        $preferred = "auto"
+    }
+
+    $hasFzf = $null -ne (Get-Command fzf -ErrorAction SilentlyContinue)
+    $hasSk = $null -ne (Get-Command sk -ErrorAction SilentlyContinue)
+    $hasPeco = $null -ne (Get-Command peco -ErrorAction SilentlyContinue)
+    $hasConsoleGrid = $null -ne (Get-Command Out-ConsoleGridView -ErrorAction SilentlyContinue)
+    $hasGridView = $null -ne (Get-Command Out-GridView -ErrorAction SilentlyContinue)
+
+    switch ($preferred) {
+        "fzf" { if ($hasFzf) { return "fzf" } }
+        "sk" { if ($hasSk) { return "sk" } }
+        "peco" { if ($hasPeco) { return "peco" } }
+        "consolegrid" { if ($hasConsoleGrid) { return "consolegrid" } }
+        "gridview" { if ($hasGridView) { return "gridview" } }
+        "builtin" { return "builtin" }
+        default {}
+    }
+
+    if ($hasFzf) { return "fzf" }
+    if ($hasSk) { return "sk" }
+    if ($hasPeco) { return "peco" }
+    if ($hasConsoleGrid) { return "consolegrid" }
+    if ($hasGridView) { return "gridview" }
+    return "builtin"
+}
+
+function global:Select-NudgeCandidateBuiltin {
+    param([string[]]$CandidateRows)
+
+    if (-not $CandidateRows -or $CandidateRows.Count -eq 0) { return $null }
+
+    Write-Host ""
+    for ($i = 0; $i -lt $CandidateRows.Count; $i++) {
+        $entry = ConvertFrom-NudgeListRow $CandidateRows[$i]
+        Write-Host ("  {0}) [{1}] {2}" -f ($i + 1), $entry.Risk, $entry.Command)
+        if ($entry.Why) { Write-Host ("     why: {0}" -f $entry.Why) }
+        if ($entry.Diff) { Write-Host ("     diff: {0}" -f $entry.Diff) }
+        if ($entry.Warning) { Write-Host ("     warn: {0}" -f $entry.Warning) }
+    }
+
+    Write-Host ("Select candidate [1-{0}, Enter/q/Esc to cancel]: " -f $CandidateRows.Count) -NoNewline
+    $index = Read-NudgePopupChoice -MaxIndex $CandidateRows.Count
+    if (-not $index) { return $null }
+
+    return (ConvertFrom-NudgeListRow $CandidateRows[$index - 1])
+}
+
+function global:Select-NudgeCandidateFzf {
+    param([string[]]$CandidateRows)
+
+    if (-not $CandidateRows -or $CandidateRows.Count -eq 0) { return $null }
+
+    $numbered = Get-NudgeNumberedRows -Rows $CandidateRows
+    $selected = $numbered | & fzf `
+        --height $script:NudgePopupHeight `
+        --layout reverse `
+        --border `
+        --header "enter: apply  esc: cancel" `
+        --prompt "nudge> " `
+        --delimiter "`t" `
+        --with-nth "1,2,3,5" 2>$null
+
+    if (-not $selected) { return $null }
+    if ($selected -is [array]) { $selected = $selected[0] }
+
+    [int]$index = 0
+    $first = ($selected -split "`t", 2)[0]
+    if (-not [int]::TryParse($first, [ref]$index)) { return $null }
+    if ($index -lt 1 -or $index -gt $CandidateRows.Count) { return $null }
+
+    return (ConvertFrom-NudgeListRow $CandidateRows[$index - 1])
+}
+
+function global:Select-NudgeCandidateSk {
+    param([string[]]$CandidateRows)
+
+    if (-not $CandidateRows -or $CandidateRows.Count -eq 0) { return $null }
+
+    $numbered = Get-NudgeNumberedRows -Rows $CandidateRows
+    $selected = $numbered | & sk `
+        --height $script:NudgePopupHeight `
+        --prompt "nudge> " `
+        --delimiter "`t" `
+        --with-nth "1,2,3,5" 2>$null
+
+    if (-not $selected) { return $null }
+    if ($selected -is [array]) { $selected = $selected[0] }
+
+    [int]$index = 0
+    $first = ($selected -split "`t", 2)[0]
+    if (-not [int]::TryParse($first, [ref]$index)) { return $null }
+    if ($index -lt 1 -or $index -gt $CandidateRows.Count) { return $null }
+
+    return (ConvertFrom-NudgeListRow $CandidateRows[$index - 1])
+}
+
+function global:Select-NudgeCandidatePeco {
+    param([string[]]$CandidateRows)
+
+    if (-not $CandidateRows -or $CandidateRows.Count -eq 0) { return $null }
+
+    $numbered = Get-NudgeNumberedRows -Rows $CandidateRows
+    $selected = $numbered | & peco --prompt "nudge> " 2>$null
+
+    if (-not $selected) { return $null }
+    if ($selected -is [array]) { $selected = $selected[0] }
+
+    [int]$index = 0
+    $first = ($selected -split "`t", 2)[0]
+    if (-not [int]::TryParse($first, [ref]$index)) { return $null }
+    if ($index -lt 1 -or $index -gt $CandidateRows.Count) { return $null }
+
+    return (ConvertFrom-NudgeListRow $CandidateRows[$index - 1])
+}
+
+function global:Select-NudgeCandidateConsoleGrid {
+    param([string[]]$CandidateRows)
+
+    if (-not $CandidateRows -or $CandidateRows.Count -eq 0) { return $null }
+
+    $items = for ($i = 0; $i -lt $CandidateRows.Count; $i++) {
+        $entry = ConvertFrom-NudgeListRow $CandidateRows[$i]
+        [PSCustomObject]@{
+            Index   = $i + 1
+            Risk    = $entry.Risk
+            Command = $entry.Command
+            Why     = $entry.Why
+            Diff    = $entry.Diff
+            Warning = $entry.Warning
+        }
+    }
+
+    try {
+        $selected = $items | Out-ConsoleGridView -Title "nudge popup" -OutputMode Single
+    } catch {
+        return $null
+    }
+
+    if (-not $selected) { return $null }
+
+    [int]$index = [int]$selected.Index
+    if ($index -lt 1 -or $index -gt $CandidateRows.Count) { return $null }
+
+    return (ConvertFrom-NudgeListRow $CandidateRows[$index - 1])
+}
+
+function global:Select-NudgeCandidateGridView {
+    param([string[]]$CandidateRows)
+
+    if (-not $CandidateRows -or $CandidateRows.Count -eq 0) { return $null }
+
+    $items = for ($i = 0; $i -lt $CandidateRows.Count; $i++) {
+        $entry = ConvertFrom-NudgeListRow $CandidateRows[$i]
+        [PSCustomObject]@{
+            Index   = $i + 1
+            Risk    = $entry.Risk
+            Command = $entry.Command
+            Why     = $entry.Why
+            Diff    = $entry.Diff
+            Warning = $entry.Warning
+        }
+    }
+
+    try {
+        $selected = $items | Out-GridView -Title "nudge popup" -PassThru
+    } catch {
+        return $null
+    }
+
+    if (-not $selected) { return $null }
+    if ($selected -is [array]) { $selected = $selected[0] }
+
+    [int]$index = [int]$selected.Index
+    if ($index -lt 1 -or $index -gt $CandidateRows.Count) { return $null }
+
+    return (ConvertFrom-NudgeListRow $CandidateRows[$index - 1])
+}
+
+function global:Invoke-NudgePopupComplete {
+    Start-NudgeDaemonIfNeeded
+
+    $buffer = $cursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$buffer, [ref]$cursor)
+
+    if ([string]::IsNullOrEmpty($buffer)) { return }
+
+    $candidateRows = Get-NudgePopupCandidates -Buffer $buffer -Cursor $cursor
+    if (-not $candidateRows -or $candidateRows.Count -eq 0) {
+        Invoke-NudgeComplete
+        return
+    }
+
+    $backend = Resolve-NudgePopupBackend
+    $selected = $null
+    switch ($backend) {
+        "fzf" { $selected = Select-NudgeCandidateFzf -CandidateRows $candidateRows }
+        "sk" { $selected = Select-NudgeCandidateSk -CandidateRows $candidateRows }
+        "peco" { $selected = Select-NudgeCandidatePeco -CandidateRows $candidateRows }
+        "consolegrid" { $selected = Select-NudgeCandidateConsoleGrid -CandidateRows $candidateRows }
+        "gridview" { $selected = Select-NudgeCandidateGridView -CandidateRows $candidateRows }
+        default { $selected = Select-NudgeCandidateBuiltin -CandidateRows $candidateRows }
+    }
+
+    if (-not $selected -or [string]::IsNullOrWhiteSpace($selected.Command)) {
+        return
+    }
+
+    $alreadyWarned = $false
+    if ($selected.Risk -eq "high") {
+        $warningMessage = if ($selected.Warning) { $selected.Warning } else { "This suggestion is marked high risk." }
+        Show-NudgeWarning $warningMessage
+        $alreadyWarned = $true
+
+        if (Test-NudgeFlag -Value $script:NudgePopupConfirmRisky -Default $true) {
+            if (-not (Read-NudgePopupConfirmation)) {
+                return
+            }
+        }
+    }
+
+    Set-NudgeBufferText -Text $selected.Command
+
+    if (-not $alreadyWarned -and -not [string]::IsNullOrWhiteSpace($selected.Warning)) {
+        Show-NudgeWarning $selected.Warning
+    }
+}
+
+# ============================================================================
 # Auto Mode Setup (PowerShell 7.2+ only)
 # ============================================================================
 
@@ -370,6 +795,26 @@ function Initialize-NudgeAutoMode {
     }
 }
 
+function global:Register-NudgePopupKeyHandler {
+    if (-not (Test-NudgeFlag -Value $script:NudgePopupEnabled -Default $true)) {
+        $script:NudgePopupKeyEffective = ""
+        return $false
+    }
+
+    $popupKey = Resolve-NudgePopupKey
+    try {
+        Set-PSReadLineKeyHandler -Chord $popupKey -ScriptBlock { Invoke-NudgePopupComplete }
+        $script:NudgePopupKeyEffective = $popupKey
+        return $true
+    } catch {
+        $script:NudgePopupKeyEffective = ""
+        if (Test-InteractiveSession) {
+            Write-Warning "Failed to register popup key '$popupKey'. Popup selector disabled."
+        }
+        return $false
+    }
+}
+
 # ============================================================================
 # Key Bindings
 # ============================================================================
@@ -379,6 +824,7 @@ Set-PSReadLineKeyHandler -Chord "Ctrl+e" -ScriptBlock { Invoke-NudgeComplete }
 
 # Register Tab handler for diagnosis suggestion acceptance
 Set-PSReadLineKeyHandler -Chord "Tab" -ScriptBlock { Invoke-NudgeAcceptSuggestion }
+$script:NudgePopupRegistered = Register-NudgePopupKeyHandler
 
 # ============================================================================
 # Initialization
@@ -400,6 +846,9 @@ if ($script:NudgeTriggerMode -eq "auto") {
 # Print success message (only in interactive sessions)
 if (Test-InteractiveSession) {
     $modeMsg = if ($autoModeEnabled) { "auto mode" } else { "manual mode (Ctrl+E)" }
+    if ($script:NudgePopupRegistered -and $script:NudgePopupKeyEffective) {
+        $modeMsg = "$modeMsg + popup ($($script:NudgePopupKeyEffective))"
+    }
     if ($script:NudgeDiagnosisEnabled) {
         $modeMsg = "$modeMsg + error diagnosis"
     }
