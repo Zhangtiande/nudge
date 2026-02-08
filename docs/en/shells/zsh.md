@@ -9,6 +9,7 @@ Zsh is the most complete integration path — manual, auto ghost text, overlay, 
 | Mode | Trigger | Description |
 |---|---|---|
 | `zsh-inline` | `Ctrl+E` | Fast single-candidate apply (always available) |
+| `zsh-popup` | `Alt+/` | Hotkey-triggered multi-candidate selector |
 | `zsh-auto` | Typing | Live ghost-text or overlay suggestions |
 
 ## Quick Start
@@ -19,6 +20,10 @@ Manual mode (works out of the box):
 # Type a partial command, then press Ctrl+E
 git st<Ctrl+E>
 # → git status
+
+# Type and press Alt+/
+docker<Alt+/>
+# → Opens popup selector (fzf/sk/peco/builtin)
 ```
 
 Enable auto mode:
@@ -32,6 +37,36 @@ trigger:
 ```bash
 nudge restart
 ```
+
+## Popup Selector (Hotkey-driven)
+
+`zsh-popup` is manual by design: no auto trigger, only key-triggered multi-candidate selection.
+
+1. Press `Alt+/`
+2. Integration calls `nudge complete --format list --shell-mode zsh-popup`
+3. Selector backend opens (`fzf`, `sk`, `peco`, or builtin)
+4. Selected candidate replaces the current command line
+
+The list row format is compatible with Bash popup mode:
+
+```text
+risk<TAB>command<TAB>warning<TAB>why<TAB>diff
+```
+
+Risk values are currently:
+- `low`
+- `high`
+
+Zsh popup env vars (with fallback to shared `NUDGE_POPUP_*` vars):
+
+| Variable | Default | Description |
+|---|---|---|
+| `NUDGE_ZSH_POPUP_ENABLED` | `1` | Enable/disable popup key binding |
+| `NUDGE_ZSH_POPUP_KEY` | `\e/` (`Alt+/`) | Popup hotkey sequence |
+| `NUDGE_ZSH_POPUP_BACKEND` | `auto` | `auto`, `fzf`, `sk`, `peco`, `builtin` |
+| `NUDGE_ZSH_POPUP_SHOW_PREVIEW` | `0` | Show detail preview panel (`1`/`0`) |
+| `NUDGE_ZSH_POPUP_HEIGHT` | `70%` | Selector height |
+| `NUDGE_ZSH_POPUP_CONFIRM_RISKY` | `1` | Confirm before applying high-risk candidate |
 
 ## Ghost Text Ownership
 
@@ -86,6 +121,7 @@ trigger:
 | Key | Action | Condition |
 |---|---|---|
 | `Ctrl+E` | Manual completion (immediate LLM request) | Always |
+| `Alt+/` | Open popup selector (multi-candidate) | Always |
 | `Tab` | Accept full ghost suggestion | Nudge owns ghost text |
 | `Right Arrow` | Accept next word | Nudge owns ghost text |
 | `Ctrl+G` | Accept overlay suggestion | Overlay mode |
@@ -142,7 +178,7 @@ Checks performed:
 | Check | What it verifies |
 |---|---|
 | Integration sourced | `integration.zsh` is loaded |
-| Key bindings | `Ctrl+E`, `Tab`, `F1` are registered |
+| Key bindings | `Ctrl+E`, `Alt+/`, `Tab`, `F1` are registered |
 | Hooks | `precmd`, `preexec` hooks are installed |
 | Daemon | Daemon is reachable via IPC |
 | Ghost owner | Config matches runtime state |
@@ -161,6 +197,7 @@ nudge restart
 |---|---|---|
 | No suggestions at all | Daemon not running | `nudge start` |
 | `Ctrl+E` does nothing | Integration not sourced | `nudge setup zsh --force && source ~/.zshrc` |
+| `Alt+/` does nothing | Popup key disabled or remapped | Check `NUDGE_ZSH_POPUP_ENABLED` and `NUDGE_ZSH_POPUP_KEY` |
 | Ghost text flickers | Terminal redraw conflict | Try `zsh_overlay_backend: rprompt` |
 | Suggestions overwrite autosuggestions | Ghost owner conflict | Set `zsh_ghost_owner: autosuggestions` |
 | `F1` does nothing | Terminal maps F1 to help | Check terminal key settings |

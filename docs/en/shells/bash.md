@@ -44,9 +44,9 @@ risk<TAB>command<TAB>warning<TAB>why<TAB>diff
 
 | Field | Description |
 |---|---|
-| `risk` | Risk level: `safe`, `moderate`, `dangerous` |
+| `risk` | Risk level: `low`, `high` |
 | `command` | The suggested command |
-| `warning` | Safety warning (empty if safe) |
+| `warning` | Safety warning (empty for low-risk items) |
 | `why` | Brief explanation of what the command does |
 | `diff` | What changed compared to your original input |
 
@@ -92,7 +92,7 @@ export NUDGE_POPUP_CONFIRM_RISKY=0
 | Variable | Default | Description |
 |---|---|---|
 | `NUDGE_POPUP_BACKEND` | `auto` | Selector backend: `auto`, `fzf`, `sk`, `peco`, `builtin` |
-| `NUDGE_POPUP_SHOW_PREVIEW` | `1` | Show preview pane with command details |
+| `NUDGE_POPUP_SHOW_PREVIEW` | `0` | Show preview pane with command details |
 | `NUDGE_POPUP_HEIGHT` | `70%` | Selector window height |
 | `NUDGE_POPUP_CONFIRM_RISKY` | `1` | Require confirmation for dangerous commands |
 
@@ -134,9 +134,9 @@ export NUDGE_POPUP_BACKEND=builtin
 ```
 
 ```
- 1) [safe]      git status
- 2) [safe]      git stash
- 3) [moderate]  git stash drop
+ 1) [low]   git status
+ 2) [low]   git stash
+ 3) [high]  rm -rf ./tmp
 Select [1-3]:
 ```
 

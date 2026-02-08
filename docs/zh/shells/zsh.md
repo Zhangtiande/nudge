@@ -9,6 +9,7 @@ Zsh 是最完整的集成路径 -- 支持手动模式、自动幽灵文字、ove
 | 模式 | 触发方式 | 描述 |
 |---|---|---|
 | `zsh-inline` | `Ctrl+E` | 快速单候选项应用（始终可用） |
+| `zsh-popup` | `Alt+/` | 热键触发的多候选选择器 |
 | `zsh-auto` | 输入时 | 实时幽灵文字或 overlay 建议 |
 
 ## 快速开始
@@ -19,6 +20,10 @@ Zsh 是最完整的集成路径 -- 支持手动模式、自动幽灵文字、ove
 # Type a partial command, then press Ctrl+E
 git st<Ctrl+E>
 # → git status
+
+# Type and press Alt+/
+docker<Alt+/>
+# → Opens popup selector (fzf/sk/peco/builtin)
 ```
 
 启用自动模式：
@@ -32,6 +37,36 @@ trigger:
 ```bash
 nudge restart
 ```
+
+## Popup 选择器（热键触发）
+
+`zsh-popup` 是纯手动模式：不会自动弹出，只在按键触发时请求多候选。
+
+1. 按 `Alt+/`
+2. 集成脚本调用 `nudge complete --format list --shell-mode zsh-popup`
+3. 打开选择器后端（`fzf`、`sk`、`peco` 或 `builtin`）
+4. 选择候选后替换当前命令行
+
+列表行格式与 Bash popup 保持兼容：
+
+```text
+risk<TAB>command<TAB>warning<TAB>why<TAB>diff
+```
+
+当前风险值为：
+- `low`
+- `high`
+
+Zsh popup 环境变量（缺省会回退到通用 `NUDGE_POPUP_*` 变量）：
+
+| 变量 | 默认值 | 描述 |
+|---|---|---|
+| `NUDGE_ZSH_POPUP_ENABLED` | `1` | 开关 popup 热键绑定 |
+| `NUDGE_ZSH_POPUP_KEY` | `\e/`（`Alt+/`） | popup 热键序列 |
+| `NUDGE_ZSH_POPUP_BACKEND` | `auto` | `auto`、`fzf`、`sk`、`peco`、`builtin` |
+| `NUDGE_ZSH_POPUP_SHOW_PREVIEW` | `0` | 是否显示预览面板（`1`/`0`） |
+| `NUDGE_ZSH_POPUP_HEIGHT` | `70%` | 选择器高度 |
+| `NUDGE_ZSH_POPUP_CONFIRM_RISKY` | `1` | 应用高风险候选前是否确认 |
 
 ## 幽灵文字所有权
 
@@ -86,6 +121,7 @@ trigger:
 | 按键 | 操作 | 条件 |
 |---|---|---|
 | `Ctrl+E` | 手动补全（立即发送 LLM 请求） | 始终 |
+| `Alt+/` | 打开 popup 多候选选择器 | 始终 |
 | `Tab` | 接受完整的幽灵建议 | Nudge 拥有幽灵文字时 |
 | `Right Arrow` | 接受下一个单词 | Nudge 拥有幽灵文字时 |
 | `Ctrl+G` | 接受 overlay 建议 | Overlay 模式 |
@@ -142,7 +178,7 @@ nudge doctor zsh
 | 检查项 | 验证内容 |
 |---|---|
 | Integration sourced | `integration.zsh` 已加载 |
-| Key bindings | `Ctrl+E`、`Tab`、`F1` 已注册 |
+| Key bindings | `Ctrl+E`、`Alt+/`、`Tab`、`F1` 已注册 |
 | Hooks | `precmd`、`preexec` 钩子已安装 |
 | Daemon | 守护进程可通过 IPC 访问 |
 | Ghost owner | 配置与运行时状态匹配 |
@@ -161,6 +197,7 @@ nudge restart
 |---|---|---|
 | 完全没有建议 | 守护进程未运行 | `nudge start` |
 | `Ctrl+E` 无响应 | 集成脚本未加载 | `nudge setup zsh --force && source ~/.zshrc` |
+| `Alt+/` 无响应 | popup 被禁用或热键映射冲突 | 检查 `NUDGE_ZSH_POPUP_ENABLED` 与 `NUDGE_ZSH_POPUP_KEY` |
 | 幽灵文字闪烁 | 终端重绘冲突 | 尝试 `zsh_overlay_backend: rprompt` |
 | 建议覆盖了 autosuggestions | 幽灵文字所有权冲突 | 设置 `zsh_ghost_owner: autosuggestions` |
 | `F1` 无响应 | 终端将 F1 映射为帮助 | 检查终端按键设置 |

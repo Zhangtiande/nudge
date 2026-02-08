@@ -60,7 +60,7 @@ nudge complete \
 | `--cursor` | 是 | 光标位置（字节偏移） |
 | `--cwd` | 是 | 工作目录 |
 | `--session` | 是 | 会话标识符，用于保持连续性 |
-| `--shell-mode` | 否 | 集成脚本的提示：`zsh-inline`、`zsh-auto`、`bash-inline`、`bash-popup`、`ps-inline`、`cmd-inline` |
+| `--shell-mode` | 否 | 集成脚本的提示：`zsh-inline`、`zsh-auto`、`zsh-popup`、`bash-inline`、`bash-popup`、`ps-inline`、`cmd-inline` |
 | `--format` | 否 | 输出格式（见下文） |
 | `--last-exit-code` | 否 | 上一条命令的退出码 |
 

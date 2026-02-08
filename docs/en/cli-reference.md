@@ -60,7 +60,7 @@ nudge complete \
 | `--cursor` | Yes | Cursor position (byte offset) |
 | `--cwd` | Yes | Working directory |
 | `--session` | Yes | Session identifier for continuity |
-| `--shell-mode` | No | Hint from integration: `zsh-inline`, `zsh-auto`, `bash-inline`, `bash-popup`, `ps-inline`, `cmd-inline` |
+| `--shell-mode` | No | Hint from integration: `zsh-inline`, `zsh-auto`, `zsh-popup`, `bash-inline`, `bash-popup`, `ps-inline`, `cmd-inline` |
 | `--format` | No | Output format (see below) |
 | `--last-exit-code` | No | Exit code of previous command |
 

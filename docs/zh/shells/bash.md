@@ -44,9 +44,9 @@ risk<TAB>command<TAB>warning<TAB>why<TAB>diff
 
 | 字段 | 描述 |
 |---|---|
-| `risk` | 风险等级：`safe`、`moderate`、`dangerous` |
+| `risk` | 风险等级：`low`、`high` |
 | `command` | 建议的命令 |
-| `warning` | 安全警告（安全时为空） |
+| `warning` | 安全警告（低风险候选为空） |
 | `why` | 命令功能的简要说明 |
 | `diff` | 与原始输入相比的变更内容 |
 
@@ -92,7 +92,7 @@ export NUDGE_POPUP_CONFIRM_RISKY=0
 | 变量 | 默认值 | 描述 |
 |---|---|---|
 | `NUDGE_POPUP_BACKEND` | `auto` | 选择器后端：`auto`、`fzf`、`sk`、`peco`、`builtin` |
-| `NUDGE_POPUP_SHOW_PREVIEW` | `1` | 显示命令详情的预览面板 |
+| `NUDGE_POPUP_SHOW_PREVIEW` | `0` | 显示命令详情的预览面板 |
 | `NUDGE_POPUP_HEIGHT` | `70%` | 选择器窗口高度 |
 | `NUDGE_POPUP_CONFIRM_RISKY` | `1` | 对危险命令要求确认 |
 
@@ -134,9 +134,9 @@ export NUDGE_POPUP_BACKEND=builtin
 ```
 
 ```
- 1) [safe]      git status
- 2) [safe]      git stash
- 3) [moderate]  git stash drop
+ 1) [low]   git status
+ 2) [low]   git stash
+ 3) [high]  rm -rf ./tmp
 Select [1-3]:
 ```
 
