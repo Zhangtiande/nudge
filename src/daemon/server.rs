@@ -819,6 +819,34 @@ mod tests {
     }
 
     #[test]
+    fn zsh_popup_mode_includes_related_history_candidates() {
+        let config = Config::default();
+        let similar = vec![
+            "git status".to_string(),
+            "git stash".to_string(),
+            "npm test".to_string(),
+        ];
+
+        let suggestions = build_suggestions(
+            "git st",
+            &CompletionDraft {
+                command: "git status -sb".to_string(),
+                summary_short: None,
+                reason_short: None,
+                additional_candidates: vec![],
+            },
+            &similar,
+            &config,
+            ShellMode::ZshPopup,
+        );
+
+        assert!(suggestions.len() >= 2);
+        assert_eq!(suggestions[0].text, "git status -sb");
+        assert!(suggestions.iter().any(|s| s.text == "git status"));
+        assert!(!suggestions.iter().any(|s| s.text == "npm test"));
+    }
+
+    #[test]
     fn inline_mode_keeps_single_primary_suggestion() {
         let config = Config::default();
         let similar = vec!["git status".to_string(), "git stash".to_string()];

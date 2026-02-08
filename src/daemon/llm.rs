@@ -351,7 +351,7 @@ fn sanitize_summary(summary: &str) -> Option<String> {
 
 fn max_tokens_for_mode(shell_mode: ShellMode) -> u32 {
     match shell_mode {
-        ShellMode::BashPopup => 320,
+        ShellMode::BashPopup | ShellMode::ZshPopup => 320,
         _ => 100,
     }
 }
@@ -472,7 +472,9 @@ fn format_array(arr: &[serde_json::Value]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_user_prompt, parse_completion, CandidateDraft, CompletionDraft};
+    use super::{
+        build_user_prompt, max_tokens_for_mode, parse_completion, CandidateDraft, CompletionDraft,
+    };
     use crate::daemon::context::ContextData;
     use crate::daemon::shell_mode::ShellMode;
 
@@ -550,5 +552,12 @@ mod tests {
         let prompt = build_user_prompt("git st", &ContextData::default(), ShellMode::BashPopup);
         assert!(prompt.contains("Shell mode: bash-popup"));
         assert!(prompt.contains("summary_short"));
+    }
+
+    #[test]
+    fn popup_modes_get_higher_token_budget() {
+        assert_eq!(max_tokens_for_mode(ShellMode::BashPopup), 320);
+        assert_eq!(max_tokens_for_mode(ShellMode::ZshPopup), 320);
+        assert_eq!(max_tokens_for_mode(ShellMode::ZshInline), 100);
     }
 }

@@ -7,6 +7,7 @@
 pub enum ShellMode {
     ZshAuto,
     ZshInline,
+    ZshPopup,
     BashInline,
     BashPopup,
     PsInline,
@@ -31,6 +32,7 @@ impl ShellMode {
         match self {
             Self::ZshAuto => "zsh-auto",
             Self::ZshInline => "zsh-inline",
+            Self::ZshPopup => "zsh-popup",
             Self::BashInline => "bash-inline",
             Self::BashPopup => "bash-popup",
             Self::PsInline => "ps-inline",
@@ -46,13 +48,14 @@ impl ShellMode {
 
     /// Popup modes benefit from multiple ranked suggestions.
     pub fn supports_multi_candidates(self) -> bool {
-        matches!(self, Self::BashPopup)
+        matches!(self, Self::BashPopup | Self::ZshPopup)
     }
 
     fn parse(raw: &str) -> Self {
         match raw.trim().to_lowercase().as_str() {
             "zsh-auto" => Self::ZshAuto,
             "zsh-inline" => Self::ZshInline,
+            "zsh-popup" => Self::ZshPopup,
             "bash-inline" => Self::BashInline,
             "bash-popup" => Self::BashPopup,
             "ps-inline" => Self::PsInline,
@@ -96,9 +99,16 @@ mod tests {
     #[test]
     fn supports_multi_candidates_only_for_popup_modes() {
         assert!(ShellMode::BashPopup.supports_multi_candidates());
+        assert!(ShellMode::ZshPopup.supports_multi_candidates());
         assert!(!ShellMode::BashInline.supports_multi_candidates());
         assert!(!ShellMode::ZshInline.supports_multi_candidates());
         assert!(!ShellMode::PsInline.supports_multi_candidates());
+    }
+
+    #[test]
+    fn parses_new_zsh_popup_mode() {
+        let mode = ShellMode::resolve(Some("zsh-popup"), "zsh-123");
+        assert_eq!(mode, ShellMode::ZshPopup);
     }
 
     #[test]
