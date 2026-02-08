@@ -804,12 +804,14 @@ _nudge_select_candidate_builtin() { printf 'low\tgit status\t\tprefix completion
 
 BUFFER="git st"
 CURSOR=${#BUFFER}
+RBUFFER="__TAIL__"
 POSTDISPLAY="atus"
 _nudge_popup_complete
 complete_args=$(cat "$_nudge_test_args_file" 2>/dev/null || true)
 print -r -- "$complete_args"
 print -r -- "$BUFFER"
 print -r -- "$CURSOR"
+print -r -- "$RBUFFER"
 print -r -- "$POSTDISPLAY"
 rm -f "$_nudge_test_args_file"
 "#;
@@ -832,6 +834,7 @@ rm -f "$_nudge_test_args_file"
         let complete_args = lines.next().unwrap_or_default();
         let buffer = lines.next().unwrap_or_default();
         let cursor = lines.next().unwrap_or_default();
+        let rbuffer = lines.next().unwrap_or_default();
         let postdisplay = lines.next().unwrap_or_default();
 
         assert!(
@@ -841,6 +844,7 @@ rm -f "$_nudge_test_args_file"
         );
         assert_eq!(buffer, "git status");
         assert_eq!(cursor, "10");
+        assert_eq!(rbuffer, "");
         assert_eq!(postdisplay, "");
     }
 

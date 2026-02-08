@@ -703,14 +703,34 @@ _nudge_select_candidate_builtin() {
             [[ -n "$_nudge_row_diff" ]] && printf "     diff: %s\n" "$_nudge_row_diff"
             [[ -n "$_nudge_row_warning" ]] && printf "     warn: %s\n" "$_nudge_row_warning"
         done
-        printf "Select candidate [1-%d, Enter to cancel]: " "$count"
+        printf "Select candidate [1-%d, Enter/q/Esc to cancel]: " "$count"
     } > /dev/tty
 
-    local choice
-    IFS= read -r choice < /dev/tty || return
-    printf "\n" > /dev/tty
+    # In ZLE widgets the tty is often not in canonical line mode, so `read -r`
+    # may appear unresponsive. Read one key at a time for reliable interaction.
+    local key choice=""
+    while true; do
+        IFS= read -rk 1 key < /dev/tty || return
+        case "$key" in
+            $'\r'|$'\n')
+                printf "\n" > /dev/tty
+                return
+                ;;
+            $'\e'|q|Q)
+                printf "\n" > /dev/tty
+                return
+                ;;
+            [1-9])
+                choice="$key"
+                printf "\n" > /dev/tty
+                break
+                ;;
+            *)
+                ;;
+        esac
+    done
 
-    if [[ "$choice" == <-> ]] && (( choice >= 1 && choice <= count )); then
+    if [[ -n "$choice" ]] && (( choice >= 1 && choice <= count )); then
         printf '%s' "${lines[$choice]}"
     fi
 }
@@ -724,6 +744,7 @@ _nudge_popup_complete() {
     fi
 
     local backend selected
+    zle -I 2>/dev/null
     backend=$(_nudge_resolve_popup_backend)
     case "$backend" in
         fzf)
@@ -770,7 +791,10 @@ _nudge_popup_complete() {
         _nudge_async_cancel
     fi
 
+    # Overwrite the full line explicitly to avoid leaving stale prefix/suffix.
     BUFFER="$_nudge_row_command"
+    LBUFFER="$BUFFER"
+    RBUFFER=""
     CURSOR=${#BUFFER}
     _nudge_clear_auto_state
     if [[ "$_nudge_overlay_mode_enabled" != "true" ]]; then
