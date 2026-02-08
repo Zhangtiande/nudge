@@ -17,6 +17,7 @@ try {
     }
 }
 
+$script:NudgeScriptDir = $PSScriptRoot
 $script:NudgeLastExitCode = 0
 $script:NudgeTriggerMode = if ($script:NudgeInfo.trigger_mode) { $script:NudgeInfo.trigger_mode } else { "manual" }
 $script:NudgeWarningPrefix = "NUDGE_WARNING:"
@@ -65,6 +66,9 @@ try {
     $script:NudgeDiagnosisEnabled = $diagEnabled -eq "true"
 } catch {}
 
+# NudgeLastErrorCount is initialized at the end of the script to avoid
+# false positives from errors generated during loading (e.g. Get-Command,
+# nudge info try/catch blocks).
 $script:NudgeLastErrorCount = 0
 $script:NudgeLastHistoryId = 0
 $script:NudgeDiagnosisSuggestion = ""
@@ -211,7 +215,7 @@ function global:Invoke-NudgeDiagnosis {
     }
 
     # Check for external command failures (non-zero exit code)
-    if ($currentExitCode -ne 0 -and $currentExitCode -ne $null) {
+    if ($currentExitCode -ne 0 -and $null -ne $currentExitCode) {
         Start-NudgeDaemonIfNeeded
 
         # Use command from history if available, otherwise use a placeholder
@@ -300,7 +304,7 @@ _NudgePromptHook
 # Ensure daemon is running
 function global:Start-NudgeDaemonIfNeeded {
     try {
-        $status = nudge status 2>$null
+        $null = nudge status 2>$null
         if ($LASTEXITCODE -ne 0) {
             Start-Process -FilePath "nudge" -ArgumentList "start" -WindowStyle Hidden -ErrorAction SilentlyContinue
             Start-Sleep -Milliseconds 100
@@ -353,12 +357,10 @@ function global:Set-NudgeBufferText {
 
     if ([string]::IsNullOrEmpty($Text)) { return }
 
-    try {
-        [Microsoft.PowerShell.PSConsoleReadLine]::SetBufferState($Text, [int]$Text.Length)
-    } catch {
-        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-        [Microsoft.PowerShell.PSConsoleReadLine]::Insert($Text)
-    }
+    # Use RevertLine + Insert for maximum compatibility
+    # SetBufferState may not exist in all PSReadLine versions
+    [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+    [Microsoft.PowerShell.PSConsoleReadLine]::Insert($Text)
 }
 
 function global:Get-NudgePopupCandidates {
@@ -487,11 +489,13 @@ function global:Resolve-NudgePopupBackend {
         $preferred = "auto"
     }
 
-    $hasFzf = $null -ne (Get-Command fzf -ErrorAction SilentlyContinue)
-    $hasSk = $null -ne (Get-Command sk -ErrorAction SilentlyContinue)
-    $hasPeco = $null -ne (Get-Command peco -ErrorAction SilentlyContinue)
-    $hasConsoleGrid = $null -ne (Get-Command Out-ConsoleGridView -ErrorAction SilentlyContinue)
-    $hasGridView = $null -ne (Get-Command Out-GridView -ErrorAction SilentlyContinue)
+    # Use -ErrorAction Ignore (not SilentlyContinue) to prevent adding
+    # error records to $Error, which would trigger false diagnosis.
+    $hasFzf = $null -ne (Get-Command fzf -ErrorAction Ignore)
+    $hasSk = $null -ne (Get-Command sk -ErrorAction Ignore)
+    $hasPeco = $null -ne (Get-Command peco -ErrorAction Ignore)
+    $hasConsoleGrid = $null -ne (Get-Command Out-ConsoleGridView -ErrorAction Ignore)
+    $hasGridView = $null -ne (Get-Command Out-GridView -ErrorAction Ignore)
 
     switch ($preferred) {
         "fzf" { if ($hasFzf) { return "fzf" } }
@@ -761,8 +765,10 @@ function Initialize-NudgeAutoMode {
     }
 
     # Check in script directory (for development)
+    # Use $script:NudgeScriptDir captured at load time; $MyInvocation.MyCommand.Path
+    # is empty inside functions when the script was dot-sourced.
     if (-not $modulePath) {
-        $scriptDir = Split-Path $MyInvocation.MyCommand.Path -Parent -ErrorAction SilentlyContinue
+        $scriptDir = $script:NudgeScriptDir
         if ($scriptDir) {
             $devPath = Join-Path $scriptDir "NudgePredictor"
             if (Test-Path (Join-Path $devPath "NudgePredictor.psd1")) {
@@ -854,3 +860,8 @@ if (Test-InteractiveSession) {
     }
     Write-Host "Nudge loaded ($modeMsg)." -ForegroundColor Green
 }
+
+# Synchronize error count AFTER all initialization is done so that errors
+# generated during loading (e.g. nudge info try/catch, module imports) are
+# not mistaken for user command failures by the diagnosis hook.
+$script:NudgeLastErrorCount = $Global:Error.Count
