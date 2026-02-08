@@ -208,12 +208,13 @@ fn truncate_by_priority(context: &mut ContextData, config: &Config) {
         let before_tokens = context.estimated_tokens;
 
         // First: Remove plugin contexts (priority ~40-50, lowest)
-        if !context.plugins.is_empty() && priorities.plugins <= priorities.cwd_listing {
-            if remove_lowest_priority_plugin(context, config) {
-                context.estimated_tokens = estimate_tokens(context);
-                if context.estimated_tokens != before_tokens {
-                    continue;
-                }
+        if !context.plugins.is_empty()
+            && priorities.plugins <= priorities.cwd_listing
+            && remove_lowest_priority_plugin(context, config)
+        {
+            context.estimated_tokens = estimate_tokens(context);
+            if context.estimated_tokens != before_tokens {
+                continue;
             }
         }
 
