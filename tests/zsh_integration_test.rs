@@ -707,6 +707,144 @@ print -r -- "$POSTDISPLAY"
     }
 
     #[test]
+    fn manual_mode_binds_popup_key_and_widget() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "manual" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "auto" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+ctrl_e_binding=$(bindkey '^E' 2>/dev/null || true)
+popup_binding=$(bindkey $'\e/' 2>/dev/null || true)
+print -r -- "$ctrl_e_binding"
+print -r -- "$popup_binding"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let ctrl_e_line = lines.next().unwrap_or_default();
+        let popup_line = lines.next().unwrap_or_default();
+
+        assert!(
+            ctrl_e_line.contains("_nudge_complete"),
+            "ctrl+e should stay bound to manual completion: {}",
+            ctrl_e_line
+        );
+        assert!(
+            popup_line.contains("_nudge_popup_complete"),
+            "alt+/ should bind popup selector widget: {}",
+            popup_line
+        );
+    }
+
+    #[test]
+    fn popup_complete_uses_zsh_popup_mode_and_applies_selection() {
+        if !has_zsh() {
+            return;
+        }
+
+        let script = r#"
+typeset -g _nudge_test_args_file="/tmp/nudge_popup_args_$$"
+rm -f "$_nudge_test_args_file"
+function nudge() {
+  if [[ "$1" == "info" && "$2" == "--field" ]]; then
+    case "$3" in
+      config_dir) echo "/tmp" ;;
+      socket_path) echo "/tmp/nudge.sock" ;;
+      trigger_mode) echo "manual" ;;
+      auto_delay_ms) echo "500" ;;
+      zsh_ghost_owner) echo "auto" ;;
+      zsh_overlay_backend) echo "message" ;;
+      diagnosis_enabled) echo "false" ;;
+      interactive_commands) echo "" ;;
+      *) echo "" ;;
+    esac
+  elif [[ "$1" == "status" ]]; then
+    return 0
+  elif [[ "$1" == "complete" ]]; then
+    print -r -- "$*" >| "$_nudge_test_args_file"
+    printf 'low\tgit status\t\tprefix completion\t+atus\n'
+  fi
+}
+
+source shell/integration.zsh >/dev/null 2>&1
+_nudge_resolve_popup_backend() { echo "builtin"; }
+_nudge_select_candidate_builtin() { printf 'low\tgit status\t\tprefix completion\t+atus'; }
+
+BUFFER="git st"
+CURSOR=${#BUFFER}
+POSTDISPLAY="atus"
+_nudge_popup_complete
+complete_args=$(cat "$_nudge_test_args_file" 2>/dev/null || true)
+print -r -- "$complete_args"
+print -r -- "$BUFFER"
+print -r -- "$CURSOR"
+print -r -- "$POSTDISPLAY"
+rm -f "$_nudge_test_args_file"
+"#;
+
+        let output = Command::new("zsh")
+            .arg("-fc")
+            .arg(script)
+            .output()
+            .expect("failed to run zsh");
+
+        assert!(
+            output.status.success(),
+            "zsh script failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut lines = stdout.lines();
+        let complete_args = lines.next().unwrap_or_default();
+        let buffer = lines.next().unwrap_or_default();
+        let cursor = lines.next().unwrap_or_default();
+        let postdisplay = lines.next().unwrap_or_default();
+
+        assert!(
+            complete_args.contains("--shell-mode zsh-popup"),
+            "popup request should use zsh-popup shell mode: {}",
+            complete_args
+        );
+        assert_eq!(buffer, "git status");
+        assert_eq!(cursor, "10");
+        assert_eq!(postdisplay, "");
+    }
+
+    #[test]
     fn rprompt_overlay_reapplies_when_prompt_is_wiped() {
         if !has_zsh() {
             return;

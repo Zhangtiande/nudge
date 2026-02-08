@@ -11,6 +11,25 @@ NUDGE_ZSH_GHOST_OWNER=$(nudge info --field zsh_ghost_owner 2>/dev/null)
 NUDGE_ZSH_OVERLAY_BACKEND=$(nudge info --field zsh_overlay_backend 2>/dev/null)
 NUDGE_WARNING_PREFIX="NUDGE_WARNING:"
 
+# Shared popup defaults (also used by bash integration)
+NUDGE_POPUP_BACKEND="${NUDGE_POPUP_BACKEND:-auto}"
+NUDGE_POPUP_CONFIRM_RISKY="${NUDGE_POPUP_CONFIRM_RISKY:-1}"
+NUDGE_POPUP_SHOW_PREVIEW="${NUDGE_POPUP_SHOW_PREVIEW:-0}"
+NUDGE_POPUP_HEIGHT="${NUDGE_POPUP_HEIGHT:-70%}"
+if [[ -z "${NUDGE_POPUP_KEY+x}" ]]; then
+    NUDGE_POPUP_KEY=$'\e/'
+fi
+
+# Zsh-specific popup settings (with fallback to shared popup env vars)
+NUDGE_ZSH_POPUP_ENABLED="${NUDGE_ZSH_POPUP_ENABLED:-1}"
+NUDGE_ZSH_POPUP_BACKEND="${NUDGE_ZSH_POPUP_BACKEND:-$NUDGE_POPUP_BACKEND}"
+NUDGE_ZSH_POPUP_CONFIRM_RISKY="${NUDGE_ZSH_POPUP_CONFIRM_RISKY:-$NUDGE_POPUP_CONFIRM_RISKY}"
+NUDGE_ZSH_POPUP_SHOW_PREVIEW="${NUDGE_ZSH_POPUP_SHOW_PREVIEW:-$NUDGE_POPUP_SHOW_PREVIEW}"
+NUDGE_ZSH_POPUP_HEIGHT="${NUDGE_ZSH_POPUP_HEIGHT:-$NUDGE_POPUP_HEIGHT}"
+if [[ -z "${NUDGE_ZSH_POPUP_KEY+x}" ]]; then
+    NUDGE_ZSH_POPUP_KEY="$NUDGE_POPUP_KEY"
+fi
+
 # Fallback if nudge binary not in PATH
 if [[ -z "$NUDGE_CONFIG_DIR" ]]; then
     NUDGE_CONFIG_DIR="$HOME/.nudge"
@@ -48,6 +67,7 @@ typeset -g _nudge_overlay_saved_rprompt=""
 typeset -g _nudge_overlay_rprompt_active="false"
 typeset -g _nudge_overlay_risk_level="low"
 typeset -g _nudge_explain_expanded="false"
+typeset -g _nudge_popup_key_effective=$'\e/'
 
 _nudge_has_autosuggestions() {
     (( ${+functions[_zsh_autosuggest_start]} )) && return 0
@@ -106,6 +126,24 @@ _nudge_resolve_overlay_backend() {
 }
 
 _nudge_resolve_overlay_backend
+
+_nudge_decode_key_sequence() {
+    local key_seq="$1"
+    if [[ -z "$key_seq" ]]; then
+        printf '%b' $'\e/'
+    else
+        printf '%b' "$key_seq"
+    fi
+}
+
+_nudge_resolve_popup_key() {
+    _nudge_popup_key_effective="$(_nudge_decode_key_sequence "$NUDGE_ZSH_POPUP_KEY")"
+    if [[ -z "$_nudge_popup_key_effective" ]]; then
+        _nudge_popup_key_effective=$'\e/'
+    fi
+}
+
+_nudge_resolve_popup_key
 
 _nudge_clear_own_highlight() {
     [[ -z "$_nudge_region_highlight_entry" ]] && return
@@ -492,6 +530,259 @@ _nudge_complete() {
         _nudge_clear_autosuggest_preview
         zle -R 2>/dev/null
     fi
+}
+
+# Request popup candidate list.
+_nudge_request_popup_candidates() {
+    _nudge_ensure_daemon
+
+    nudge complete --format list \
+        --buffer "$BUFFER" \
+        --cursor "$CURSOR" \
+        --cwd "$PWD" \
+        --session "zsh-$$" \
+        --shell-mode "zsh-popup" \
+        --last-exit-code "$_nudge_last_exit" 2>/dev/null
+}
+
+_nudge_resolve_popup_backend() {
+    local preferred="${NUDGE_ZSH_POPUP_BACKEND:l}"
+
+    case "$preferred" in
+        fzf|sk|peco|builtin)
+            if [[ "$preferred" == "builtin" ]] || command -v "$preferred" >/dev/null 2>&1; then
+                echo "$preferred"
+                return
+            fi
+            ;;
+        auto|"")
+            ;;
+        *)
+            ;;
+    esac
+
+    if command -v fzf >/dev/null 2>&1; then
+        echo "fzf"
+    elif command -v sk >/dev/null 2>&1; then
+        echo "sk"
+    elif command -v peco >/dev/null 2>&1; then
+        echo "peco"
+    else
+        echo "builtin"
+    fi
+}
+
+_nudge_parse_list_row() {
+    local row="$1"$'\t'
+    _nudge_row_risk="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_command="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_warning="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_why="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    _nudge_row_diff="${row%%$'\t'*}"
+}
+
+_nudge_number_candidates() {
+    local candidates="$1"
+    local line
+    local idx=1
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        printf "%d\t%s\n" "$idx" "$line"
+        idx=$((idx + 1))
+    done <<< "$candidates"
+}
+
+_nudge_select_candidate_fzf() {
+    local candidates="$1"
+    local numbered
+    numbered=$(_nudge_number_candidates "$candidates")
+    [[ -z "$numbered" ]] && return
+
+    local -a preview_opts=()
+    if [[ "$NUDGE_ZSH_POPUP_SHOW_PREVIEW" == "1" ]]; then
+        preview_opts=(
+            --preview='printf "risk: %s\n\ncommand:\n%s\n\nwhy: %s\n\ndiff:\n%s\n\nwarning:\n%s\n" {2} {3} {5} {6} {4}'
+            --preview-window='down,60%,wrap'
+        )
+    else
+        preview_opts=(--preview-window='hidden')
+    fi
+
+    local selected
+    selected=$(printf '%s\n' "$numbered" | fzf \
+        --height="$NUDGE_ZSH_POPUP_HEIGHT" \
+        --layout=reverse \
+        --border \
+        --header="enter: apply  esc: cancel" \
+        --prompt="nudge> " \
+        --delimiter=$'\t' \
+        --with-nth=1,2,3,5 \
+        "${preview_opts[@]}")
+    [[ -z "$selected" ]] && return
+    printf '%s' "${selected#*$'\t'}"
+}
+
+_nudge_select_candidate_sk() {
+    local candidates="$1"
+    local numbered
+    numbered=$(_nudge_number_candidates "$candidates")
+    [[ -z "$numbered" ]] && return
+
+    local -a preview_opts=()
+    if [[ "$NUDGE_ZSH_POPUP_SHOW_PREVIEW" == "1" ]]; then
+        preview_opts=(
+            --preview='printf "risk: %s\n\ncommand:\n%s\n\nwhy: %s\n\ndiff:\n%s\n\nwarning:\n%s\n" {2} {3} {5} {6} {4}'
+            --preview-window='down:60%'
+        )
+    fi
+
+    local selected
+    selected=$(printf '%s\n' "$numbered" | sk \
+        --height="$NUDGE_ZSH_POPUP_HEIGHT" \
+        --prompt="nudge> " \
+        --delimiter=$'\t' \
+        --with-nth=1,2,3,5 \
+        "${preview_opts[@]}")
+    [[ -z "$selected" ]] && return
+    printf '%s' "${selected#*$'\t'}"
+}
+
+_nudge_select_candidate_peco() {
+    local candidates="$1"
+    local -a raw_rows=()
+    local -a display_rows=()
+    local line
+    local idx=1
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        raw_rows+=("$line")
+
+        _nudge_parse_list_row "$line"
+        display_rows+=("$idx"$'\t'"[$_nudge_row_risk] $_nudge_row_command | why: ${_nudge_row_why:-n/a}")
+        idx=$((idx + 1))
+    done <<< "$candidates"
+
+    local selected
+    selected=$(printf '%s\n' "${display_rows[@]}" | peco --prompt="nudge> " 2>/dev/null)
+    [[ -z "$selected" ]] && return
+
+    local selected_idx="${selected%%$'\t'*}"
+    if [[ "$selected_idx" != <-> ]]; then
+        return
+    fi
+
+    if (( selected_idx >= 1 && selected_idx <= ${#raw_rows[@]} )); then
+        printf '%s' "${raw_rows[$selected_idx]}"
+    fi
+}
+
+_nudge_select_candidate_builtin() {
+    local candidates="$1"
+    local -a lines=()
+    local line
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && lines+=("$line")
+    done <<< "$candidates"
+
+    local count="${#lines[@]}"
+    (( count == 0 )) && return
+    [[ -r /dev/tty && -w /dev/tty ]] || return
+
+    {
+        printf "\n"
+        local i
+        for (( i=1; i<=count; i++ )); do
+            _nudge_parse_list_row "${lines[$i]}"
+            printf "  %d) [%s] %s\n" "$i" "$_nudge_row_risk" "$_nudge_row_command"
+            [[ -n "$_nudge_row_why" ]] && printf "     why: %s\n" "$_nudge_row_why"
+            [[ -n "$_nudge_row_diff" ]] && printf "     diff: %s\n" "$_nudge_row_diff"
+            [[ -n "$_nudge_row_warning" ]] && printf "     warn: %s\n" "$_nudge_row_warning"
+        done
+        printf "Select candidate [1-%d, Enter to cancel]: " "$count"
+    } > /dev/tty
+
+    local choice
+    IFS= read -r choice < /dev/tty || return
+    printf "\n" > /dev/tty
+
+    if [[ "$choice" == <-> ]] && (( choice >= 1 && choice <= count )); then
+        printf '%s' "${lines[$choice]}"
+    fi
+}
+
+_nudge_popup_complete() {
+    local candidates
+    candidates=$(_nudge_request_popup_candidates)
+    if [[ $? -ne 0 || -z "$candidates" ]]; then
+        _nudge_complete
+        return
+    fi
+
+    local backend selected
+    backend=$(_nudge_resolve_popup_backend)
+    case "$backend" in
+        fzf)
+            selected=$(_nudge_select_candidate_fzf "$candidates")
+            ;;
+        sk)
+            selected=$(_nudge_select_candidate_sk "$candidates")
+            ;;
+        peco)
+            selected=$(_nudge_select_candidate_peco "$candidates")
+            ;;
+        *)
+            selected=$(_nudge_select_candidate_builtin "$candidates")
+            ;;
+    esac
+
+    [[ -z "$selected" ]] && return
+
+    _nudge_parse_list_row "$selected"
+    [[ -z "$_nudge_row_command" ]] && return
+
+    if [[ "$_nudge_row_risk" == "high" ]]; then
+        _nudge_show_warning "${_nudge_row_warning:-This suggestion is marked high risk.}"
+        if [[ "$NUDGE_ZSH_POPUP_CONFIRM_RISKY" != "0" ]]; then
+            local confirm
+            if [[ -r /dev/tty && -w /dev/tty ]]; then
+                printf "Apply high-risk suggestion? [y/N] " > /dev/tty
+                IFS= read -r confirm < /dev/tty || return
+                printf "\n" > /dev/tty
+            else
+                return
+            fi
+            case "${confirm:l}" in
+                y|yes)
+                    ;;
+                *)
+                    return
+                    ;;
+            esac
+        fi
+    fi
+
+    if (( ${+functions[_nudge_async_cancel]} )); then
+        _nudge_async_cancel
+    fi
+
+    BUFFER="$_nudge_row_command"
+    CURSOR=${#BUFFER}
+    _nudge_clear_auto_state
+    if [[ "$_nudge_overlay_mode_enabled" != "true" ]]; then
+        typeset -g POSTDISPLAY=""
+    fi
+    _nudge_clear_autosuggest_preview
+    _nudge_clear_own_highlight
+    _nudge_overlay_clear_message
+    if [[ -n "$_nudge_row_warning" ]]; then
+        _nudge_show_warning "$_nudge_row_warning"
+    fi
+    zle -R 2>/dev/null
 }
 
 # ============================================================================
@@ -1299,6 +1590,7 @@ _nudge_setup_overlay_hooks() {
 
 # Register widgets
 zle -N _nudge_complete
+zle -N _nudge_popup_complete
 zle -N _nudge_auto_accept
 zle -N _nudge_overlay_accept
 zle -N _nudge_auto_accept_word
@@ -1309,6 +1601,9 @@ zle -N _nudge_overlay_line_finish
 
 # Bind manual mode hotkey
 bindkey '^E' _nudge_complete
+if [[ "$NUDGE_ZSH_POPUP_ENABLED" != "0" ]]; then
+    _nudge_bind_widget_to_keymaps "$_nudge_popup_key_effective" _nudge_popup_complete
+fi
 
 # Setup auto mode if enabled
 if [[ "$_nudge_auto_mode_enabled" == "true" ]]; then
@@ -1363,7 +1658,11 @@ if [[ -z "$_NUDGE_LOADED" ]]; then
         elif [[ "$NUDGE_TRIGGER_MODE" == "auto" ]]; then
             mode_msg="auto mode (ghost owned by $_nudge_ghost_owner_effective)"
         else
-            mode_msg="manual mode (Ctrl+E)"
+            if [[ "$NUDGE_ZSH_POPUP_ENABLED" != "0" ]]; then
+                mode_msg="manual mode (Ctrl+E / popup)"
+            else
+                mode_msg="manual mode (Ctrl+E)"
+            fi
         fi
         if [[ "$NUDGE_DIAGNOSIS_ENABLED" == "true" ]]; then
             mode_msg="$mode_msg + error diagnosis"
